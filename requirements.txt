@@ -1,0 +1,10 @@
+# tạm thời
+ultralytics
+opencv-python
+numpy
+fastapi
+uvicorn
+sqlalchemy
+pandas
+scikit-learn
+xgboost
