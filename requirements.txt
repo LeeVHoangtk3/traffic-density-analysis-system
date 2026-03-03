@@ -1,0 +1,40 @@
+# ==============================
+# CORE AI - DETECTION & TRACKING
+# ==============================
+opencv-python
+ultralytics
+torch
+torchvision
+numpy
+scipy
+shapely
+supervision
+deep-sort-realtime
+setuptools==68.2.2
+
+# # ==============================
+# # DATA PROCESSING
+# # ==============================
+# pandas
+# scikit-learn
+
+# # ==============================
+# # BACKEND API
+# # ==============================
+# fastapi
+# uvicorn
+# pydantic
+
+# # ==============================
+# # DATABASE
+# # ==============================
+# sqlalchemy
+# psycopg2-binary        # PostgreSQL
+# # pymysql              # Uncomment nếu dùng MySQL
+
+# # ==============================
+# # UTILITIES
+# # ==============================
+# python-dotenv
+# requests
+# loguru
