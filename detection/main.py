@@ -1,28 +1,28 @@
 import os
 import cv2
 
-# from camera_engine import CameraEngine
+from camera_engine import CameraEngine
 
-# from engine.frame_processor import FrameProcessor
-# from engine.detector import Detector
-# from engine.tracker import Tracker
-# from engine.counter import VehicleCounter
-# from engine.density_estimator import DensityEstimator
-# from engine.zone_manager import ZoneManager
-# from engine.event_generator import EventGenerator
+from engine.frame_processor import FrameProcessor
+from engine.detector import Detector
+from engine.tracker import Tracker
+from engine.counter import VehicleCounter
+from engine.density_estimator import DensityEstimator
+from engine.zone_manager import ZoneManager
+from engine.event_generator import EventGenerator
 
-# from integration.publisher import EventPublisher
-from detection.camera_engine import CameraEngine
+from integration.publisher import EventPublisher
+# from detection.camera_engine import CameraEngine
 
-from detection.engine.frame_processor import FrameProcessor
-from detection.engine.detector import Detector
-from detection.engine.tracker import Tracker
-from detection.engine.counter import VehicleCounter
-from detection.engine.density_estimator import DensityEstimator
-from detection.engine.zone_manager import ZoneManager
-from detection.engine.event_generator import EventGenerator
+# from detection.engine.frame_processor import FrameProcessor
+# from detection.engine.detector import Detector
+# from detection.engine.tracker import Tracker
+# from detection.engine.counter import VehicleCounter
+# from detection.engine.density_estimator import DensityEstimator
+# from detection.engine.zone_manager import ZoneManager
+# from detection.engine.event_generator import EventGenerator
 
-from detection.integration.publisher import EventPublisher
+# from detection.integration.publisher import EventPublisher
 
 
 # ===== Detect if running on Google Colab =====
@@ -37,6 +37,8 @@ MODEL_PATH = "yolov9c.pt"
 
 CAMERA_ID = "CAM_01"
 LINE_Y = 308
+X_START = 100
+X_END = 1200
 CONF_THRESHOLD = 0.4
 
 
@@ -54,9 +56,9 @@ def main():
     publisher = EventPublisher(API_URL)
 
     zone_manager = ZoneManager(
-        line_y=308,
-        x_start=300,
-        x_end=1000
+        line_y=LINE_Y,
+        x_start=X_START,
+        x_end=X_END
     )
 
     print("🚀 Module A Started")
@@ -97,6 +99,8 @@ def main():
                 cx = (x1 + x2) // 2
                 cy = (y1 + y2) // 2
 
+                cv2.circle(frame, (cx, cy), 3, (255,0,0), -1)
+
                 # ===== Line crossing =====
                 if zone_manager.check_crossing(track_id, cx, cy):
 
@@ -126,6 +130,15 @@ def main():
 
             # ===== Draw counting zone =====
             zone_manager.draw_zone(frame)
+
+            # # highlight zone area
+            cv2.rectangle(
+                frame,
+                (zone_manager.x_start, zone_manager.line_y - 5),
+                (zone_manager.x_end, zone_manager.line_y + 5),
+                (0,0,255),
+                1
+            )
 
             # ===== Draw density =====
             cv2.putText(
