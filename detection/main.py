@@ -1,5 +1,6 @@
 import os
 import cv2
+import json
 
 from camera_engine import CameraEngine
 
@@ -12,17 +13,6 @@ from engine.zone_manager import ZoneManager
 from engine.event_generator import EventGenerator
 
 from integration.publisher import EventPublisher
-# from detection.camera_engine import CameraEngine
-
-# from detection.engine.frame_processor import FrameProcessor
-# from detection.engine.detector import Detector
-# from detection.engine.tracker import Tracker
-# from detection.engine.counter import VehicleCounter
-# from detection.engine.density_estimator import DensityEstimator
-# from detection.engine.zone_manager import ZoneManager
-# from detection.engine.event_generator import EventGenerator
-
-# from detection.integration.publisher import EventPublisher
 
 
 # ===== Detect if running on Google Colab =====
@@ -35,42 +25,62 @@ API_URL = "http://localhost:8000/api/events"
 VIDEO_SOURCE = os.path.join(BASE_DIR, "..", "traffictrim.mp4")
 MODEL_PATH = "yolov9c.pt"
 
-CAMERA_ID = "CAM_01"
-LINE_Y = 308
-X_START = 100
-X_END = 1200
 CONF_THRESHOLD = 0.4
 
 
 def main():
 
+    # ===== Camera ID =====
+    CAMERA_ID = "CAM_01"
+
+    # ===== Load camera config =====
+    config_path = os.path.join(
+        BASE_DIR,
+        "configs_cameras",
+        f"{CAMERA_ID.lower()}.json"
+    )
+
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"Camera config not found: {config_path}")
+
+    with open(config_path) as f:
+        camera_config = json.load(f)
+
+    zones = camera_config["zones"]
+
+    # ===== Initialize components =====
     camera = CameraEngine(VIDEO_SOURCE)
+
     processor = FrameProcessor(target_width=1280)
 
-    detector = Detector(MODEL_PATH, conf_threshold=CONF_THRESHOLD)
+    detector = Detector(
+        MODEL_PATH,
+        conf_threshold=CONF_THRESHOLD
+    )
+
     tracker = Tracker()
+
     counter = VehicleCounter()
+
     density_estimator = DensityEstimator()
 
     event_generator = EventGenerator()
+
     publisher = EventPublisher(API_URL)
 
-    zone_manager = ZoneManager(
-        line_y=LINE_Y,
-        x_start=X_START,
-        x_end=X_END
-    )
+    zone_manager = ZoneManager(zones)
 
     print("🚀 Module A Started")
 
     frame_count = 0
-    MAX_FRAMES = 100000   # tránh loop vô hạn trên Colab
+    MAX_FRAMES = 100000
 
     try:
 
         while frame_count < MAX_FRAMES:
 
             ret, frame = camera.read()
+
             if not ret:
                 break
 
@@ -87,21 +97,25 @@ def main():
 
             # ===== Density estimation =====
             density_estimator.update(tracks)
+
             traffic_density = density_estimator.get_density()
 
             # ===== Process tracks =====
             for track in tracks:
 
                 x1, y1, x2, y2 = track["bbox"]
+
                 track_id = track["track_id"]
+
                 vehicle_type = track["class_name"]
 
                 cx = (x1 + x2) // 2
                 cy = (y1 + y2) // 2
 
-                cv2.circle(frame, (cx, cy), 3, (255,0,0), -1)
+                # draw center point
+                cv2.circle(frame,(cx,cy),4,(255,0,0),-1)
 
-                # ===== Line crossing =====
+                # ===== Check zone crossing =====
                 if zone_manager.check_crossing(track_id, cx, cy):
 
                     counter.count(vehicle_type)
@@ -113,10 +127,17 @@ def main():
                     )
 
                     publisher.publish(event)
-                    # print(f"📤 Published event: {event}") #for test
+
+                    # print("EVENT:", event)
 
                 # ===== Draw bounding box =====
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.rectangle(
+                    frame,
+                    (x1, y1),
+                    (x2, y2),
+                    (0, 255, 0),
+                    2
+                )
 
                 cv2.putText(
                     frame,
@@ -128,17 +149,8 @@ def main():
                     2
                 )
 
-            # ===== Draw counting zone =====
+            # ===== Draw zones =====
             zone_manager.draw_zone(frame)
-
-            # # highlight zone area
-            cv2.rectangle(
-                frame,
-                (zone_manager.x_start, zone_manager.line_y - 5),
-                (zone_manager.x_end, zone_manager.line_y + 5),
-                (0,0,255),
-                1
-            )
 
             # ===== Draw density =====
             cv2.putText(
@@ -153,6 +165,7 @@ def main():
 
             # ===== Draw vehicle totals =====
             totals = counter.get_totals()
+
             y_offset = 80
 
             for vehicle, count in totals.items():
@@ -169,10 +182,13 @@ def main():
 
                 y_offset += 30
 
-            # ===== Show video (only local) =====
+            # ===== Show video (local only) =====
             if not IS_COLAB:
 
-                cv2.imshow("Traffic Monitoring - Module A", frame)
+                cv2.imshow(
+                    "Traffic Monitoring - Module A",
+                    frame
+                )
 
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
@@ -184,6 +200,7 @@ def main():
     finally:
 
         camera.release()
+
         cv2.destroyAllWindows()
 
         print("🛑 Module A Stopped")
