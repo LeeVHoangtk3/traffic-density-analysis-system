@@ -1,27 +1,43 @@
 import cv2
+import numpy as np
+
 
 class ZoneManager:
-    def __init__(self, line_y, x_start, x_end, offset=5):
-        self.line_y = line_y
-        self.x_start = x_start
-        self.x_end = x_end
-        self.offset = offset
-        self.crossed_ids = set()
+
+    def __init__(self, zones):
+        self.zones = zones
+        self.counted_ids = set()
 
     def check_crossing(self, track_id, cx, cy):
-        # Kiểm tra trong phạm vi ngang trước
-        if not (self.x_start <= cx <= self.x_end):
-            return False
 
-        if abs(cy - self.line_y) < self.offset and track_id not in self.crossed_ids:
-            self.crossed_ids.add(track_id)
-            return True
+        point = (cx, cy)
+
+        for zone in self.zones:
+
+            polygon = np.array(zone["points"], np.int32)
+
+            inside = cv2.pointPolygonTest(polygon, point, False)
+
+            if inside >= 0:
+
+                if track_id not in self.counted_ids:
+
+                    self.counted_ids.add(track_id)
+                    return True
 
         return False
 
+
     def draw_zone(self, frame):
-        cv2.line(frame,
-                 (self.x_start, self.line_y),
-                 (self.x_end, self.line_y),
-                 (0, 0, 255),
-                 3)
+
+        for zone in self.zones:
+
+            pts = np.array(zone["points"], np.int32)
+
+            cv2.polylines(
+                frame,
+                [pts],
+                True,
+                (255,0,255),
+                3
+            )
