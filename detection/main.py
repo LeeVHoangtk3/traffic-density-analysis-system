@@ -25,7 +25,7 @@ API_URL = "http://127.0.0.1:8000/detection"
 VIDEO_SOURCE = os.path.join(BASE_DIR, "..", "traffictrim.mp4")
 MODEL_PATH = "yolov9c.pt"
 
-CONF_THRESHOLD = 0.4
+CONF_THRESHOLD = 0.5
 # ===== Performance tuning =====
 FRAME_SKIP = 3        # skip frames để tăng tốc
 SHOW_VIDEO = False    # tắt nếu muốn chạy cực nhanh
