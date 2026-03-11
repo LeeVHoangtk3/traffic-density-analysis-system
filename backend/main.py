@@ -1,6 +1,11 @@
 from fastapi import FastAPI
 from backend.database import engine, Base
 
+from backend.models.camera import Camera
+from backend.models.vehicle_detection import VehicleDetection
+from backend.models.traffic_aggregation import TrafficAggregation
+from backend.models.traffic_prediction import TrafficPrediction
+
 from backend.api import detection_routes
 from backend.api import traffic_routes
 from backend.api import aggregation_routes

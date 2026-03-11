@@ -21,12 +21,15 @@ IS_COLAB = "COLAB_GPU" in os.environ
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-API_URL = "http://localhost:8000/api/events"
+API_URL = "http://127.0.0.1:8000/detection"
 VIDEO_SOURCE = os.path.join(BASE_DIR, "..", "traffictrim.mp4")
 MODEL_PATH = "yolov9c.pt"
 
 CONF_THRESHOLD = 0.4
-
+# ===== Performance tuning =====
+FRAME_SKIP = 3        # skip frames để tăng tốc
+SHOW_VIDEO = False    # tắt nếu muốn chạy cực nhanh
+TARGET_WIDTH = 640    # resize nhỏ hơn để YOLO chạy nhanh
 
 def main():
 
@@ -51,7 +54,7 @@ def main():
     # ===== Initialize components =====
     camera = CameraEngine(VIDEO_SOURCE)
 
-    processor = FrameProcessor(target_width=1280)
+    processor = FrameProcessor(target_width=TARGET_WIDTH)
 
     detector = Detector(
         MODEL_PATH,
@@ -85,6 +88,9 @@ def main():
                 break
 
             frame_count += 1
+            # ===== Skip frame để tăng tốc =====
+            if frame_count % FRAME_SKIP != 0:
+                continue
 
             # ===== Frame preprocessing =====
             frame = processor.process(frame)
@@ -183,7 +189,7 @@ def main():
                 y_offset += 30
 
             # ===== Show video (local only) =====
-            if not IS_COLAB:
+            if not IS_COLAB and SHOW_VIDEO:
 
                 cv2.imshow(
                     "Traffic Monitoring - Module A",
