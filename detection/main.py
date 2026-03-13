@@ -23,7 +23,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 API_URL = "http://127.0.0.1:8000/detection"
 VIDEO_SOURCE = os.path.join(BASE_DIR, "..", "traffictrim.mp4")
-MODEL_PATH = "yolov9c.pt"
+MODEL_PATH = "models/yolov9c.pt"
 
 CONF_THRESHOLD = 0.5
 # ===== Performance tuning =====
