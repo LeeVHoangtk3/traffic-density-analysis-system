@@ -208,5 +208,22 @@ __marimo__/
 
 *.mp4
 *.avi
-data/
+
 videos/
+
+# dataset
+yolov9/data/datasets/
+
+# training output
+yolov9/runs/
+
+# weights
+*.pt
+
+# python cache
+__pycache__/
+*.pyc
+
+yolov9/figure
+
+*.zip

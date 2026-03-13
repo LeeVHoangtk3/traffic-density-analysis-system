@@ -8,6 +8,7 @@ from ultralytics import YOLO
 #     7: "truck"
 # }
 
+
 # Custom model classes
 VEHICLE_CLASSES = {
     0: "bus",
