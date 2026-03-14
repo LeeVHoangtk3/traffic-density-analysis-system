@@ -1,21 +1,21 @@
 from ultralytics import YOLO
 
 # COCO vehicle classes
-# VEHICLE_CLASSES = {
-#     2: "car",
-#     3: "motorcycle",
-#     5: "bus",
-#     7: "truck"
-# }
+VEHICLE_CLASSES = {
+    2: "car",
+    3: "motorcycle",
+    5: "bus",
+    7: "truck"
+}
 
 
 # Custom model classes
-VEHICLE_CLASSES = {
-    0: "bus",
-    1: "car",
-    2: "motorcycle",
-    3: "truck"
-}
+# VEHICLE_CLASSES = {
+#     0: "bus",
+#     1: "car",
+#     2: "motorcycle",
+#     3: "truck"
+# }
 
 class Detector:
     def __init__(self, model_path, conf_threshold=0.4):
