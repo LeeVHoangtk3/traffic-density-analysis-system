@@ -208,5 +208,20 @@ __marimo__/
 
 *.mp4
 *.avi
+*.mov
+*.zip
 data/
 videos/
+yolov9-cus/dataset/*/images/
+yolov9-cus/yolov9/runs/
+yolov9-cus/yolov9/figure/
+yolov9-cus/yolov9/*.log
+yolov9-cus/yolov9/__pycache__/
+yolov9-cus/yolov9/*_cache.npy
+yolov9-cus/yolov9/data/datasets/
+*.pt
+!yolov9-cus/yolov9/yolov9-c.pt
+!yolov9-cus/yolov9/yolov9-e.pt
+.DS_Store
+.vscode/
+.idea/
