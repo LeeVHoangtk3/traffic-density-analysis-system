@@ -38,3 +38,9 @@ psycopg2-binary        # PostgreSQL
 python-dotenv
 requests
 loguru
+
+
+
+ipython
+seaborn
+matplotlib
