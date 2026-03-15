@@ -5,8 +5,17 @@ VEHICLE_CLASSES = {
     2: "car",
     3: "motorcycle",
     5: "bus",
-    7: "truck"
+    7: "truck",
 }
+
+# Custom model classes
+# VEHICLE_CLASSES = {
+#     0: "bus",
+#     1: "car",
+#     2: "motorcycle",
+#     3: "truck",
+# }
+
 
 class Detector:
     def __init__(self, model_path, conf_threshold=0.4):
@@ -29,11 +38,13 @@ class Detector:
 
             x1, y1, x2, y2 = map(int, box.xyxy[0])
 
-            detections.append({
-                "bbox": [x1, y1, x2, y2],
-                "confidence": conf,
-                "class_id": cls_id,
-                "class_name": VEHICLE_CLASSES[cls_id]
-            })
+            detections.append(
+                {
+                    "bbox": [x1, y1, x2, y2],
+                    "confidence": conf,
+                    "class_id": cls_id,
+                    "class_name": VEHICLE_CLASSES[cls_id],
+                }
+            )
 
         return detections

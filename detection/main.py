@@ -2,17 +2,15 @@ import os
 import cv2
 import json
 
-from camera_engine import CameraEngine
-
-from engine.frame_processor import FrameProcessor
-from engine.detector import Detector
-from engine.tracker import Tracker
-from engine.counter import VehicleCounter
-from engine.density_estimator import DensityEstimator
-from engine.zone_manager import ZoneManager
-from engine.event_generator import EventGenerator
-
-from integration.publisher import EventPublisher
+from detection.camera_engine import CameraEngine
+from detection.engine.frame_processor import FrameProcessor
+from detection.engine.detector import Detector
+from detection.engine.tracker import Tracker
+from detection.engine.counter import VehicleCounter
+from detection.engine.density_estimator import DensityEstimator
+from detection.engine.zone_manager import ZoneManager
+from detection.engine.event_generator import EventGenerator
+from detection.integration.publisher import EventPublisher
 
 
 # ===== Detect if running on Google Colab =====
@@ -21,9 +19,12 @@ IS_COLAB = "COLAB_GPU" in os.environ
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-API_URL = "http://127.0.0.1:8000/detection"
-VIDEO_SOURCE = os.path.join(BASE_DIR, "..", "traffictrim.mp4")
-MODEL_PATH = "yolov9c.pt"
+API_URL = os.getenv("TRAFFIC_API_URL", "http://127.0.0.1:8000/detection")
+VIDEO_SOURCE = os.getenv(
+    "TRAFFIC_VIDEO_SOURCE",
+    os.path.join(BASE_DIR, "..", "traffictrim.mp4")
+)
+MODEL_PATH = os.path.join(BASE_DIR, "yolov9c.pt")
 
 CONF_THRESHOLD = 0.4
 # ===== Performance tuning =====
@@ -45,6 +46,19 @@ def main():
 
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"Camera config not found: {config_path}")
+
+    if not os.path.exists(MODEL_PATH):
+        raise FileNotFoundError(f"YOLO model not found: {MODEL_PATH}")
+
+    if (
+        isinstance(VIDEO_SOURCE, str)
+        and not VIDEO_SOURCE.isdigit()
+        and not os.path.exists(VIDEO_SOURCE)
+    ):
+        raise FileNotFoundError(
+            "Video source not found. Set TRAFFIC_VIDEO_SOURCE or add the file at "
+            f"{VIDEO_SOURCE}"
+        )
 
     with open(config_path) as f:
         camera_config = json.load(f)
