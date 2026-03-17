@@ -11,10 +11,9 @@ shapely
 supervision
 deep-sort-realtime
 setuptools==68.2.2
-xgboost
 
 # ==============================
-# DATA PROCESSING & ML
+# DATA PROCESSING
 # ==============================
 pandas
 scikit-learn
@@ -30,7 +29,8 @@ pydantic
 # DATABASE
 # ==============================
 sqlalchemy
-psycopg2-binary
+psycopg2-binary        # PostgreSQL
+# pymysql              # Uncomment nếu dùng MySQL
 
 # ==============================
 # UTILITIES
@@ -38,3 +38,9 @@ psycopg2-binary
 python-dotenv
 requests
 loguru
+
+
+
+ipython
+seaborn
+matplotlib
