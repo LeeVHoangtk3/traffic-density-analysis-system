@@ -27,7 +27,8 @@ VIDEO_SOURCE = os.path.join(BASE_DIR, "..", "traffictrim.mp4")
 # ĐÂY LÀ NƠI BẠN CHỌN MODEL YOLOv9 CỦA MÌNH
 
 # MODEL_PATH = "pro_models/yolov9c.pt"
-MODEL_PATH = "pro_models/best_final.pt"
+# MODEL_PATH = "pro_models/best_final.pt"
+MODEL_PATH = "yolov9c.pt" # Sửa lại đường dẫn để dùng tạm model có sẵn ở thư mục gốc
 
 CONF_THRESHOLD = 0.5
 # ===== Performance tuning =====
