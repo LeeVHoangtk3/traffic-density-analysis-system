@@ -38,6 +38,7 @@ psycopg2-binary        # PostgreSQL
 python-dotenv
 requests
 loguru
+tqdm
 
 
 
