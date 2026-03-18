@@ -236,7 +236,7 @@ yolov9-cus/yolov9/data/datasets/
 
 # --- 4. WEIGHTS (MODEL FILES) ---
 # Chặn tất cả các file trọng số (.pt) để tránh đẩy nhầm file vài trăm MB
-*.pt
+best_final.pt
 
 # NGOẠI LỆ: Giữ lại file trọng số gốc để Colab có file mồi để train
 # Lưu ý: Đảm bảo tên file dưới đây khớp chính xác với file bạn đang có
