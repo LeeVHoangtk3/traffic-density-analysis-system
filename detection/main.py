@@ -32,7 +32,7 @@ MODEL_PATH = "pro_models/best_final.pt"
 CONF_THRESHOLD = 0.5
 # ===== Performance tuning =====
 FRAME_SKIP = 3        # skip frames để tăng tốc
-SHOW_VIDEO = False    # tắt nếu muốn chạy cực nhanh
+SHOW_VIDEO = True   # tắt nếu muốn chạy cực nhanh
 TARGET_WIDTH = 640    # resize nhỏ hơn để YOLO chạy nhanh
 
 def main():
