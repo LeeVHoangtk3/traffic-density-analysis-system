@@ -18,9 +18,14 @@ import pandas as pd
 import requests
 import torch
 import torch.nn as nn
-from IPython.display import display
 from PIL import Image
 from torch.cuda import amp
+
+try:
+    from IPython.display import display
+except ImportError:
+    def display(*args, **kwargs):
+        return None
 
 from utils import TryExcept
 from utils.dataloaders import exif_transpose, letterbox
