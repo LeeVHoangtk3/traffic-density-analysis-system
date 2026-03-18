@@ -9,6 +9,11 @@ import torchvision
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.join(current_dir, "..")
 yolo_core_path = os.path.join(project_root, "ultralytics_yolov9")
+local_yolo_config = os.path.join(project_root, "Ultralytics")
+
+os.environ.setdefault("YOLO_CONFIG_DIR", local_yolo_config)
+os.environ.setdefault("YOLOV5_CONFIG_DIR", local_yolo_config)
+os.makedirs(local_yolo_config, exist_ok=True)
 
 if yolo_core_path not in sys.path:
     sys.path.insert(0, yolo_core_path)
@@ -39,9 +44,9 @@ class Detector:
         try:
             ckpt = torch.load(model_path, map_location=self.device, weights_only=False)
             self.model = ckpt['model'].float().eval()
-            print(f"✅ Đã load thành công model từ: {model_path}")
+            print(f"Loaded model successfully from: {model_path}")
         except Exception as e:
-            print(f"❌ Lỗi load model: {e}")
+            print(f"Model load error: {e}")
             raise e
 
     def detect(self, frame):
@@ -75,7 +80,7 @@ class Detector:
                     pred = pred[0]
             
             if not isinstance(pred, torch.Tensor):
-                print(f"⚠️ Cảnh báo: Không thể trích xuất Tensor từ output")
+                print("Warning: Could not extract a Tensor from model output")
                 return []
 
         # Đưa về dạng [8400, 8] để mask [8400] hoạt động được
