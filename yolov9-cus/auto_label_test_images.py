@@ -1,23 +1,29 @@
 """
-Visualize Test Images with Existing Labels
+Visualize Test Images with Existing Labels & Generate Evaluation Report
 
 Script này tạo visualization cho các ảnh trong dataset/test/images
 sử dụng nhãn đã có sẵn trong dataset/test/labels/
+Đồng thời xuất ra báo cáo đánh giá chi tiết (CSV format)
 
-Output: Ảnh visualization với bounding box vào dataset/test/visualized
+Output: 
+  - Ảnh visualization với bounding box vào dataset/test/visualized/
+  - File báo cáo CSV: dataset/test/test_evaluation_report.csv
 
 Usage:
     python auto_label_test_images.py
-    python auto_label_test_images.py --thickness 2
+    python auto_label_test_images.py --dry-run
 """
 
 import os
 import sys
 import argparse
+import csv
 import cv2
 import numpy as np
 from pathlib import Path
 from tqdm import tqdm
+from datetime import datetime
+from collections import defaultdict
 
 # ===== Configuration =====
 DATASET_IMAGES_DIR = os.path.join(os.path.dirname(__file__), "dataset", "test", "images")
@@ -253,6 +259,142 @@ def generate_statistics():
     print("="*60 + "\n")
 
 
+def generate_evaluation_report():
+    """
+    Generate comprehensive evaluation report and save to CSV
+    
+    Metrics calculated:
+    - Total images
+    - Total objects detected
+    - Average objects per image
+    - Objects per class
+    - Class distribution
+    - Min/Max/Avg objects in images
+    """
+    
+    print("Generating evaluation report...")
+    
+    # ===== Collect statistics =====
+    image_files = []
+    labels_by_class = defaultdict(int)
+    objects_per_image = []
+    dataset_info = []
+    
+    # Get all image files with labels
+    for img_file in os.listdir(DATASET_IMAGES_DIR):
+        if img_file.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.tiff')):
+            label_file = os.path.splitext(img_file)[0] + '.txt'
+            label_path = os.path.join(DATASET_LABELS_DIR, label_file)
+            
+            if os.path.exists(label_path):
+                img_path = os.path.join(DATASET_IMAGES_DIR, img_file)
+                image_files.append(img_path)
+                
+                # Read labels
+                with open(label_path, 'r') as f:
+                    lines = f.readlines()
+                
+                num_objects = 0
+                for line in lines:
+                    parts = line.strip().split()
+                    if len(parts) >= 5:
+                        try:
+                            class_id = int(parts[0])
+                            class_name = CLASS_NAMES.get(class_id, "unknown")
+                            labels_by_class[class_name] += 1
+                            num_objects += 1
+                        except (ValueError, IndexError):
+                            pass
+                
+                objects_per_image.append(num_objects)
+                
+                # Image info
+                img = cv2.imread(img_path)
+                img_height, img_width = img.shape[:2] if img is not None else (0, 0)
+                
+                dataset_info.append({
+                    'image_name': img_file,
+                    'width': img_width,
+                    'height': img_height,
+                    'num_objects': num_objects,
+                    'label_file': label_file
+                })
+    
+    # ===== Calculate aggregate statistics =====
+    total_images = len(dataset_info)
+    total_objects = sum(objects_per_image)
+    avg_objects = total_objects / total_images if total_images > 0 else 0
+    min_objects = min(objects_per_image) if objects_per_image else 0
+    max_objects = max(objects_per_image) if objects_per_image else 0
+    
+    # ===== Create CSV report =====
+    report_filename = os.path.join(os.path.dirname(DATASET_IMAGES_DIR), "test_evaluation_report.csv")
+    
+    with open(report_filename, 'w', newline='', encoding='utf-8') as csvfile:
+        writer = csv.writer(csvfile)
+        
+        # ===== Header section =====
+        writer.writerow(["DATASET EVALUATION REPORT"])
+        writer.writerow(["Generated", datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+        writer.writerow([])
+        
+        # ===== Summary section =====
+        writer.writerow(["SUMMARY STATISTICS"])
+        writer.writerow(["Metric", "Value"])
+        writer.writerow(["Total Images", total_images])
+        writer.writerow(["Total Objects", total_objects])
+        writer.writerow(["Average Objects per Image", f"{avg_objects:.2f}"])
+        writer.writerow(["Min Objects per Image", min_objects])
+        writer.writerow(["Max Objects per Image", max_objects])
+        writer.writerow(["Image Directory", DATASET_IMAGES_DIR])
+        writer.writerow(["Labels Directory", DATASET_LABELS_DIR])
+        writer.writerow([])
+        
+        # ===== Class distribution =====
+        writer.writerow(["CLASS DISTRIBUTION"])
+        writer.writerow(["Class Name", "Count", "Percentage"])
+        for class_name in CLASS_NAMES.values():
+            count = labels_by_class[class_name]
+            percentage = (count / total_objects * 100) if total_objects > 0 else 0
+            writer.writerow([class_name, count, f"{percentage:.2f}%"])
+        writer.writerow([])
+        
+        # ===== Per-image details =====
+        writer.writerow(["DETAILED IMAGE INFORMATION"])
+        writer.writerow(["Image Name", "Width (px)", "Height (px)", "Label File", "Number of Objects"])
+        for info in sorted(dataset_info, key=lambda x: x['image_name']):
+            writer.writerow([
+                info['image_name'],
+                info['width'],
+                info['height'],
+                info['label_file'],
+                info['num_objects']
+            ])
+        writer.writerow([])
+        
+        # ===== Statistics by object count =====
+        writer.writerow(["IMAGES BY OBJECT COUNT"])
+        writer.writerow(["Object Count", "Number of Images", "Percentage"])
+        count_freq = defaultdict(int)
+        for count in objects_per_image:
+            count_freq[count] += 1
+        
+        for obj_count in sorted(count_freq.keys()):
+            num_imgs = count_freq[obj_count]
+            percentage = (num_imgs / total_images * 100) if total_images > 0 else 0
+            writer.writerow([obj_count, num_imgs, f"{percentage:.2f}%"])
+    
+    print(f"✓ Evaluation report saved to: {report_filename}")
+    return report_filename, {
+        'total_images': total_images,
+        'total_objects': total_objects,
+        'avg_objects': avg_objects,
+        'min_objects': min_objects,
+        'max_objects': max_objects,
+        'class_distribution': dict(labels_by_class)
+    }
+
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -325,11 +467,31 @@ Examples:
             # Generate statistics
             generate_statistics()
             
-            print(f"✓ Visualizations saved to: {OUTPUT_VIZ_DIR}")
+            # Generate evaluation report (CSV)
+            report_path, metrics = generate_evaluation_report()
+            
+            print("\n" + "="*60)
+            print("EVALUATION METRICS")
+            print("="*60)
+            print(f"Total Images: {metrics['total_images']}")
+            print(f"Total Objects: {metrics['total_objects']}")
+            print(f"Average Objects per Image: {metrics['avg_objects']:.2f}")
+            print(f"Min Objects per Image: {metrics['min_objects']}")
+            print(f"Max Objects per Image: {metrics['max_objects']}")
+            print("\nClass Distribution:")
+            for class_name, count in metrics['class_distribution'].items():
+                percentage = (count / metrics['total_objects'] * 100) if metrics['total_objects'] > 0 else 0
+                print(f"  {class_name:12s}: {count:4d} ({percentage:5.1f}%)")
+            print("="*60)
+            
+            print(f"\n✓ Visualizations saved to: {OUTPUT_VIZ_DIR}")
+            print(f"✓ Evaluation report saved to: {report_path}")
+            
             print("\nNext steps:")
             print("1. Review visualizations in dataset/test/visualized/")
-            print("2. Verify labels are correct")
-            print("3. Use labeled dataset for training: python yolov9/train.py ...")
+            print("2. Check evaluation report (test_evaluation_report.csv)")
+            print("3. Verify labels are correct")
+            print("4. Use labeled dataset for training: python yolov9/train.py ...")
     
     except Exception as e:
         print(f"\n✗ Error: {str(e)}")
