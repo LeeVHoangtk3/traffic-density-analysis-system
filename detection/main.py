@@ -19,6 +19,7 @@ IS_COLAB = "COLAB_GPU" in os.environ
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+<<<<<<< HEAD
 API_URL = os.getenv("TRAFFIC_API_URL", "http://127.0.0.1:8000/detection")
 VIDEO_SOURCE = os.getenv(
     "TRAFFIC_VIDEO_SOURCE",
@@ -32,6 +33,16 @@ MODEL_PATH = os.getenv(
     "TRAFFIC_MODEL_PATH",
     os.path.join(BASE_DIR, "pro_models", "best_final.pt")
 )
+=======
+API_URL = "http://127.0.0.1:8000/detection"
+VIDEO_SOURCE = os.path.join(BASE_DIR, "..", "traffictrim.mp4")
+
+# ĐÂY LÀ NƠI BẠN CHỌN MODEL YOLOv9 CỦA MÌNH
+
+# MODEL_PATH = "pro_models/yolov9c.pt"
+# MODEL_PATH = "pro_models/best_final.pt"
+MODEL_PATH = "yolov9c.pt" # Sửa lại đường dẫn để dùng tạm model có sẵn ở thư mục gốc
+>>>>>>> cuong
 
 CONF_THRESHOLD = 0.5
 # ===== Performance tuning =====

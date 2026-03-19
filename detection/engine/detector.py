@@ -127,4 +127,8 @@ class Detector:
                         "class_id": cls_id,
                         "class_name": VEHICLE_CLASSES[cls_id]
                     })
+<<<<<<< HEAD
         return detections
+=======
+        return detections
+>>>>>>> cuong
