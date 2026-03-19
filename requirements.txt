@@ -32,7 +32,6 @@ sqlalchemy
 psycopg2-binary        # PostgreSQL
 # pymysql              # Uncomment nếu dùng MySQL
 
-<<<<<<< HEAD
 # ==============================
 # UTILITIES
 # ==============================
@@ -45,11 +44,9 @@ loguru
 ipython
 seaborn
 matplotlib
-=======
 # # ==============================
 # # UTILITIES
 # # ==============================
 # python-dotenv
 # requests
 # loguru
->>>>>>> origin/hoa
