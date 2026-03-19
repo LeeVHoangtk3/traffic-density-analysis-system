@@ -206,45 +206,35 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+<<<<<<< HEAD
 # =======================================================
 # TRAFFIC AI SYSTEM - CUSTOM CONFIGURATION (HOÀNG)
 # =======================================================
 
 # --- 1. MEDIA & DATA SOURCES ---
 # Chặn các file video thô và dữ liệu lớn
+=======
+>>>>>>> origin/hoa
 *.mp4
 *.avi
 *.mov
 *.zip
+data/
 videos/
-
-# --- 2. DATASET (CRITICAL) ---
-# Chặn toàn bộ ẢNH (vì rất nặng), nhưng GIỮ LẠI nhãn (.txt) và cấu hình (.yaml)
-# Điều này giúp bạn quản lý sự thay đổi của nhãn mà không tốn dung lượng Git.
 yolov9-cus/dataset/*/images/
-
-# --- 3. YOLOv9 SOURCE & OUTPUTS ---
-# Chặn folder kết quả (folder này sinh ra khi train/detect)
 yolov9-cus/yolov9/runs/
 yolov9-cus/yolov9/figure/
-
-# Chặn các file log và cache của python
 yolov9-cus/yolov9/*.log
 yolov9-cus/yolov9/__pycache__/
 yolov9-cus/yolov9/*_cache.npy
 yolov9-cus/yolov9/data/datasets/
-
-# --- 4. WEIGHTS (MODEL FILES) ---
-# Chặn tất cả các file trọng số (.pt) để tránh đẩy nhầm file vài trăm MB
 *.pt
-
-# NGOẠI LỆ: Giữ lại file trọng số gốc để Colab có file mồi để train
-# Lưu ý: Đảm bảo tên file dưới đây khớp chính xác với file bạn đang có
 !yolov9-cus/yolov9/yolov9-c.pt
 !yolov9-cus/yolov9/yolov9-e.pt
-
-# --- 5. SYSTEM & IDE ---
 .DS_Store
 .vscode/
 .idea/
+<<<<<<< HEAD
 __pycache__/
+=======
+>>>>>>> origin/hoa

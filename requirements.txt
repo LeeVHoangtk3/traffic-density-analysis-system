@@ -38,15 +38,19 @@ psycopg2-binary        # PostgreSQL
 python-dotenv
 requests
 loguru
+tqdm
 
 
 
 ipython
 seaborn
 matplotlib
+<<<<<<< HEAD
 # # ==============================
 # # UTILITIES
 # # ==============================
 # python-dotenv
 # requests
 # loguru
+=======
+>>>>>>> origin/hoa

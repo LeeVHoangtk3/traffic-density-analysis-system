@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from backend.database import engine, Base
+from backend.database import engine, Base, sync_vehicle_detection_schema
 
 from backend.models.camera import Camera
 from backend.models.vehicle_detection import VehicleDetection
@@ -14,6 +14,7 @@ from backend.api import prediction_routes
 app = FastAPI(title="Traffic AI Backend")
 
 Base.metadata.create_all(bind=engine)
+sync_vehicle_detection_schema()
 
 app.include_router(detection_routes.router)
 app.include_router(traffic_routes.router)
