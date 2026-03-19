@@ -235,5 +235,3 @@ yolov9-cus/yolov9/data/datasets/
 __pycache__/
 
 visualized/
-labels_best_final/
-labels_yolov9c/
