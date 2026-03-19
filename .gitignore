@@ -233,3 +233,5 @@ yolov9-cus/yolov9/data/datasets/
 .vscode/
 .idea/
 __pycache__/
+
+visualized/
