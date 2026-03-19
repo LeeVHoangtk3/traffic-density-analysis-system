@@ -45,3 +45,9 @@ tqdm
 ipython
 seaborn
 matplotlib
+# # ==============================
+# # UTILITIES
+# # ==============================
+# python-dotenv
+# requests
+# loguru
