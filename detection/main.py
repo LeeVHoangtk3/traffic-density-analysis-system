@@ -26,16 +26,14 @@ VIDEO_SOURCE = os.path.join(BASE_DIR, "..", "traffictrim.mp4")
 
 # ĐÂY LÀ NƠI BẠN CHỌN MODEL YOLOv9 CỦA MÌNH
 
-# MODEL_PATH = "pro_models/yolov9c.pt"
+MODEL_PATH = "pro_models/yolov9c.pt"
 # MODEL_PATH = "pro_models/best_final.pt"
-MODEL_PATH = "yolov9c.pt" # Sửa lại đường dẫn để dùng tạm model có sẵn ở thư mục gốc
 
 CONF_THRESHOLD = 0.5
 # ===== Performance tuning =====
 FRAME_SKIP = 3        # skip frames để tăng tốc
-SHOW_VIDEO = False    # tắt nếu muốn chạy cực nhanh
+SHOW_VIDEO = True   # tắt nếu muốn chạy cực nhanh
 TARGET_WIDTH = 640    # resize nhỏ hơn để YOLO chạy nhanh
-
 def main():
 
     # ===== Camera ID =====
