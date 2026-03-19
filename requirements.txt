@@ -45,12 +45,3 @@ tqdm
 ipython
 seaborn
 matplotlib
-<<<<<<< HEAD
-# # ==============================
-# # UTILITIES
-# # ==============================
-# python-dotenv
-# requests
-# loguru
-=======
->>>>>>> origin/hoa
