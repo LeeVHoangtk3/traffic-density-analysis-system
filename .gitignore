@@ -205,3 +205,33 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# =======================================================
+# TRAFFIC AI SYSTEM - CUSTOM CONFIGURATION (HOÀNG)
+# =======================================================
+
+# --- 1. MEDIA & DATA SOURCES ---
+# Chặn các file video thô và dữ liệu lớn
+*.mp4
+*.avi
+*.mov
+*.zip
+data/
+videos/
+yolov9-cus/dataset/*/images/
+yolov9-cus/yolov9/runs/
+yolov9-cus/yolov9/figure/
+yolov9-cus/yolov9/*.log
+yolov9-cus/yolov9/__pycache__/
+yolov9-cus/yolov9/*_cache.npy
+yolov9-cus/yolov9/data/datasets/
+
+*.pt
+!yolov9-cus/yolov9/yolov9-c.pt
+!yolov9-cus/yolov9/yolov9-e.pt
+.DS_Store
+.vscode/
+.idea/
+__pycache__/
+
+visualized/
