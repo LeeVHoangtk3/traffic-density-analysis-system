@@ -1,4 +1,11 @@
 import os
+import sys
+
+# Define base directory before anything else to ensure correct import paths
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Add the project root to sys.path so 'detection.*' imports work correctly
+sys.path.append(os.path.dirname(BASE_DIR))
+
 import cv2
 import json
 
@@ -16,8 +23,6 @@ from detection.integration.publisher import EventPublisher
 # ===== Detect if running on Google Colab =====
 IS_COLAB = "COLAB_GPU" in os.environ
 
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 API_URL = os.getenv("TRAFFIC_API_URL", "http://127.0.0.1:8000/detection")
 VIDEO_SOURCE = os.getenv(
