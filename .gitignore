@@ -206,12 +206,6 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# =======================================================
-# TRAFFIC AI SYSTEM - CUSTOM CONFIGURATION (HOÀNG)
-# =======================================================
-
-# --- 1. MEDIA & DATA SOURCES ---
-# Chặn các file video thô và dữ liệu lớn
 *.mp4
 *.avi
 *.mov
@@ -232,6 +226,3 @@ yolov9-cus/yolov9/data/datasets/
 .DS_Store
 .vscode/
 .idea/
-__pycache__/
-
-visualized/
