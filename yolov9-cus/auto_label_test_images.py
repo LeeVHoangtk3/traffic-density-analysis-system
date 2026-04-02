@@ -44,11 +44,11 @@ DATASET_LABELS_DIR = os.path.join(YOLOV9_ROOT, "dataset", "test", "labels")
 PRO_MODELS_DIR = os.path.join(YOLOV9_ROOT, "..", "detection", "pro_models")
 
 # Model paths
-MODEL_BEST = os.path.join(PRO_MODELS_DIR, "best_final.pt")
+MODEL_BEST = os.path.join(PRO_MODELS_DIR, "yolov9_ultimate_final.pt") # <-- Update this to your best model filename
 MODEL_PRETRAINED = os.path.join(PRO_MODELS_DIR, "yolov9c.pt")
 
 # Output directories
-OUTPUT_LABELS_BEST = os.path.join(YOLOV9_ROOT, "dataset", "test", "labels_best_final")
+OUTPUT_LABELS_BEST = os.path.join(YOLOV9_ROOT, "dataset", "test", "labels_ultimate_final") # <-- Update this to match your best model name
 OUTPUT_LABELS_PRETRAINED = os.path.join(YOLOV9_ROOT, "dataset", "test", "labels_yolov9c")
 OUTPUT_VIZ_DIR = os.path.join(YOLOV9_ROOT, "dataset", "test", "visualized")
 
