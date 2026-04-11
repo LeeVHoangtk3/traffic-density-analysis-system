@@ -2,15 +2,15 @@ import os
 import cv2
 import json
 
-from detection.camera_engine import CameraEngine
-from detection.engine.frame_processor import FrameProcessor
-from detection.engine.detector import Detector
-from detection.engine.tracker import Tracker
-from detection.engine.counter import VehicleCounter
-from detection.engine.density_estimator import DensityEstimator
-from detection.engine.zone_manager import ZoneManager
-from detection.engine.event_generator import EventGenerator
-from detection.integration.publisher import EventPublisher
+from camera_engine import CameraEngine
+from engine.frame_processor import FrameProcessor
+from engine.detector import Detector
+from engine.tracker import Tracker
+from engine.counter import VehicleCounter
+from engine.density_estimator import DensityEstimator
+from engine.zone_manager import ZoneManager
+from engine.event_generator import EventGenerator
+from integration.publisher import EventPublisher
 
 
 # ===== Detect if running on Google Colab =====
@@ -36,7 +36,7 @@ MODEL_PATH = os.getenv(
 CONF_THRESHOLD = 0.5
 # ===== Performance tuning =====
 FRAME_SKIP = 3        # skip frames để tăng tốc
-SHOW_VIDEO = True   # tắt nếu muốn chạy cực nhanh
+SHOW_VIDEO = False   # tắt nếu muốn chạy cực nhanh
 TARGET_WIDTH = 640    # resize nhỏ hơn để YOLO chạy nhanh
 
 def main():
