@@ -1,0 +1,13 @@
+train: /content/drive/MyDrive/yolov9-cus/dataset/train/images
+val: /content/drive/MyDrive/yolov9-cus/dataset/val/images
+test: /content/drive/MyDrive/yolov9-cus/dataset/test/images
+
+nc: 4
+names: ['bus', 'car', 'motorcycle', 'truck']
+
+roboflow:
+  workspace: lynkeus03
+  project: vehicle-detection-by9xs
+  version: 3
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/lynkeus03/vehicle-detection-by9xs/dataset/3
