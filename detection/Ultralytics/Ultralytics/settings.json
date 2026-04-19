@@ -1,0 +1,21 @@
+{
+  "settings_version": "0.0.6",
+  "datasets_dir": "/Users/cuongvuthanh/Documents/TTCS/datasets",
+  "weights_dir": "/Users/cuongvuthanh/Documents/TTCS/traffic-density-analysis-system/weights",
+  "runs_dir": "/Users/cuongvuthanh/Documents/TTCS/traffic-density-analysis-system/runs",
+  "uuid": "298406dbd7ecf7d4103cacee91c1a0390a6825f7bc00a20e8e81cbefee4fef53",
+  "sync": true,
+  "api_key": "",
+  "openai_api_key": "",
+  "clearml": true,
+  "comet": true,
+  "dvc": true,
+  "hub": true,
+  "mlflow": true,
+  "neptune": true,
+  "raytune": true,
+  "tensorboard": false,
+  "wandb": false,
+  "vscode_msg": true,
+  "openvino_msg": true
+}

@@ -234,6 +234,8 @@ Dùng để lấy dữ liệu detection đã lưu.
 ### Aggregation
 
 - `GET /aggregation`
+- `GET /aggregation/history`
+- `POST /aggregation/compute`
 
 Có 2 cách dùng:
 - Truyền `vehicle_count` để tính nhanh mức ùn tắc
@@ -244,15 +246,26 @@ Tham số hỗ trợ:
 - `start_time`
 - `end_time`
 
+`GET /aggregation/history` dùng để xem lại các bản ghi tổng hợp đã lưu.
+
+`POST /aggregation/compute` dùng để chốt dữ liệu theo cửa sổ thời gian và lưu vào
+`traffic_aggregation`.
+Tham số hỗ trợ:
+- `camera_id`
+- `window_minutes`
+
 ### Prediction
 
 - `GET /predict-next`
+- `GET /predictions/history`
 
 Tham số hỗ trợ:
 - `camera_id`
 
 Nếu có đủ lịch sử và model trong `ml_service/`, backend sẽ predict.
 Nếu không, backend dùng chế độ fallback.
+
+`GET /predictions/history` dùng để xem lại các bản ghi dự báo đã lưu.
 
 ### Camera
 
@@ -341,10 +354,28 @@ GET /raw-data?camera_id=CAM_01&limit=20&offset=0
 GET /aggregation?camera_id=CAM_01
 ```
 
+### Xem lịch sử aggregation
+
+```text
+GET /aggregation/history?camera_id=CAM_01&limit=10&offset=0
+```
+
+### Chốt aggregation theo cửa sổ thời gian
+
+```text
+POST /aggregation/compute?camera_id=CAM_01&window_minutes=15
+```
+
 ### Predict tiếp theo
 
 ```text
 GET /predict-next?camera_id=CAM_01
+```
+
+### Xem lịch sử prediction
+
+```text
+GET /predictions/history?camera_id=CAM_01&limit=10&offset=0
 ```
 
 ## Environment variables
@@ -364,7 +395,10 @@ Phần đã hoàn thiện ở mức dùng được:
 - lưu database
 - truy vấn raw data có filter cơ bản
 - aggregation từ DB
+- lịch sử aggregation
+- chốt aggregation theo cửa sổ thời gian
 - prediction có fallback
+- lịch sử prediction
 - health check
 - camera API tối thiểu
 

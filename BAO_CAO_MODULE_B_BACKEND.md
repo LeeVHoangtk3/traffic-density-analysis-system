@@ -50,14 +50,14 @@ Các bảng hiện có trong cơ sở dữ liệu gồm:
 - `traffic_predictions`
 - `cameras`
 
-Qua kiểm tra dữ liệu thực tế trong file `traffic.db`, trạng thái hiện tại là:
+Qua kiểm tra dữ liệu thực tế trong file `traffic.db`, bảng `vehicle_detections` là nguồn dữ liệu gốc được ghi trực tiếp từ detection. Ba bảng còn lại là `traffic_aggregation`, `traffic_predictions`, `cameras` hiện cũng đã có luồng ghi dữ liệu thông qua:
 
-- `vehicle_detections`: đã có `80` bản ghi.
-- `traffic_aggregation`: chưa có dữ liệu.
-- `traffic_predictions`: chưa có dữ liệu.
-- `cameras`: chưa có dữ liệu.
+- `POST /aggregation/compute`
+- `GET /predict-next`
+- `POST /cameras`
+- `python -m backend.seed_data`
 
-Điều này cho thấy backend đã thực sự lưu được dữ liệu từ khối detection, nhưng mới tập trung ở bảng sự kiện gốc là `vehicle_detections`.
+Điều này cho thấy backend không còn chỉ dừng ở bảng sự kiện gốc, mà đã có thể tạo dữ liệu phục vụ tổng hợp và dự báo.
 
 ### 4.2. Schema và model dữ liệu
 
@@ -79,27 +79,37 @@ Ngoài ra backend còn có các model:
 - `TrafficPrediction`
 - `Camera`
 
-Tuy nhiên ba model này hiện mới chỉ tồn tại ở mức cấu trúc ORM, chưa có luồng xử lý đầy đủ để đổ dữ liệu thật vào.
+Hiện ba model này đã có luồng xử lý tương ứng để đổ dữ liệu thật vào database, dù mức độ hoàn thiện vẫn chưa đạt chuẩn production.
 
 ### 4.3. REST API
 
 Backend hiện đã có các API đúng với phần lớn yêu cầu được giao:
 
 - `POST /detection`
-- `GET /aggregation`
 - `GET /raw-data`
+- `GET /aggregation`
+- `GET /aggregation/history`
+- `POST /aggregation/compute`
+- `GET /predict-next`
+- `GET /predictions/history`
+- `GET /health`
+- `GET /cameras`
+- `POST /cameras`
 
 Ý nghĩa từng API như sau:
 
 - `POST /detection`: nhận dữ liệu sự kiện từ khối detection và lưu vào database.
-- `GET /raw-data`: trả về toàn bộ dữ liệu thô từ bảng `vehicle_detections`.
-- `GET /aggregation`: nhận tham số `vehicle_count` và trả về mức độ ùn tắc theo quy tắc đã định sẵn.
+- `GET /raw-data`: trả về dữ liệu thô từ bảng `vehicle_detections`, có hỗ trợ filter và phân trang.
+- `GET /aggregation`: có thể nhận tham số `vehicle_count` để tính nhanh hoặc tự tổng hợp từ database theo khoảng thời gian.
+- `GET /aggregation/history`: trả về lịch sử các bản ghi tổng hợp.
+- `POST /aggregation/compute`: chốt dữ liệu theo cửa sổ thời gian và lưu vào `traffic_aggregation`.
 
 Ngoài ra còn có thêm:
 
 - `GET /predict-next`
+- `GET /predictions/history`
 
-API này cho thấy định hướng mở rộng sang bài toán dự báo, nhưng hiện vẫn chỉ là endpoint mẫu.
+Phần prediction hiện không còn chỉ là endpoint mẫu, mà đã có service riêng để lấy lịch sử, cố gắng load model trong `ml_service/` và fallback nếu dữ liệu chưa đủ.
 
 ### 4.4. Data validation
 
@@ -122,12 +132,7 @@ Nhờ đó, backend đã đảm bảo được việc:
 - chặn các request sai định dạng cơ bản,
 - ép dữ liệu vào đúng cấu trúc trước khi lưu xuống database.
 
-Tuy nhiên phần validation hiện vẫn mới ở mức cơ bản, chưa có ràng buộc mạnh hơn như:
-
-- kiểm tra chuỗi rỗng,
-- kiểm tra giá trị hợp lệ của `vehicle_type`,
-- kiểm tra giá trị hợp lệ của `density`,
-- kiểm tra `confidence` nằm trong khoảng hợp lệ.
+Validation hiện đã được siết chặt hơn với enum cho `vehicle_type`, `density`, `event_type`, đồng thời `confidence` cũng được ràng buộc trong khoảng hợp lệ.
 
 ### 4.5. Aggregation service
 
@@ -140,7 +145,7 @@ Logic hiện tại:
 - `< 60` xe: `High`
 - `>= 60` xe: `Severe`
 
-Như vậy backend đã có khối `aggregation service`, nhưng mới dừng ở mức hàm quy tắc, chưa thực hiện tổng hợp dữ liệu trực tiếp từ database theo mốc thời gian 1 phút hoặc 5 phút như yêu cầu ban đầu.
+Như vậy backend đã có khối `aggregation service` và đã thực hiện tổng hợp dữ liệu trực tiếp từ database. Tuy nhiên, phần này vẫn chưa hoàn thiện sâu theo các mốc thống kê đa dạng như 1 phút, 5 phút, 1 giờ hoặc theo từng loại xe.
 
 ### 4.6. Kết nối giữa các phần
 
@@ -155,7 +160,7 @@ Luồng kết nối hiện tại của Module B với toàn hệ thống đượ
 7. SQLAlchemy dùng session từ `SessionLocal` để ghi dữ liệu vào `traffic.db`.
 8. Dữ liệu đã lưu có thể được đọc lại bằng `GET /raw-data`.
 
-Đây là phần kết nối đã chạy thực tế và là luồng hoàn chỉnh nhất của Module B ở thời điểm hiện tại.
+Ngoài luồng này, detection còn có thể gọi `POST /aggregation/compute` theo chu kỳ để chốt dữ liệu tổng hợp, và prediction service có thể dùng dữ liệu đã lưu để tạo bản ghi trong `traffic_predictions`.
 
 ## 5. Module B đã thực hiện đến đâu so với yêu cầu
 
@@ -174,7 +179,7 @@ Chưa hoàn thành:
 
 - Chưa chuẩn hóa quan hệ khóa ngoại giữa các bảng.
 - Chưa thiết kế index rõ ràng cho các cột quan trọng như `timestamp`, `camera_id`, `vehicle_type`.
-- Bảng `cameras`, `traffic_aggregation`, `traffic_predictions` chưa được dùng thực tế trong pipeline.
+- Bảng `cameras`, `traffic_aggregation`, `traffic_predictions` đã được dùng thực tế trong pipeline backend, nhưng vẫn cần thêm dữ liệu thực, metadata và cơ chế vận hành định kỳ chặt chẽ hơn.
 
 ### 5.2. B2. Xây dựng REST API
 
@@ -185,9 +190,10 @@ Chưa hoàn thành:
 
 Chưa hoàn thành:
 
-- API `aggregation` chưa lấy dữ liệu thật từ DB.
-- Chưa có API lọc theo khoảng thời gian.
-- Chưa có API thống kê theo camera hoặc theo loại xe.
+- API `aggregation` đã có thể lấy dữ liệu thật từ DB.
+- `GET /raw-data` đã có hỗ trợ lọc theo khoảng thời gian, camera và loại xe.
+- Đã có API lịch sử cho aggregation và prediction.
+- Chưa có các API thống kê sâu theo giờ, ngày, camera hoặc loại xe ở mức dashboard.
 
 ### 5.3. B3. Data Validation
 
@@ -211,10 +217,8 @@ Chưa hoàn thành:
 
 Chưa hoàn thành:
 
-- Chưa tổng hợp theo mốc 1 phút.
-- Chưa tổng hợp theo mốc 5 phút.
-- Chưa ghi kết quả tổng hợp vào bảng `traffic_aggregation`.
-- Chưa dùng dữ liệu thực từ `vehicle_detections` để sinh thống kê.
+- Đã có thể tổng hợp và ghi kết quả vào bảng `traffic_aggregation` từ dữ liệu thực trong `vehicle_detections`.
+- Chưa hoàn thiện các mốc tổng hợp đa dạng như 1 phút, 5 phút và các báo cáo thống kê nâng cao.
 
 ### 5.5. B5. Logging & Error Handling
 

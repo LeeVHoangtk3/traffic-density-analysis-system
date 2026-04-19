@@ -1,21 +1,17 @@
 # integration/traffic_light_logic.py
 
+
 class TrafficLightOptimizer:
-
     def optimize(self, congestion_level):
+        normalized = str(congestion_level).strip().lower()
 
-        if congestion_level == "LOW":
+        if normalized == "low":
             green_time = 20
-
-        elif congestion_level == "MEDIUM":
+        elif normalized == "medium":
             green_time = 40
-
-        elif congestion_level == "HIGH":
+        elif normalized == "high":
             green_time = 60
-
         else:
             green_time = 90
 
-        return {
-            "green_time": green_time
-        }
+        return {"green_time": green_time}
