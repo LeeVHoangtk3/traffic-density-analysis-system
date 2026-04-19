@@ -27,11 +27,13 @@ class Tracker:
                 continue
 
             x1, y1, x2, y2 = map(int, track.to_ltrb())
+            confidence = getattr(track, "det_conf", None)
 
             results.append({
                 "track_id": track.track_id,
                 "bbox": [x1, y1, x2, y2],
-                "class_name": track.det_class
+                "class_name": track.det_class,
+                "confidence": float(confidence) if confidence is not None else None,
             })
 
         return results

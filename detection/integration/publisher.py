@@ -7,6 +7,7 @@ class EventPublisher:
 
     def publish(self, event):
         try:
-            requests.post(self.api_url, json=event, timeout=1)
+            response = requests.post(self.api_url, json=event, timeout=3)
+            response.raise_for_status()
         except Exception as e:
             print("Publish failed:", e)

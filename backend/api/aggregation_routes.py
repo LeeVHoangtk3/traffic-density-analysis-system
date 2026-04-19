@@ -1,75 +1,110 @@
-"""
-aggregation_routes.py
-Hai endpoints:
-  GET  /aggregation?vehicle_count=N  — tính mức tắc nghẽn từ số xe (cũ, giữ lại)
-  POST /aggregation/compute?camera_id=CAM_01
-       — gom dữ liệu từ vehicle_detections của 15 phút vừa qua,
-         tính tổng xe, rồi ghi vào bảng traffic_aggregation.
-         detection/main.py gọi endpoint này sau mỗi window 15 phút.
-"""
+from datetime import datetime
 
-from datetime import datetime, timedelta
-
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
-from backend.services.aggregation_service import compute_congestion
+from backend.config import settings
+from backend.schemas.aggregation_schema import (
+    AggregationComputeResponse,
+    AggregationHistoryItem,
+    AggregationHistoryResponse,
+    AggregationResponse,
+)
+from backend.services.aggregation_service import (
+    aggregate_from_detections,
+    compute_congestion,
+    compute_window_aggregation,
+    list_aggregations,
+)
 from backend.services.db_service import get_db
-from backend.models.vehicle_detection import VehicleDetection
-from backend.models.traffic_aggregation import TrafficAggregation
 
-router = APIRouter()
+router = APIRouter(tags=["aggregation"])
 
 
-@router.get("/aggregation")
-def get_aggregation(vehicle_count: int):
-    """Tính mức tắc nghẽn từ số xe (endpoint cũ, giữ nguyên)."""
-    level = compute_congestion(vehicle_count)
-    return {"vehicle_count": vehicle_count, "congestion_level": level}
+@router.get("/aggregation", response_model=AggregationResponse)
+def get_aggregation(
+    vehicle_count: int | None = None,
+    camera_id: str | None = None,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
+    db: Session = Depends(get_db),
+):
+    generated_at = datetime.utcnow()
 
-
-@router.post("/aggregation/compute")
-def compute_aggregation(camera_id: str = "CAM_01", db: Session = Depends(get_db)):
-    """
-    Gom toàn bộ vehicle_detections của 15 phút vừa qua theo camera_id,
-    đếm tổng số xe unique (theo track_id), rồi lưu vào traffic_aggregation.
-
-    detection/main.py gọi endpoint này sau mỗi window 15 phút.
-    """
-    now = datetime.utcnow()
-    window_start = now - timedelta(minutes=15)
-
-    # Đếm số track_id unique trong 15 phút vừa qua => số xe đã qua
-    count_result = (
-        db.query(func.count(func.distinct(VehicleDetection.track_id)))
-        .filter(
-            VehicleDetection.camera_id == camera_id,
-            VehicleDetection.timestamp >= window_start,
-            VehicleDetection.timestamp <= now,
+    if vehicle_count is not None:
+        level = compute_congestion(vehicle_count)
+        return AggregationResponse(
+            camera_id=camera_id,
+            vehicle_count=vehicle_count,
+            congestion_level=level,
+            start_time=start_time,
+            end_time=end_time,
+            generated_at=generated_at,
         )
-        .scalar()
-    )
-    vehicle_count = count_result or 0
 
-    congestion_level = compute_congestion(vehicle_count)
-
-    # Ghi vào traffic_aggregation
-    record = TrafficAggregation(
+    aggregation = aggregate_from_detections(
+        db=db,
         camera_id=camera_id,
-        vehicle_count=vehicle_count,
-        congestion_level=congestion_level,
-        timestamp=now,
+        start_time=start_time,
+        end_time=end_time,
     )
-    db.add(record)
-    db.commit()
-    db.refresh(record)
+    return AggregationResponse(
+        camera_id=aggregation.camera_id,
+        vehicle_count=aggregation.vehicle_count,
+        congestion_level=aggregation.congestion_level,
+        start_time=start_time,
+        end_time=aggregation.timestamp,
+        generated_at=generated_at,
+    )
 
-    return {
-        "camera_id": camera_id,
-        "window_start": window_start.isoformat(),
-        "window_end": now.isoformat(),
-        "vehicle_count": vehicle_count,
-        "congestion_level": congestion_level,
-        "aggregation_id": record.id,
-    }
+
+@router.get("/aggregation/history", response_model=AggregationHistoryResponse)
+def get_aggregation_history(
+    camera_id: str | None = None,
+    limit: int = Query(default=20, ge=1),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    safe_limit = min(limit, settings.max_page_size)
+    total, items = list_aggregations(
+        db=db,
+        camera_id=camera_id,
+        limit=safe_limit,
+        offset=offset,
+    )
+    return AggregationHistoryResponse(
+        total=total,
+        limit=safe_limit,
+        offset=offset,
+        items=[
+            AggregationHistoryItem(
+                id=item.id,
+                camera_id=item.camera_id,
+                vehicle_count=item.vehicle_count,
+                congestion_level=item.congestion_level,
+                timestamp=item.timestamp,
+            )
+            for item in items
+        ],
+    )
+
+
+@router.post("/aggregation/compute", response_model=AggregationComputeResponse)
+def compute_aggregation(
+    camera_id: str = "CAM_01",
+    window_minutes: int = Query(default=15, ge=1, le=1440),
+    db: Session = Depends(get_db),
+):
+    record, window_start = compute_window_aggregation(
+        db=db,
+        camera_id=camera_id,
+        window_minutes=window_minutes,
+    )
+    return AggregationComputeResponse(
+        aggregation_id=record.id,
+        camera_id=camera_id,
+        window_start=window_start,
+        window_end=record.timestamp,
+        vehicle_count=record.vehicle_count,
+        congestion_level=record.congestion_level,
+    )

@@ -1,0 +1,11 @@
+train:
+  - ../dataset/train/images
+  - ../dataset2/train/images
+
+val: ../dataset/val/images
+
+# Số lượng class
+nc: 4
+
+# Tên các class 
+names: ['bus', 'car', 'motorcycle', 'truck']
