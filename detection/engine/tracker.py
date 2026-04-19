@@ -57,6 +57,7 @@ class Tracker:
                 "track_id":   int(tracker_id),
                 "bbox":       [x1, y1, x2, y2],
                 "class_name": id_to_name.get(cls_id, "unknown"),
+                "confidence": float(tracked.confidence[i]),
             })
 
         return results
