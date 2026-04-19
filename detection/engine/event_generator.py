@@ -1,5 +1,5 @@
 import uuid
-import time
+from datetime import datetime, timezone
 
 
 class EventGenerator:
@@ -11,5 +11,6 @@ class EventGenerator:
             "vehicle_type": track["class_name"],
             "density": density,
             "event_type": "line_crossing",
-            "timestamp": time.time()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "confidence": track.get("confidence"),
         }

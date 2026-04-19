@@ -30,51 +30,6 @@ class TrafficPredictor:
         # Danh sách các biến đầu vào (Features) để huấn luyện mô hình
         self.features = ['hour', 'day_of_week', 'is_peak_hour', 'lag_1', 'lag_2', 'rolling_mean_3']
 
-    def generate_dummy_data(self, start_date='2024-01-01', days=30):
-        """
-        BƯỚC 1: Tạo dữ liệu giả lập (Dummy Data) kiểm thử.
-        Mỗi dòng cách nhau 15 phút.
-        - Giờ cao điểm (7h-9h và 17h-19h): Lưu lượng xe rất lớn.
-        - Cuối tuần: Lưu lượng xe giảm rõ rệt.
-        """
-        print(f"[*] Đang sinh dữ liệu giả lập cho {days} ngày...")
-        
-        # 1 ngày có 24h * 4 = 96 khung giờ (15p/khung)
-        periods = days * 96
-        timestamps = pd.date_range(start=start_date, periods=periods, freq='15min')
-        
-        df = pd.DataFrame({'timestamp': timestamps})
-        df['hour'] = df['timestamp'].dt.hour
-        df['day_of_week'] = df['timestamp'].dt.dayofweek
-        
-        # Hàm sinh số lượng xe tự động
-        def simulate_traffic(row):
-            hour = row['hour']
-            day = row['day_of_week']
-            
-            base = np.random.normal(50, 10) 
-            is_peak = (7 <= hour <= 9) or (17 <= hour <= 19)
-            is_weekend = day >= 5
-            
-            if is_weekend:
-                # Cuối tuần lưu lượng thấp
-                if is_peak:
-                    return base + np.random.normal(40, 15)
-                else:
-                    return base * 0.6
-            else:
-                # Ngày thường
-                if is_peak:
-                    return base + np.random.normal(150, 25) # Cao điểm rất đông xe
-                else:
-                    return base + np.random.normal(20, 10)
-                    
-        df['vehicle_count'] = df.apply(simulate_traffic, axis=1)
-        # Giữ số lượng xe luôn là số nguyên và không âm
-        df['vehicle_count'] = df['vehicle_count'].clip(lower=0).astype(int)
-        
-        return df[['timestamp', 'vehicle_count']]
-
     def create_features(self, df):
         """
         BƯỚC 2: Feature Engineering (Trích xuất đặc trưng)
@@ -213,39 +168,5 @@ class TrafficPredictor:
 # Chạy file này bằng Python thẳng: python traffic_predictor.py
 # =========================================================================
 if __name__ == "__main__":
-    print("=" * 60)
-    print("DEMO: HỆ THỐNG DỰ BÁO LƯU LƯỢNG GIAO THÔNG (MODULE C)")
-    print("=" * 60)
-    
-    # 1. Khởi tạo predictor
-    predictor = TrafficPredictor(model_path='model.pkl')
-    
-    # 2. Lấy dữ liệu giả lập (30 ngày)
-    raw_history = predictor.generate_dummy_data(days=30)
-    print("\n[MẪU DỮ LIỆU ĐẦU VÀO GỐC]:")
-    print(raw_history.head(5))
-    
-    # 3. Đánh giá chất lượng và Train Model
-    predictor.train_and_evaluate(raw_history)
-    
-    # 4. Save file model ra máy
-    predictor.save_model()
-    
-    # 5. TEST: Giả lập môi trường thực tiễn (Chỉ đưa 3-4 dòng gần nhất để Predict tương lai)
-    print("\n[*] KHỞI ĐỘNG MODULE PREDICT CHO 15 PHÚT TIẾP THEO...")
-    
-    # Ta bứt ra 5 dòng cuối của dữ liệu để làm "Giao thông thời gian thực"
-    realtime_stream = raw_history.tail(5) 
-    
-    current_time = realtime_stream['timestamp'].iloc[-1]
-    
-    print(f" -> Lịch sử gốc ghi nhận lúc gần nhất:")
-    for _, row in realtime_stream.tail(3).iterrows():
-        print(f"      Thời gian: {row['timestamp'].strftime('%Y-%m-%d %H:%M')} | Lưu lượng: {row['vehicle_count']} xe")
-        
-    # Gọi hàm predict cho tương lai (trả về 1 con số nguyên duy nhất)
-    forecast = predictor.predict(realtime_stream)
-    
-    next_time = current_time + pd.Timedelta(minutes=15)
-    print(f"\n 🔮 KẾT QUẢ: Hệ thống AI dự báo lúc [{next_time.strftime('%Y-%m-%d %H:%M')}] sẽ có khoảng: {forecast} xe.")
-    print("=" * 60)
+    print("TrafficPredictor module is ready.")
+

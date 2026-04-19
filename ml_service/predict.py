@@ -1,53 +1,58 @@
-import pandas as pd
-from traffic_predictor import TrafficPredictor
+"""
+ml_service/predict.py
+Goi API backend de lay ket qua du bao dua tren du lieu thuc da duoc luu.
+
+Yeu cau: backend dang chay tai TRAFFIC_API_URL (mac dinh localhost:8000)
+Chay: python -m ml_service.predict
+"""
 
 import os
+import sys
+
+import requests
+
+API_BASE = os.getenv("TRAFFIC_API_URL", "http://127.0.0.1:8000")
+CAMERA_ID = os.getenv("TRAFFIC_CAMERA_ID", "CAM_01")
+
 
 def main():
-    print("=" * 60)
-    print("HỆ THỐNG DỰ BÁO LƯU LƯỢNG GIAO THÔNG (MODULE C - THỜI GIAN THỰC)")
-    print("=" * 60)
-    
-    # 1. Khởi tạo predictor
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(current_dir, 'model.pkl')
-    predictor = TrafficPredictor(model_path=model_path)
-    
-    # Do module đã được huấn luyện bên train.py, mô hình chỉ cần Load hệ trọng số
+    url = f"{API_BASE}/predict-next"
+    params = {"camera_id": CAMERA_ID}
+
+    print("-" * 40)
+    print(f"[*] Dang goi API du bao: {url}")
+    print(f"    Camera ID : {CAMERA_ID}")
+    print("-" * 40)
+
     try:
-        if not predictor.load_model():
-            print("❌ Lỗi: Không thể tải mô hình. Bạn đã chạy 'python ml_service/train.py' chưa?")
-            return
-    except Exception as e:
-        print(f"Lỗi: {e}")
-        return
-        
-    print("[+] Tải mô hình XGBoost thành công!")
-    print("\n[*] KHỞI ĐỘNG MODULE PREDICT CHO 15 PHÚT TIẾP THEO...")
-    
-    # ==============================================================
-    # Trong MÔI TRƯỜNG THỰC TẾ:
-    # Ở đây, bạn sẽ pull dữ liệu từ Database (MySQL, MongoDB) 
-    # Mảng này chứa TỐI THIỂU 3 quan trắc lịch sử sát sườn nhất của camera AI
-    # ==============================================================
-    
-    # DEMO: Ta sinh lại vài dòng dữ liệu để giả lập "Lịch sử 45 phút gần nhất"
-    demo_data_stream = predictor.generate_dummy_data(days=1).tail(5)
-    
-    current_time = demo_data_stream['timestamp'].iloc[-1]
-    
-    print(f"\n-> Nhận dòng dữ liệu Camera theo thời gian thực (Lịch sử gần nhất):")
-    for _, row in demo_data_stream.tail(3).iterrows():
-        print(f"      Thời gian: {row['timestamp'].strftime('%Y-%m-%d %H:%M')} | Lưu lượng: {row['vehicle_count']} xe")
-        
-    # Gọi hàm predict cho tương lai (trả về 1 con số nguyên duy nhất)
-    # Hàm này tự động sinh các feature như Lag, TimeSeries cho dòng dữ liệu mới
-    forecast = predictor.predict(demo_data_stream)
-    
-    next_time = current_time + pd.Timedelta(minutes=15)
-    print(f"\n 🔮 KẾT QUẢ DỰ BÁO:")
-    print(f" -> Khung giờ [{next_time.strftime('%Y-%m-%d %H:%M')}] sẽ có ĐẠT KHOẢNG: {forecast} xe lưu thông.")
-    print("=" * 60)
+        response = requests.get(url, params=params, timeout=10)
+    except requests.ConnectionError:
+        print(
+            "Khong the ket noi toi backend.\n"
+            f"Hãy chac chan backend dang chay tai {API_BASE}\n"
+            "Lenh khoi dong: uvicorn backend.main:app --reload"
+        )
+        sys.exit(1)
+
+    if response.status_code == 422:
+        detail = response.json().get("detail", "")
+        print(f"Chua du du lieu thuc de du bao:\n  {detail}")
+        print("\nHay chay detection truoc de tich luy du lieu:")
+        print("  python -m detection.main")
+        sys.exit(1)
+
+    if response.status_code != 200:
+        print(f"Loi API (HTTP {response.status_code}): {response.text}")
+        sys.exit(1)
+
+    data = response.json()
+    print(f"Camera             : {data['camera_id']}")
+    print(f"Gia tri du bao     : {data['predicted_density']}")
+    print(f"Khung du bao       : {data['horizon_minutes']} phut")
+    print(f"Nguon du bao       : {data['source']}")
+    print(f"Thoi diem du bao   : {data['timestamp']}")
+    print("-" * 40)
+
 
 if __name__ == "__main__":
     main()

@@ -46,3 +46,5 @@ ipython
 seaborn
 matplotlib
 supervision
+notebook
+ipykernel
