@@ -70,9 +70,9 @@ def _trigger_aggregation(api_url: str, camera_id: str):
                 f"Mức độ: {data['congestion_level']}"
             )
         else:
-            print(f"[Aggregation] ⚠️ HTTP {resp.status_code}: {resp.text}")
+            print(f"[Aggregation] HTTP {resp.status_code}: {resp.text}")
     except Exception as exc:
-        print(f"[Aggregation] ❌ Lỗi khi gọi API tổng hợp: {exc}")
+        print(f"[Aggregation] Lỗi khi gọi API tổng hợp: {exc}")
 
 
 def main():
