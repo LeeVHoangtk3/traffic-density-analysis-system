@@ -1,5 +1,8 @@
 import os
 import sys
+import time
+import threading
+import requests
 
 # Define base directory before anything else to ensure correct import paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -43,6 +46,35 @@ CONF_THRESHOLD = 0.5
 FRAME_SKIP = 3        # skip frames để tăng tốc
 SHOW_VIDEO = True   # tắt nếu muốn chạy cực nhanh
 TARGET_WIDTH = 640    # resize nhỏ hơn để YOLO chạy nhanh
+
+# ===== Aggregation trigger =====
+AGGREGATION_INTERVAL = 15 * 60  # 15 phút tính bằng giây
+
+
+def _trigger_aggregation(api_url: str, camera_id: str):
+    """
+    Gọi POST /aggregation/compute để backend gom dữ liệu 15 phút vừa qua.
+    Chạy trong thread riêng để không block vòng lặp detect.
+    """
+    try:
+        url = f"{api_url.rstrip('/aggregation').rstrip('/detection')}"
+        # Xây lại base URL từ API_URL (bỏ path /detection)
+        base_url = api_url.rsplit("/", 1)[0] if "/" in api_url else api_url
+        endpoint = f"{base_url}/aggregation/compute"
+        resp = requests.post(endpoint, params={"camera_id": camera_id}, timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            print(
+                f"[Aggregation] Window ghi nhận: "
+                f"{data['vehicle_count']} xe | "
+                f"Mức độ: {data['congestion_level']}"
+            )
+        else:
+            print(f"[Aggregation] ⚠️ HTTP {resp.status_code}: {resp.text}")
+    except Exception as exc:
+        print(f"[Aggregation] ❌ Lỗi khi gọi API tổng hợp: {exc}")
+
+
 def main():
 
     # ===== Camera ID =====
@@ -98,6 +130,8 @@ def main():
 
     frame_count = 0
     MAX_FRAMES = 100000
+    # Thời điểm gọi aggregation lần cuối (tính bằng time.time())
+    last_aggregation_time = time.time()
 
     try:
 
@@ -109,6 +143,17 @@ def main():
                 break
 
             frame_count += 1
+
+            # ===== Trigger aggregation mỗi 15 phút =====
+            now = time.time()
+            if now - last_aggregation_time >= AGGREGATION_INTERVAL:
+                last_aggregation_time = now
+                threading.Thread(
+                    target=_trigger_aggregation,
+                    args=(API_URL, CAMERA_ID),
+                    daemon=True,
+                ).start()
+
             # ===== Skip frame để tăng tốc =====
             if frame_count % FRAME_SKIP != 0:
                 continue

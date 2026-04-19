@@ -1,35 +1,56 @@
+"""
+ml_service/predict.py
+Thay vì dùng dữ liệu hard-code, script này gọi API backend thực
+để lấy kết quả dự báo dựa trên dữ liệu đếm xe thực từ video.
+
+Yêu cầu: backend đang chạy tại TRAFFIC_API_URL (mặc định localhost:8000)
+Chạy: python -m ml_service.predict
+"""
+
 import os
-import pandas as pd
-from traffic_predictor import TrafficPredictor
+import sys
+import requests
+
+API_BASE = os.getenv("TRAFFIC_API_URL", "http://127.0.0.1:8000")
+CAMERA_ID = os.getenv("TRAFFIC_CAMERA_ID", "CAM_01")
+
 
 def main():
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(current_dir, 'model.pkl')
-    predictor = TrafficPredictor(model_path=model_path)
+    url = f"{API_BASE}/predict-next"
+    params = {"camera_id": CAMERA_ID}
 
-    if not predictor.load_model():
-        print("❌ Lỗi: Chưa có file model.pkl. Hãy chạy train.py trước!")
-        return
+    print("-" * 40)
+    print(f"[*] Đang gọi API dự báo: {url}")
+    print(f"    Camera ID : {CAMERA_ID}")
+    print("-" * 40)
 
-    # GIẢ LẬP: Lấy dữ liệu từ video 5 phút của bạn
-    # Ví dụ video 5 phút bạn đếm được 40 xe.
-    real_count = 40 
-    now = pd.Timestamp.now().floor('15min')
+    try:
+        response = requests.get(url, params=params, timeout=10)
+    except requests.ConnectionError:
+        print(
+            "❌ Lỗi kết nối: Không thể kết nối tới backend.\n"
+            f"   Hãy chắc chắn backend đang chạy tại {API_BASE}\n"
+            "   Lệnh khởi động: uvicorn backend.main:app --reload"
+        )
+        sys.exit(1)
 
-    # Tạo 3 dòng dữ liệu lịch sử để AI có đủ thông tin (Lag1, Lag2)
-    demo_data = pd.DataFrame({
-        'timestamp': [now - pd.Timedelta(minutes=30), 
-                      now - pd.Timedelta(minutes=15), 
-                      now],
-        'vehicle_count': [real_count - 5, real_count + 2, real_count]
-    })
+    if response.status_code == 422:
+        detail = response.json().get("detail", "")
+        print(f"⚠️  Chưa đủ dữ liệu thực để dự báo:\n   {detail}")
+        print("\n   → Hãy chạy detection trước để tích lũy dữ liệu:")
+        print("     python -m detection.main")
+        sys.exit(1)
 
-    forecast = predictor.predict(demo_data)
+    if response.status_code != 200:
+        print(f"❌ Lỗi API (HTTP {response.status_code}): {response.text}")
+        sys.exit(1)
 
-    print("-" * 30)
-    print(f"Dữ liệu thực tế từ video: {real_count} xe/5phút")
-    print(f"🔮 AI DỰ BÁO 15 PHÚT TỚI: {forecast} xe")
-    print("-" * 30)
+    data = response.json()
+    print(f"📷 Camera        : {data['camera_id']}")
+    print(f"🔮 Dự báo 15p tới: {data['predicted_count']} xe")
+    print(f"🕐 Thời điểm dự báo: {data['predicted_at']}")
+    print("-" * 40)
+
 
 if __name__ == "__main__":
     main()
