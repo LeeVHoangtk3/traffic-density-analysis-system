@@ -45,3 +45,5 @@ tqdm
 ipython
 seaborn
 matplotlib
+notebook
+ipykernel

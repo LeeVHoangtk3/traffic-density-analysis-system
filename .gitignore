@@ -225,3 +225,5 @@ yolov9-cus/yolov9/data/datasets/
 .DS_Store
 .vscode/
 .idea/
+
+*.md

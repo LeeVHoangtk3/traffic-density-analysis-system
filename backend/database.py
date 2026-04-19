@@ -33,6 +33,8 @@ def sync_vehicle_detection_schema():
         "track_id": "TEXT",
         "density": "TEXT",
         "event_type": "TEXT",
+        "confidence": "FLOAT",
+        "timestamp": "DATETIME",
     }
 
     with engine.begin() as connection:
