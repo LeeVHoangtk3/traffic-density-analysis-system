@@ -1,5 +1,7 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime
 from datetime import datetime
+
+from sqlalchemy import Column, DateTime, Float, Index, Integer, String
+
 from backend.database import Base
 
 class VehicleDetection(Base):
@@ -15,3 +17,9 @@ class VehicleDetection(Base):
     event_type = Column(String)
     confidence = Column(Float)
     timestamp = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_vehicle_detections_event_id", "event_id"),
+        Index("ix_vehicle_detections_camera_id", "camera_id"),
+        Index("ix_vehicle_detections_timestamp", "timestamp"),
+    )
