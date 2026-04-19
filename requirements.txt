@@ -45,3 +45,4 @@ tqdm
 ipython
 seaborn
 matplotlib
+supervision

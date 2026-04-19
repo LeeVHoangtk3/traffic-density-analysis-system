@@ -30,14 +30,14 @@ VIDEO_SOURCE = os.getenv(
 # MODEL_PATH = os.path.join(BASE_DIR, "pro_models", "yolov9c.pt")
 MODEL_PATH = os.getenv(
     "TRAFFIC_MODEL_PATH",
-    os.path.join(BASE_DIR, "pro_models", "best_final.pt")
+    os.path.join(BASE_DIR, "pro_models", "yolov9_img960_ultimate.pt")
 )
 
 CONF_THRESHOLD = 0.5
 # ===== Performance tuning =====
 FRAME_SKIP = 3        # skip frames để tăng tốc
-SHOW_VIDEO = False    # tắt nếu muốn chạy cực nhanh
-TARGET_WIDTH = 640    # resize nhỏ hơn để YOLO chạy nhanh
+SHOW_VIDEO = True    # tắt nếu muốn chạy cực nhanh
+TARGET_WIDTH = 960    # resize nhỏ hơn để YOLO chạy nhanh
 
 def main():
 
@@ -78,7 +78,7 @@ def main():
         conf_threshold=CONF_THRESHOLD
     )
 
-    tracker = Tracker()
+    tracker = Tracker(lost_track_buffer=10)
 
     counter = VehicleCounter()
 
@@ -132,14 +132,17 @@ def main():
 
                 vehicle_type = track["class_name"]
 
-                cx = (x1 + x2) // 2
-                cy = (y1 + y2) // 2
+                cx = int((x1 + x2) // 2)
+                cy_bottom = int(y2)
+                cy_center = int((y1 + y2) // 2)
 
-                # draw center point
-                cv2.circle(frame,(cx,cy),4,(255,0,0),-1)
+                # draw center points
+                cv2.circle(frame, (cx, cy_bottom), 4, (255, 0, 0), -1)
+                cv2.circle(frame, (cx, cy_center), 4, (0, 0, 255), -1)
 
                 # ===== Check zone crossing =====
-                if zone_manager.check_crossing(track_id, cx, cy):
+                if zone_manager.check_crossing(track_id, cx, cy_bottom) or \
+                zone_manager.check_crossing(track_id, cx, cy_center):
 
                     counter.count(vehicle_type)
 
