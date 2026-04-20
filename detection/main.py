@@ -32,8 +32,6 @@ SHOW_VIDEO     = True
 TARGET_WIDTH   = 960
 
 # Dynamic FRAME_SKIP theo density của frame trước
-# LOW: đường vắng → skip nhiều, tiết kiệm tài nguyên
-# HIGH: đông xe → xử lý gần mọi frame, tăng độ chính xác
 FRAME_SKIP_BY_DENSITY = {
     "LOW":    5,
     "MEDIUM": 3,
@@ -42,12 +40,16 @@ FRAME_SKIP_BY_DENSITY = {
 
 AGGREGATION_INTERVAL_MS = 15 * 60 * 1000
 
+# ===== Colab / Test flags =====
+# DRY_RUN=True: không gửi event đến backend, chỉ detect + track + render
+# Dùng khi test trên Colab không có backend local
+DRY_RUN        = True
+# OUTPUT_VIDEO: đường dẫn file output khi chạy trên Colab
+# Set None để tắt ghi file
+OUTPUT_VIDEO   = "output_v1.mp4" if IS_COLAB else None
+
 
 def _trigger_aggregation(api_url: str, camera_id: str) -> None:
-    """
-    Gọi POST /aggregation/compute để backend gom dữ liệu 15 phút vừa qua.
-    Chạy trong thread riêng để không block vòng lặp detect.
-    """
     try:
         base_url = api_url.rsplit("/", 1)[0] if "/" in api_url else api_url
         resp = requests.post(
@@ -89,12 +91,34 @@ def main():
     publisher         = EventPublisher(API_URL)
     zone_manager      = ZoneManager(camera_config["zones"])
 
-    print("Module A Started [V1: Async Publisher + Dynamic FRAME_SKIP]")
+    fps = camera.get_fps()
+    print(f"Module A Started [V1: Async + Dynamic SKIP]")
+    print(f"Video FPS: {fps} | DRY_RUN: {DRY_RUN} | OUTPUT_VIDEO: {OUTPUT_VIDEO}")
+
+    # ===== VideoWriter cho Colab =====
+    out = None
+    if OUTPUT_VIDEO:
+        # Đọc 1 frame để lấy kích thước thực sau khi process
+        ret, sample = camera.read()
+        if ret:
+            sample = processor.process(sample)
+            h, w   = sample.shape[:2]
+            out    = cv2.VideoWriter(
+                OUTPUT_VIDEO,
+                cv2.VideoWriter_fourcc(*"mp4v"),
+                fps / max(FRAME_SKIP_BY_DENSITY.values()),  # FPS output ước tính
+                (w, h),
+            )
+        # Reset lại video về đầu
+        camera.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
     frame_count         = 0
     last_aggregation_ms = None
-    # Dùng density frame trước để quyết định FRAME_SKIP hiện tại
     traffic_density     = "LOW"
+
+    # Perf tracking
+    perf_start  = time.time()
+    perf_frames = 0
 
     try:
         while frame_count < 100_000:
@@ -111,13 +135,14 @@ def main():
                 last_aggregation_ms = video_ms
             elif video_ms - last_aggregation_ms >= AGGREGATION_INTERVAL_MS:
                 last_aggregation_ms = video_ms
-                threading.Thread(
-                    target=_trigger_aggregation,
-                    args=(API_URL, camera_id),
-                    daemon=True,
-                ).start()
+                if not DRY_RUN:
+                    threading.Thread(
+                        target=_trigger_aggregation,
+                        args=(API_URL, camera_id),
+                        daemon=True,
+                    ).start()
 
-            # ===== Dynamic FRAME_SKIP theo density frame trước =====
+            # ===== Dynamic FRAME_SKIP =====
             current_skip = FRAME_SKIP_BY_DENSITY.get(traffic_density, 3)
             if frame_count % current_skip != 0:
                 continue
@@ -128,8 +153,9 @@ def main():
             tracks     = tracker.update(detections, frame)
 
             density_estimator.update(tracks)
-            # Cập nhật density cho frame tiếp theo dùng
             traffic_density = density_estimator.get_density()
+
+            perf_frames += 1
 
             # ===== Process tracks =====
             for track in tracks:
@@ -147,18 +173,22 @@ def main():
                 if zone_manager.check_crossing(track_id, cx, cy_bottom) or \
                    zone_manager.check_crossing(track_id, cx, cy_center):
                     counter.count(vehicle_type)
-                    publisher.publish(event_generator.generate(
+                    event = event_generator.generate(
                         camera_id=camera_id,
                         track=track,
                         density=traffic_density,
-                    ))
+                    )
+                    # DRY_RUN: chỉ log event, không gửi HTTP
+                    if DRY_RUN:
+                        print(f"[DRY_RUN] Event: {event['vehicle_type']} | density: {event['density']}")
+                    else:
+                        publisher.publish(event)
 
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 cv2.putText(frame, f"{vehicle_type} ID:{track_id}",
                     (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
 
             zone_manager.draw_zone(frame)
-
             cv2.putText(frame, f"Density: {traffic_density}",
                 (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
@@ -172,8 +202,24 @@ def main():
             if per_min:
                 print(f"[Per-minute] {per_min}")
 
-            # waitKey(1): chạy nhanh nhất có thể, không giữ tốc độ video
-            if not IS_COLAB and SHOW_VIDEO:
+            # ===== Perf log mỗi 30 frame xử lý =====
+            if perf_frames % 30 == 0:
+                elapsed    = time.time() - perf_start
+                actual_fps = perf_frames / elapsed
+                queue_size = publisher._queue.qsize() if not DRY_RUN else 0
+                print(
+                    f"[Perf] Frame: {perf_frames:4d} | "
+                    f"FPS xử lý: {actual_fps:.1f} | "
+                    f"Video time: {video_ms/1000:.1f}s | "
+                    f"Density: {traffic_density} | "
+                    f"Skip: {current_skip} | "
+                    f"Queue: {queue_size}"
+                )
+
+            # ===== Ghi video output (Colab) hoặc hiển thị (local) =====
+            if out:
+                out.write(frame)
+            elif not IS_COLAB and SHOW_VIDEO:
                 cv2.imshow("Traffic Monitoring - Module A [V1]", frame)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
@@ -182,8 +228,12 @@ def main():
         print("Interrupted by user")
     finally:
         camera.release()
+        if out:
+            out.release()
+            print(f"Output saved: {OUTPUT_VIDEO}")
         cv2.destroyAllWindows()
-        print("Module A Stopped")
+        elapsed = time.time() - perf_start
+        print(f"Module A Stopped | Tổng frame xử lý: {perf_frames} | Thời gian thực: {elapsed:.1f}s")
 
 
 if __name__ == "__main__":
