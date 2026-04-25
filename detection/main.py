@@ -1,4 +1,11 @@
 import os
+import sys
+
+# Define base directory before anything else to ensure correct import paths
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Add the project root to sys.path so 'detection.*' imports work correctly
+sys.path.append(os.path.dirname(BASE_DIR))
+
 import cv2
 import json
 
@@ -17,8 +24,6 @@ from integration.publisher import EventPublisher
 IS_COLAB = "COLAB_GPU" in os.environ
 
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
 API_URL = os.getenv("TRAFFIC_API_URL", "http://127.0.0.1:8000/detection")
 VIDEO_SOURCE = os.getenv(
     "TRAFFIC_VIDEO_SOURCE",
@@ -30,14 +35,14 @@ VIDEO_SOURCE = os.getenv(
 # MODEL_PATH = os.path.join(BASE_DIR, "pro_models", "yolov9c.pt")
 MODEL_PATH = os.getenv(
     "TRAFFIC_MODEL_PATH",
-    os.path.join(BASE_DIR, "pro_models", "best_final.pt")
+    os.path.join(BASE_DIR, "..", "yolov9c.pt")
 )
 
 CONF_THRESHOLD = 0.5
 # ===== Performance tuning =====
 FRAME_SKIP = 3        # skip frames để tăng tốc
+SHOW_VIDEO = True   # tắt nếu muốn chạy cực nhanh
 TARGET_WIDTH = 640    # resize nhỏ hơn để YOLO chạy nhanh
-SHOW_VIDEO =True
 def main():
 
     # ===== Camera ID =====
