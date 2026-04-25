@@ -24,7 +24,7 @@ from detection.integration.publisher import EventPublisher
 IS_COLAB = "COLAB_GPU" in os.environ
 
 API_URL      = os.getenv("TRAFFIC_API_URL", "http://127.0.0.1:8000/detection")
-VIDEO_SOURCE = os.getenv("TRAFFIC_VIDEO_SOURCE", os.path.join(BASE_DIR, "..", "traffictrim.mp4"))
+VIDEO_SOURCE = os.getenv("TRAFFIC_VIDEO_SOURCE", os.path.join(BASE_DIR, "..", "video_data", "traffic1.mp4"))
 MODEL_PATH   = os.getenv("TRAFFIC_MODEL_PATH",   os.path.join(BASE_DIR, "pro_models", "yolov9_img960_ultimate.pt"))
 
 CONF_THRESHOLD = 0.5
@@ -203,7 +203,7 @@ def main():
                 print(f"[Per-minute] {per_min}")
 
             # ===== Perf log mỗi 30 frame xử lý =====
-            if perf_frames % 30 == 0:
+            if perf_frames % 30 == 0:   
                 elapsed    = time.time() - perf_start
                 actual_fps = perf_frames / elapsed
                 queue_size = publisher._queue.qsize() if not DRY_RUN else 0
