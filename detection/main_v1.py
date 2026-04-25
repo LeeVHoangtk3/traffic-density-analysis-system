@@ -24,7 +24,7 @@ from detection.integration.publisher import EventPublisher
 IS_COLAB = "COLAB_GPU" in os.environ
 
 API_URL      = os.getenv("TRAFFIC_API_URL", "http://127.0.0.1:8000/detection")
-VIDEO_SOURCE = os.getenv("TRAFFIC_VIDEO_SOURCE", os.path.join(BASE_DIR, "..", "video_data", "traffic1.mp4"))
+VIDEO_SOURCE = os.getenv("TRAFFIC_VIDEO_SOURCE", os.path.join(BASE_DIR, "..", "traffictrim.mp4"))
 MODEL_PATH   = os.getenv("TRAFFIC_MODEL_PATH",   os.path.join(BASE_DIR, "pro_models", "yolov9_img960_ultimate.pt"))
 
 CONF_THRESHOLD = 0.5
@@ -32,6 +32,8 @@ SHOW_VIDEO     = True
 TARGET_WIDTH   = 960
 
 # Dynamic FRAME_SKIP theo density của frame trước
+# LOW: đường vắng → skip nhiều, tiết kiệm tài nguyên
+# HIGH: đông xe → xử lý gần mọi frame, tăng độ chính xác
 FRAME_SKIP_BY_DENSITY = {
     "LOW":    5,
     "MEDIUM": 3,
@@ -42,14 +44,17 @@ AGGREGATION_INTERVAL_MS = 15 * 60 * 1000
 
 # ===== Colab / Test flags =====
 # DRY_RUN=True: không gửi event đến backend, chỉ detect + track + render
-# Dùng khi test trên Colab không có backend local
-DRY_RUN        = True
-# OUTPUT_VIDEO: đường dẫn file output khi chạy trên Colab
+DRY_RUN      = False
+# OUTPUT_VIDEO: ghi video ra file khi chạy trên Colab để xem lại
 # Set None để tắt ghi file
-OUTPUT_VIDEO   = "output_v1.mp4" if IS_COLAB else None
+OUTPUT_VIDEO = "output_v1.mp4" if IS_COLAB else None
 
 
 def _trigger_aggregation(api_url: str, camera_id: str) -> None:
+    """
+    Gọi POST /aggregation/compute để backend gom dữ liệu 15 phút vừa qua.
+    Chạy trong thread riêng để không block vòng lặp detect.
+    """
     try:
         base_url = api_url.rsplit("/", 1)[0] if "/" in api_url else api_url
         resp = requests.post(
@@ -101,27 +106,40 @@ def main():
         # Đọc 1 frame để lấy kích thước thực sau khi process
         ret, sample = camera.read()
         if ret:
-            sample = processor.process(sample)
-            h, w   = sample.shape[:2]
-            out    = cv2.VideoWriter(
+            sample     = processor.process(sample)
+            h, w       = sample.shape[:2]
+            # Dùng fps/3 (MEDIUM) thay vì fps/max() để video đều hơn
+            # max() lấy skip=5 → 6fps quá thấp, video chạy nhanh hơn thực tế
+            OUTPUT_FPS = fps / 3
+            out = cv2.VideoWriter(
                 OUTPUT_VIDEO,
                 cv2.VideoWriter_fourcc(*"mp4v"),
-                fps / max(FRAME_SKIP_BY_DENSITY.values()),  # FPS output ước tính
+                OUTPUT_FPS,
                 (w, h),
             )
-        # Reset lại video về đầu
-        camera.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        # Dùng camera.reset() thay vì truy cập camera.cap trực tiếp
+        camera.reset()
 
     frame_count         = 0
     last_aggregation_ms = None
     traffic_density     = "LOW"
 
-    # Perf tracking
-    perf_start  = time.time()
-    perf_frames = 0
+    # Cache totals để không tạo dict mới mỗi frame
+    # Chỉ update khi có xe qua zone
+    cached_totals = {}
+
+    # DRY_RUN: đếm event thay vì print mỗi lần → tránh spam console
+    dry_run_event_count = 0
+
+    # Perf tracking — log theo thời gian thực thay vì số frame
+    # Tránh log liên tục khi HIGH density (skip=1 → 30 frame rất nhanh)
+    perf_start    = time.time()
+    perf_frames   = 0
+    last_log_time = time.time()
 
     try:
-        while frame_count < 100_000:
+        # Bỏ limit 100_000 frame — để if not ret: break tự xử lý
+        while True:
             ret, frame = camera.read()
             if not ret:
                 print("Video ended.")
@@ -142,7 +160,7 @@ def main():
                         daemon=True,
                     ).start()
 
-            # ===== Dynamic FRAME_SKIP =====
+            # ===== Dynamic FRAME_SKIP theo density frame trước =====
             current_skip = FRAME_SKIP_BY_DENSITY.get(traffic_density, 3)
             if frame_count % current_skip != 0:
                 continue
@@ -172,15 +190,19 @@ def main():
 
                 if zone_manager.check_crossing(track_id, cx, cy_bottom) or \
                    zone_manager.check_crossing(track_id, cx, cy_center):
+
                     counter.count(vehicle_type)
+                    # Update cache chỉ khi có xe qua zone, không tạo dict mỗi frame
+                    cached_totals = counter.get_totals()
+
                     event = event_generator.generate(
                         camera_id=camera_id,
                         track=track,
                         density=traffic_density,
                     )
-                    # DRY_RUN: chỉ log event, không gửi HTTP
                     if DRY_RUN:
-                        print(f"[DRY_RUN] Event: {event['vehicle_type']} | density: {event['density']}")
+                        # Đếm thay vì print ngay — tránh spam console
+                        dry_run_event_count += 1
                     else:
                         publisher.publish(event)
 
@@ -193,7 +215,8 @@ def main():
                 (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
             y_offset = 80
-            for vehicle, cnt in counter.get_totals().items():
+            # Dùng cached_totals thay vì gọi get_totals() mỗi frame
+            for vehicle, cnt in cached_totals.items():
                 cv2.putText(frame, f"{vehicle}: {cnt}",
                     (30, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
                 y_offset += 30
@@ -202,17 +225,20 @@ def main():
             if per_min:
                 print(f"[Per-minute] {per_min}")
 
-            # ===== Perf log mỗi 30 frame xử lý =====
-            if perf_frames % 30 == 0:   
-                elapsed    = time.time() - perf_start
-                actual_fps = perf_frames / elapsed
-                queue_size = publisher._queue.qsize() if not DRY_RUN else 0
+            # ===== Perf log mỗi 5 giây thực tế =====
+            # Thay vì mỗi 30 frame → tránh log liên tục khi HIGH density
+            if time.time() - last_log_time >= 5:
+                last_log_time = time.time()
+                elapsed       = time.time() - perf_start
+                actual_fps    = perf_frames / elapsed if elapsed > 0 else 0
+                queue_size    = publisher._queue.qsize() if not DRY_RUN else 0
                 print(
                     f"[Perf] Frame: {perf_frames:4d} | "
-                    f"FPS xử lý: {actual_fps:.1f} | "
-                    f"Video time: {video_ms/1000:.1f}s | "
+                    f"FPS: {actual_fps:.1f} | "
+                    f"Video: {video_ms/1000:.1f}s | "
                     f"Density: {traffic_density} | "
                     f"Skip: {current_skip} | "
+                    f"Events: {dry_run_event_count} | "
                     f"Queue: {queue_size}"
                 )
 
@@ -233,7 +259,12 @@ def main():
             print(f"Output saved: {OUTPUT_VIDEO}")
         cv2.destroyAllWindows()
         elapsed = time.time() - perf_start
-        print(f"Module A Stopped | Tổng frame xử lý: {perf_frames} | Thời gian thực: {elapsed:.1f}s")
+        print(
+            f"Module A Stopped | "
+            f"Frames: {perf_frames} | "
+            f"Thời gian: {elapsed:.1f}s | "
+            f"Events: {dry_run_event_count}"
+        )
 
 
 if __name__ == "__main__":
