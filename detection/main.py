@@ -5,7 +5,8 @@ import sys
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Add the project root to sys.path so 'detection.*' imports work correctly
 sys.path.append(os.path.dirname(BASE_DIR))
-
+# ===== ADD THIS =====
+latest_frame = None
 import cv2
 import json
 
@@ -211,14 +212,11 @@ def main():
 
             # ===== Show video (local only) =====
             if not IS_COLAB and SHOW_VIDEO:
+                # ===== ADD THIS =====
+                global latest_frame
 
-                cv2.imshow(
-                    "Traffic Monitoring - Module A",
-                    frame
-                )
-
-                if cv2.waitKey(1) & 0xFF == ord("q"):
-                    break
+                _, buffer = cv2.imencode('.jpg', frame)
+                latest_frame = buffer.tobytes()
 
     except KeyboardInterrupt:
 
