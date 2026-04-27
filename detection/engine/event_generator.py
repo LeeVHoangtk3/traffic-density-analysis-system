@@ -12,5 +12,5 @@ class EventGenerator:
             "density": density,
             "event_type": "line_crossing",
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "confidence": track.get("confidence"),
+            "confidence": round(float(track.get("confidence") or 0.0), 4),
         }
