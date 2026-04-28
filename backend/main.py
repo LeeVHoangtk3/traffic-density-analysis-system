@@ -13,6 +13,8 @@ from backend.api import traffic_routes
 from backend.config import settings
 from backend.database import Base, engine, sync_vehicle_detection_schema
 from backend.models import Camera, TrafficAggregation, TrafficPrediction, VehicleDetection
+# ===== ADD THIS =====
+from backend.api import video_routes
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("backend")
@@ -22,6 +24,7 @@ app = FastAPI(title=settings.api_title)
 Base.metadata.create_all(bind=engine)
 sync_vehicle_detection_schema()
 
+app.include_router(video_routes.router)
 app.include_router(detection_routes.router)
 app.include_router(traffic_routes.router)
 app.include_router(aggregation_routes.router)

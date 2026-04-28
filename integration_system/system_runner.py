@@ -1,5 +1,9 @@
 import os
 import time
+import subprocess
+import os
+import signal
+import sys
 
 import requests
 
@@ -13,6 +17,22 @@ class TrafficSystem:
     def __init__(self):
         print("=== INIT SYSTEM ===")
 
+        # Start backend
+        print("Starting Backend...")
+        backend_cmd = ["uvicorn", "backend.main:app", "--reload", "--host", "127.0.0.1", "--port", "8000"]
+        self.backend_process = subprocess.Popen(backend_cmd, cwd=os.path.join(os.path.dirname(__file__), ".."))
+
+        # Wait for backend to start
+        time.sleep(5)
+
+        # Start detection
+        print("Starting Detection Engine...")
+        detection_cmd = ["python", "detection/main.py"]
+        self.detection_process = subprocess.Popen(detection_cmd, cwd=os.path.join(os.path.dirname(__file__), ".."))
+
+        # Wait for detection to start
+        time.sleep(5)
+
         from congestion_classifier import CongestionClassifier
         from traffic_light_logic import TrafficLightOptimizer
         from performance_monitor import PerformanceMonitor
@@ -25,6 +45,16 @@ class TrafficSystem:
 
         self.monitor = PerformanceMonitor()
         print("[OK] Loaded PerformanceMonitor")
+
+    def stop_system(self):
+        print("Stopping system...")
+        if hasattr(self, 'backend_process'):
+            self.backend_process.terminate()
+            self.backend_process.wait()
+        if hasattr(self, 'detection_process'):
+            self.detection_process.terminate()
+            self.detection_process.wait()
+        print("System stopped.")
 
     def run_pipeline(self):
         print("\n===== START PIPELINE =====")
@@ -99,6 +129,16 @@ class TrafficSystem:
 if __name__ == "__main__":
     system = TrafficSystem()
 
-    while True:
-        system.run_pipeline()
-        time.sleep(5)
+    def signal_handler(sig, frame):
+        system.stop_system()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    try:
+        while True:
+            system.run_pipeline()
+            time.sleep(5)
+    except KeyboardInterrupt:
+        system.stop_system()

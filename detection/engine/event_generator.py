@@ -3,14 +3,39 @@ from datetime import datetime, timezone
 
 
 class EventGenerator:
-    def generate(self, camera_id, track, density):
+    """
+    Tạo event payload khi xe vượt zone.
+
+    Thay đổi so với bản trước:
+    ────────────────────────────────────────────────────────
+    Thêm direction vào payload (kế hoạch camera 1 hướng):
+    - generate() nhận thêm param direction: str
+    - direction lấy từ zone_manager.check_crossing() — đọc
+      trực tiếp từ zone config, không hardcode trong detection
+    ────────────────────────────────────────────────────────
+    """
+
+    def generate(
+        self,
+        camera_id: str,
+        track: dict,
+        direction: str,
+    ) -> dict:
+        """
+        Args:
+            camera_id:  ID camera (e.g. "CAM_01")
+            track:      Dict từ Tracker: track_id, class_name, bbox, confidence
+            direction:  Hướng xe từ zone config ("inbound" | "outbound")
+        Returns:
+            Event dict sẵn sàng gửi lên backend qua EventPublisher
+        """
         return {
-            "event_id": str(uuid.uuid4()),
-            "camera_id": camera_id,
-            "track_id": track["track_id"],
+            "event_id":     str(uuid.uuid4()),
+            "camera_id":    camera_id,
+            "track_id":     track["track_id"],
             "vehicle_type": track["class_name"],
-            "density": density,
-            "event_type": "line_crossing",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "confidence": track.get("confidence"),
+            "event_type":   "zone_crossing",
+            "direction":    direction,
+            "timestamp":    datetime.now(timezone.utc).isoformat(),
+            "confidence":   round(float(track.get("confidence") or 0.0), 4),
         }
