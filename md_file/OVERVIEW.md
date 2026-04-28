@@ -177,13 +177,13 @@ traffic-density-analysis-system/
 
 | File | Chức năng |
 |------|-----------|
-| `main.py` | Vòng lặp chính: đọc frame → pipeline detect/track → gửi event. Hỗ trợ Dynamic Frame Skip (skip nhiều frame khi đường vắng, ít frame khi đông). Tự gọi aggregation mỗi 15 phút video. |
+| `main.py` | Vòng lặp chính: đọc frame → pipeline detect/track → gửi event. Hỗ trợ Dynamic Frame Skip và Spike Detection (phản ứng nhanh khi có thay đổi đột ngột). Tự gọi aggregation mỗi 15 phút thời gian thực. |
 | `camera_engine.py` | Wrapper OpenCV `VideoCapture`. Cung cấp `read()`, `get_video_ms()` (timestamp video), `get_fps()`. |
-| `engine/detector.py` | Load model YOLOv9 bằng `torch.load()`. Inference 960×960, NMS, lọc vehicle classes (bus, car, motorcycle, truck). |
+| `engine/detector.py` | Load model YOLOv9 bằng `torch.load()`. Inference, NMS, lọc vehicle classes. Áp dụng per-class confidence (Motorcycle: 0.25, khác: 0.40) và scale tọa độ x/y độc lập theo frame gốc. |
 | `engine/tracker.py` | Sử dụng **ByteTrack** (qua thư viện `supervision`) để gán ID theo dõi cho mỗi phương tiện qua nhiều frame. |
 | `engine/counter.py` | Đếm tổng phương tiện theo loại + đếm theo chu kỳ 1 phút (dựa theo thời gian video). |
-| `engine/density_estimator.py` | Rolling window (10 frame) tính trung bình số xe → phân loại LOW (<5), MEDIUM (<15), HIGH (≥15). |
-| `engine/zone_manager.py` | Quản lý polygon zone. Kiểm tra xe có vượt qua zone hay không (dùng `cv2.pointPolygonTest`). Dùng OrderedDict FIFO tránh memory leak. |
+| `engine/density_estimator.py` | Rolling window (30 frame) tính trung bình số xe → phân loại LOW (<5), MEDIUM (<15), HIGH (≥15). Cung cấp tín hiệu real-time cho Frame Skip. |
+| `engine/zone_manager.py` | Quản lý polygon zone. Kiểm tra xe vượt zone. Dùng OrderedDict LRU (Least Recently Used) và cơ chế cooldown (30s) để tránh đếm trùng khi xe dừng đèn đỏ. |
 | `engine/event_generator.py` | Tạo dict event chứa: `event_id` (UUID), `camera_id`, `track_id`, `vehicle_type`, `density`, `timestamp`. |
 | `engine/frame_processor.py` | Resize frame về `target_width` (960px) giữ tỉ lệ. |
 | `integration/publisher.py` | Non-blocking publisher: đẩy event vào Queue (max 200), background thread gửi HTTP POST. Nếu queue đầy, bỏ event cũ nhất. |
@@ -449,18 +449,26 @@ python integration_system/system_runner.py
 ## 8. Điểm Nổi Bật Kỹ Thuật
 
 ### Dynamic Frame Skip
-- **LOW density**: skip 5 frame → tiết kiệm tài nguyên
-- **MEDIUM density**: skip 3 frame → cân bằng
-- **HIGH density**: skip 1 frame → xử lý gần mọi frame, tăng độ chính xác
+- **LOW density**: skip 5 frame (CPU) / skip 10 frame (CUDA) → tiết kiệm tài nguyên
+- **MEDIUM density**: skip 3 frame (CPU) / skip 6 frame (CUDA)
+- **HIGH density**: skip 1 frame (CPU) / skip 2 frame (CUDA)
+- **Spike Detection**: nếu số xe frame mới > 1.5× frame trước **và** ≥ 3 xe → bỏ skip hoàn toàn 1 frame
 
 ### Non-blocking Event Publishing
-- Sử dụng `queue.Queue` + background daemon thread
+- Sử dụng `queue.Queue(maxsize=200)` + background daemon thread
 - `publish()` return ngay lập tức, không block vòng lặp detect
-- Queue đầy → bỏ event cũ, ưu tiên event mới (FIFO eviction)
+- Queue đầy → drop event **cũ nhất** và thêm event mới (đảm bảo dữ liệu mới nhất luôn được gửi)
 
-### Rolling Window Density
-- Trung bình 10 frame gần nhất thay vì snapshot tức thời
-- Tránh density giật HIGH→LOW→HIGH khi detector miss vài frame
+### Rolling Window Density (30 frame)
+- Trung bình **30 frame** gần nhất (tăng từ 10 frame)
+- Với FRAME_SKIP=3, window=30 tương đương ~90 frame thật (~3 giây)
+- Đủ mượt để tránh giật HIGH↔LOW khi detector miss vài frame
+- Đủ nhanh để phản ứng kịp thay đổi mật độ thực sự
+
+### Cooldown Zone (30 giây)
+- Cùng `track_id` vào zone < 30s → **KHÔNG đếm** (tránh đếm xe dừng đèn đỏ)
+- Khi ByteTrack re-assign ID cũ cho xe mới đi qua → đủ cooldown sẽ đếm lại bình thường
+- OrderedDict LRU eviction: tối đa 5.000 track_id trong memory, xóa entry **ít dùng nhất**
 
 ### Schema Migration tự động
 - `database.py`: tự thêm cột mới vào bảng đã tồn tại bằng `ALTER TABLE`
@@ -472,7 +480,177 @@ python integration_system/system_runner.py
 
 ---
 
-## 9. Sơ Đồ Quan Hệ Module
+## 9. Tham Số Chi Tiết Các Class Chính
+
+### `Detector.__init__`
+| Tham số | Kiểu | Mặc định | Mô tả |
+|---------|------|----------|-------|
+| `model_path` | `str` | — | Đường dẫn file `.pt` |
+| `conf_threshold` | `float` | `0.40` | Ngưỡng confidence chung |
+| `img_size` | `int` | `960` | Kích thước resize ảnh đầu vào (phải match `imgsz` khi train) |
+
+**Per-class confidence override:**
+```
+bus       → 0.40
+car       → 0.40
+motorcycle → 0.25  (nhỏ, chiếm 70-80% traffic VN)
+truck     → 0.40
+```
+
+### `Tracker.__init__`
+| Tham số | Mặc định | Ghi chú |
+|---------|----------|---------|
+| `track_activation_threshold` | `0.35` | Giảm track "ma" từ false positive |
+| `lost_track_buffer` | `90` | Giữ ID lên đến ~3.6s @ 25FPS, tránh double counting khi occlusion |
+| `minimum_matching_threshold` | `0.8` | Matching chặt hơn khi re-associate |
+
+### `DensityEstimator.__init__`
+| Tham số | Mặc định | Ghi chú |
+|---------|----------|---------|
+| `window` | `30` frame | ~3s thực với FRAME_SKIP=3 |
+
+**Ngưỡng phân loại:**
+```
+avg < 5  xe → LOW
+avg < 15 xe → MEDIUM
+avg ≥ 15 xe → HIGH
+```
+
+### `ZoneManager.__init__`
+| Tham số | Mặc định | Ghi chú |
+|---------|----------|---------|
+| `zones` | từ JSON | List polygon dicts, mỗi dict có key `points: [[x,y],...]` |
+| `max_history` | `5000` | Số track_id tối đa lưu trong LRU dict |
+| `cooldown_seconds` | `30.0` | Thời gian chặn giữa 2 lần đếm cùng `track_id` |
+
+### `EventPublisher.__init__`
+| Tham số | Mặc định | Ghi chú |
+|---------|----------|---------|
+| `api_url` | — | Endpoint POST nhận event |
+| `max_queue` | `200` | Giới hạn buffer event trong memory |
+
+---
+
+## 10. Schema Pydantic (backend/schemas)
+
+### `DetectionCreate` — Dữ liệu event detection gửi từ Module A
+```python
+class VehicleType(str, Enum):
+    bus = "bus" | car = "car" | motorcycle = "motorcycle" | truck = "truck"
+
+class DensityLevel(str, Enum):
+    low = "LOW" | medium = "MEDIUM" | high = "HIGH" | severe = "SEVERE"
+
+class EventType(str, Enum):
+    line_crossing = "line_crossing" | zone_entry = "zone_entry" | zone_exit = "zone_exit"
+
+class DetectionCreate(BaseModel):
+    event_id:     str          # UUID, min_length=1
+    camera_id:    str          # VD: "CAM_01"
+    track_id:     int | str    # ID từ ByteTrack
+    vehicle_type: VehicleType
+    density:      DensityLevel
+    event_type:   EventType
+    timestamp:    datetime
+    confidence:   float | None  # 0.0 ~ 1.0
+```
+
+### `AggregationComputeResponse` — Kết quả tính aggregation 15 phút
+```python
+class AggregationComputeResponse(BaseModel):
+    aggregation_id:   int
+    camera_id:        str
+    window_start:     datetime
+    window_end:       datetime
+    vehicle_count:    int
+    congestion_level: str   # Low / Medium / High / Severe
+```
+
+### `PredictionResponse` — Kết quả dự báo ML
+```python
+class PredictionResponse(BaseModel):
+    camera_id:        str | None
+    predicted_density: float     # Số xe dự báo cho 15 phút tới
+    horizon_minutes:  int        # Mặc định 15
+    source:           str        # "ml_service" hoặc "fallback"
+    timestamp:        datetime
+```
+
+---
+
+## 11. Database Schema (SQL)
+
+```sql
+-- Bảng lưu mỗi sự kiện xe vượt qua detection zone
+CREATE TABLE vehicle_detections (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id     TEXT,        -- UUID duy nhất mỗi event
+    camera_id    TEXT,        -- VD: "CAM_01"
+    track_id     TEXT,        -- ID xe từ ByteTrack
+    vehicle_type TEXT,        -- bus / car / motorcycle / truck
+    density      TEXT,        -- LOW / MEDIUM / HIGH
+    event_type   TEXT,        -- line_crossing / zone_entry / zone_exit
+    confidence   FLOAT,       -- 0.0 - 1.0
+    timestamp    DATETIME     -- UTC thời điểm phát hiện
+);
+CREATE INDEX ix_vehicle_detections_event_id   ON vehicle_detections(event_id);
+CREATE INDEX ix_vehicle_detections_camera_id  ON vehicle_detections(camera_id);
+CREATE INDEX ix_vehicle_detections_timestamp  ON vehicle_detections(timestamp);
+
+-- Bảng thống kê gom nhóm 15 phút
+CREATE TABLE traffic_aggregation (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    camera_id        TEXT,
+    vehicle_count    INTEGER,  -- Số xe DISTINCT track_id trong window
+    congestion_level TEXT,     -- Low / Medium / High / Severe
+    timestamp        DATETIME
+);
+
+-- Bảng lưu kết quả dự báo ML
+CREATE TABLE traffic_predictions (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    camera_id         TEXT,
+    predicted_density FLOAT,     -- Số xe dự báo
+    horizon_minutes   INTEGER DEFAULT 15,
+    source            TEXT DEFAULT 'fallback',  -- ml_service | fallback
+    timestamp         DATETIME
+);
+
+-- Bảng thông tin camera
+CREATE TABLE cameras (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    camera_id TEXT
+);
+```
+
+---
+
+## 12. Cấu Hình Camera JSON (`configs_cameras/cam_01.json`)
+
+```json
+{
+  "camera_id": "CAM_01",
+  "zones": [
+    {
+      "id": "main_detection_zone",
+      "points": [
+        [0,   420],
+        [960, 420],
+        [960, 640],
+        [0,   640]
+      ]
+    }
+  ]
+}
+```
+
+> Zone mặc định là **dải ngang nửa dưới** của frame 960×640 (từ y=420 đến y=640).  
+> Điểm kiểm tra là **cy_bottom** (tọa độ y2 của bbox — điểm tiếp đất thực tế của xe),  
+> không phải tâm bbox, để tránh đếm sai khi xe chồng lấn.
+
+---
+
+## 13. Sơ Đồ Quan Hệ Module
 
 ```mermaid
 graph LR
@@ -482,10 +660,25 @@ graph LR
     C[ml_service/] -->|import TrafficPredictor| B
     D[integration_system/] -->|GET /raw-data| B
     D -->|GET /aggregation| B
-    E[yolov9-cus/] -.->|model weights| A
+    E[yolov9-cus/] -.->|model weights .pt| A
     V[video_data/] -.->|video input| A
 ```
 
 ---
 
-> **Ghi chú**: File này được tạo tự động dựa trên phân tích mã nguồn thực tế của dự án. Cập nhật lần cuối: 26/04/2026.
+## 14. Thứ Tự Chạy Khuyến Nghị
+
+```
+1. uvicorn backend.main:app --reload          # Khởi động Backend API (port 8000)
+2. python -m detection.main                   # Chạy detection, tích lũy dữ liệu vào DB
+3. python -m ml_service.train                 # (Tuỳ chọn) Retrain model với dữ liệu CSV
+4. python -m ml_service.predict               # Kiểm tra dự báo qua API
+5. python integration_system/system_runner.py # Chạy pipeline tích hợp
+```
+
+> **Lưu ý thứ tự**: Backend phải chạy trước detection.  
+> Detection cần tích lũy đủ dữ liệu trước khi `/predict-next` có thể trả kết quả hợp lệ.
+
+---
+
+> **Ghi chú**: File này phản ánh mã nguồn thực tế của dự án. Cập nhật lần cuối: 28/04/2026.
