@@ -197,17 +197,17 @@ def main():
 
                 cv2.circle(frame, (cx, cy_bottom), 4, (255, 0, 0), -1)
 
-                # Gọi check_crossing 1 lần duy nhất với cy_bottom
-                # (bỏ double-call cy_bottom + cy_center → tránh đếm 2x)
-                if zone_manager.check_crossing(track_id, cx, cy_bottom):
+                # check_crossing trả về direction (str) hoặc None
+                # None = không trong zone hoặc bị cooldown chặn
+                direction = zone_manager.check_crossing(track_id, cx, cy_bottom)
+                if direction:
                     counter.count(vehicle_type)
                     cached_totals = counter.get_totals()
 
-                    # density không đưa vào payload
-                    # aggregation_service tự tính congestion_level
                     event = event_generator.generate(
                         camera_id=camera_id,
                         track=track,
+                        direction=direction,
                     )
                     if DRY_RUN:
                         dry_run_event_count += 1

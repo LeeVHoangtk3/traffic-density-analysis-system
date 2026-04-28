@@ -6,21 +6,36 @@ class EventGenerator:
     """
     Tạo event payload khi xe vượt zone.
 
-    Thay đổi so với bản gốc:
+    Thay đổi so với bản trước:
     ────────────────────────────────────────────────────────
-    1. Bỏ density khỏi param và payload
-    2. confidence có fallback 0.0, round 4 chữ số
-    3. event_type đổi "line_crossing" → "zone_crossing"
+    Thêm direction vào payload (kế hoạch camera 1 hướng):
+    - generate() nhận thêm param direction: str
+    - direction lấy từ zone_manager.check_crossing() — đọc
+      trực tiếp từ zone config, không hardcode trong detection
     ────────────────────────────────────────────────────────
     """
 
-    def generate(self, camera_id: str, track: dict) -> dict:
+    def generate(
+        self,
+        camera_id: str,
+        track: dict,
+        direction: str,
+    ) -> dict:
+        """
+        Args:
+            camera_id:  ID camera (e.g. "CAM_01")
+            track:      Dict từ Tracker: track_id, class_name, bbox, confidence
+            direction:  Hướng xe từ zone config ("inbound" | "outbound")
+        Returns:
+            Event dict sẵn sàng gửi lên backend qua EventPublisher
+        """
         return {
             "event_id":     str(uuid.uuid4()),
             "camera_id":    camera_id,
             "track_id":     track["track_id"],
             "vehicle_type": track["class_name"],
             "event_type":   "zone_crossing",
+            "direction":    direction,
             "timestamp":    datetime.now(timezone.utc).isoformat(),
             "confidence":   round(float(track.get("confidence") or 0.0), 4),
         }

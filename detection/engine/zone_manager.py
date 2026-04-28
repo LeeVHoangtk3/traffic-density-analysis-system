@@ -8,27 +8,17 @@ class ZoneManager:
     """
     Quản lý polygon zone và đếm xe vượt zone.
 
-    Thay đổi so với bản gốc:
+    Thay đổi so với bản trước:
     ─────────────────────────────────────────────────────────────────
-    1. counted_ids lưu timestamp thay vì True
-       → Biết chính xác xe vào zone lúc nào (phục vụ cooldown, debug)
-
-    2. Thêm cooldown_seconds (mặc định 30s)
-       → Nếu cùng track_id xuất hiện lại trong zone sau < 30s → KHÔNG đếm
-       → Xử lý trường hợp xe dừng trong zone (đèn đỏ), ByteTrack
-         re-assign ID cũ, tránh đếm trùng
-
-    3. Eviction theo LRU (Least Recently Used) thay vì FIFO
-       → Xóa track_id lâu nhất KHÔNG hoạt động, không phải cũ nhất về thời gian vào
-       → Xe đang đứng yên trong zone sẽ không bị xóa sớm
-
-    4. Thêm drop_count để theo dõi số lần eviction → debug memory pressure
-
-    5. draw_zone() giữ nguyên interface, thêm tùy chọn màu theo zone index
+    Thêm direction support (kế hoạch camera 1 hướng):
+    - check_crossing() trả về Optional[str] thay vì bool
+      → None  = không crossing (hoặc bị cooldown chặn)
+      → "inbound" / "outbound" = crossing hợp lệ, kèm direction của zone đó
+    - draw_zone() hiển thị label direction trên frame để debug
+    - Zone config cần có field "direction": "inbound" | "outbound"
     ─────────────────────────────────────────────────────────────────
     """
 
-    # Màu phân biệt khi có nhiều zone
     ZONE_COLORS = [
         (255,   0, 255),   # magenta
         (  0, 255, 255),   # cyan
@@ -42,93 +32,80 @@ class ZoneManager:
         max_history: int = 5000,
         cooldown_seconds: float = 30.0,
     ):
-        """
-        Args:
-            zones:             List zone dicts, mỗi zone có key "points" (list of [x,y])
-            max_history:       Số track_id tối đa lưu trong bộ nhớ
-            cooldown_seconds:  Thời gian tối thiểu (giây) giữa 2 lần đếm cùng track_id
-        """
-        self.zones = zones
-        self.max_history = max_history
+        self.zones            = zones
+        self.max_history      = max_history
         self.cooldown_seconds = cooldown_seconds
 
-        # key: track_id  |  value: timestamp lần cuối được đếm (time.monotonic)
         self._last_counted: OrderedDict[int, float] = OrderedDict()
 
-        # Thống kê
-        self.drop_count = 0   # số lần evict do vượt max_history
-        self.cooldown_blocked = 0  # số lần bị chặn do cooldown
+        self.drop_count       = 0
+        self.cooldown_blocked = 0
 
     # ------------------------------------------------------------------ #
     #  Public API                                                          #
     # ------------------------------------------------------------------ #
 
-    def check_crossing(self, track_id: int, cx: float, cy: float) -> bool:
+    def check_crossing(
+        self,
+        track_id: int,
+        cx: float,
+        cy: float,
+    ) -> str | None:
         """
-        Trả về True nếu xe (track_id) vượt zone VÀ đủ điều kiện được đếm.
+        Kiểm tra xe có vượt zone không.
 
-        Điều kiện được đếm:
-          - centroid (cx, cy) nằm trong ít nhất 1 polygon zone
-          - track_id chưa được đếm, HOẶC đã quá cooldown_seconds kể từ lần đếm trước
+        Returns:
+            str  — direction của zone ("inbound" | "outbound") nếu crossing hợp lệ
+            None — nếu không trong zone, hoặc bị cooldown chặn
+
+        Cách dùng trong main.py:
+            direction = zone_manager.check_crossing(track_id, cx, cy_bottom)
+            if direction:
+                event = event_generator.generate(..., direction=direction)
         """
         point = (float(cx), float(cy))
 
         for zone in self.zones:
             polygon = np.array(zone["points"], np.int32)
-            inside = cv2.pointPolygonTest(polygon, point, False)
+            inside  = cv2.pointPolygonTest(polygon, point, False)
 
             if inside >= 0:
-                now = time.monotonic()
+                now     = time.monotonic()
                 last_ts = self._last_counted.get(track_id)
 
-                # --- Cooldown check ---
                 if last_ts is not None:
-                    elapsed = now - last_ts
-                    if elapsed < self.cooldown_seconds:
+                    if now - last_ts < self.cooldown_seconds:
                         self.cooldown_blocked += 1
-                        return False
-                    # Hết cooldown: cho phép đếm lại (xe mới đi qua)
-                    # Cập nhật vị trí trong OrderedDict (move_to_end = LRU update)
+                        return None
                     self._last_counted.move_to_end(track_id)
-                    self._last_counted[track_id] = now
-                    return True
 
-                # --- Lần đầu tiên track_id này vào zone ---
                 self._last_counted[track_id] = now
                 self._evict_if_needed()
-                return True
 
-        return False
+                # Trả về direction của zone — fallback "inbound" nếu không có field
+                return zone.get("direction", "inbound")
+
+        return None
 
     def draw_zone(self, frame: np.ndarray) -> np.ndarray:
-        """Vẽ tất cả polygon zones lên frame. Trả về frame đã vẽ."""
+        """Vẽ polygon zones lên frame, hiển thị direction label để debug."""
         for idx, zone in enumerate(self.zones):
             color = self.ZONE_COLORS[idx % len(self.ZONE_COLORS)]
-            pts = np.array(zone["points"], np.int32)
-            cv2.polylines(
-                frame,
-                [pts],
-                isClosed=True,
-                color=color,
-                thickness=3,
+            pts   = np.array(zone["points"], np.int32)
+
+            cv2.polylines(frame, [pts], isClosed=True, color=color, thickness=3)
+
+            # Label: ưu tiên "direction", fallback sang "name", fallback sang index
+            label  = zone.get("direction") or zone.get("name") or f"zone_{idx}"
+            origin = tuple(pts[0])
+            cv2.putText(
+                frame, label, origin,
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2, cv2.LINE_AA,
             )
-            # Label tên zone nếu có
-            if "name" in zone:
-                origin = tuple(pts[0])
-                cv2.putText(
-                    frame,
-                    zone["name"],
-                    origin,
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    color,
-                    2,
-                    cv2.LINE_AA,
-                )
+
         return frame
 
     def stats(self) -> dict:
-        """Trả về thống kê nội bộ để debug / monitor."""
         return {
             "tracked_ids_in_memory": len(self._last_counted),
             "max_history":           self.max_history,
@@ -142,11 +119,6 @@ class ZoneManager:
     # ------------------------------------------------------------------ #
 
     def _evict_if_needed(self):
-        """
-        Xóa entry LRU (ít được dùng gần nhất) khi vượt max_history.
-        OrderedDict giữ thứ tự insertion; move_to_end() dùng khi update
-        → phần tử đầu tiên luôn là LRU.
-        """
         while len(self._last_counted) > self.max_history:
-            self._last_counted.popitem(last=False)  # xóa LRU
+            self._last_counted.popitem(last=False)
             self.drop_count += 1
