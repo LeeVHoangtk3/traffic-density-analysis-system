@@ -1,39 +1,62 @@
-from deep_sort_realtime.deepsort_tracker import DeepSort
+import numpy as np
+import supervision as sv
+from typing import Optional
 
 
 class Tracker:
-    def __init__(self):
-        self.tracker = DeepSort(max_age=30)
+    def __init__(
+        self,
+        track_activation_threshold: float = 0.25,
+        lost_track_buffer: int = 10,
+    ):
+        self.tracker = sv.ByteTrack(
+            track_activation_threshold=track_activation_threshold,
+            lost_track_buffer=lost_track_buffer,
+        )
 
-    def update(self, detections, frame):
-        raw_detections = []
+    def update(self, detections: list[dict], frame: Optional[np.ndarray] = None) -> list[dict]:
+        """
+        Args:
+            detections: List of dicts từ Detector, mỗi dict có:
+                        {bbox, confidence, class_id, class_name}
+            frame:      Reserved cho tương lai (e.g. ReID, visual debug)
+        Returns:
+            List of dicts: {track_id, bbox, class_name}
+        """
+        if not detections:
+            return []
 
-        for det in detections:
-            x1, y1, x2, y2 = det["bbox"]
+        xyxy       = np.array([d["bbox"]       for d in detections], dtype=np.float32)
+        confidence = np.array([d["confidence"] for d in detections], dtype=np.float32)
+        class_id   = np.array([d["class_id"]   for d in detections], dtype=int)
 
-            w = x2 - x1
-            h = y2 - y1
+        id_to_name: dict[int, str] = {
+            d["class_id"]: d["class_name"] for d in detections
+        }
 
-            raw_detections.append(
-                ([x1, y1, w, h], det["confidence"], det["class_name"])
-            )
+        sv_detections = sv.Detections(
+            xyxy=xyxy,
+            confidence=confidence,
+            class_id=class_id,
+        )
 
-        tracks = self.tracker.update_tracks(raw_detections, frame=frame)
+        tracked = self.tracker.update_with_detections(sv_detections)
+
+        if tracked.tracker_id is None:
+            return []
 
         results = []
-
-        for track in tracks:
-            if not track.is_confirmed():
+        for i, tracker_id in enumerate(tracked.tracker_id):
+            if tracker_id is None:
                 continue
 
-            x1, y1, x2, y2 = map(int, track.to_ltrb())
-            confidence = getattr(track, "det_conf", None)
+            x1, y1, x2, y2 = tracked.xyxy[i].astype(int)
+            cls_id = int(tracked.class_id[i])
 
             results.append({
-                "track_id": track.track_id,
-                "bbox": [x1, y1, x2, y2],
-                "class_name": track.det_class,
-                "confidence": float(confidence) if confidence is not None else None,
+                "track_id":   int(tracker_id),
+                "bbox":       [x1, y1, x2, y2],
+                "class_name": id_to_name.get(cls_id, "unknown"),
             })
 
         return results

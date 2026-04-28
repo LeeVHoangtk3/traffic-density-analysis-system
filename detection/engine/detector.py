@@ -52,7 +52,7 @@ class Detector:
     def detect(self, frame):
         # 1. Preprocessing
         h, w = frame.shape[:2]
-        img_size = 640
+        img_size = 960  # YOLOv9 thường dùng 960x960, bạn có thể điều chỉnh nếu model của bạn yêu cầu kích thước khác
         img = cv2.resize(frame, (img_size, img_size))
         img = img.transpose((2, 0, 1))[::-1]
         img = np.ascontiguousarray(img)

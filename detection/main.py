@@ -33,37 +33,14 @@ VIDEO_SOURCE = os.getenv(
 
 MODEL_PATH = os.getenv(
     "TRAFFIC_MODEL_PATH",
-    os.path.join(BASE_DIR, "..", "yolov9c.pt"),
+    os.path.join(BASE_DIR, "pro_models", "yolov9_img960_ultimate.pt")
 )
 
 CONF_THRESHOLD = 0.5
-FRAME_SKIP = 3
-SHOW_VIDEO = True
-TARGET_WIDTH = 640
-AGGREGATION_INTERVAL = 15 * 60
-
-
-def _trigger_aggregation(api_url: str, camera_id: str):
-    """
-    Gọi POST /aggregation/compute để backend gom dữ liệu 15 phút vừa qua.
-    Chạy trong thread riêng để không block vòng lặp detect.
-    """
-    try:
-        base_url = api_url.rsplit("/", 1)[0] if "/" in api_url else api_url
-        endpoint = f"{base_url}/aggregation/compute"
-        resp = requests.post(endpoint, params={"camera_id": camera_id}, timeout=5)
-        if resp.status_code == 200:
-            data = resp.json()
-            print(
-                f"[Aggregation] Window ghi nhận: "
-                f"{data['vehicle_count']} xe | "
-                f"Mức độ: {data['congestion_level']}"
-            )
-        else:
-            print(f"[Aggregation] HTTP {resp.status_code}: {resp.text}")
-    except Exception as exc:
-        print(f"[Aggregation] Loi khi goi API tong hop: {exc}")
-
+# ===== Performance tuning =====
+FRAME_SKIP = 3        # skip frames để tăng tốc
+SHOW_VIDEO = True    # tắt nếu muốn chạy cực nhanh
+TARGET_WIDTH = 960    # resize nhỏ hơn để YOLO chạy nhanh
 
 def main():
     camera_id = "CAM_01"
@@ -96,8 +73,14 @@ def main():
 
     camera = CameraEngine(VIDEO_SOURCE)
     processor = FrameProcessor(target_width=TARGET_WIDTH)
-    detector = Detector(MODEL_PATH, conf_threshold=CONF_THRESHOLD)
-    tracker = Tracker()
+
+    detector = Detector(
+        MODEL_PATH,
+        conf_threshold=CONF_THRESHOLD
+    )
+
+    tracker = Tracker(lost_track_buffer=10)
+
     counter = VehicleCounter()
     density_estimator = DensityEstimator()
     event_generator = EventGenerator()
@@ -142,12 +125,18 @@ def main():
                 track_id = track["track_id"]
                 vehicle_type = track["class_name"]
 
-                cx = (x1 + x2) // 2
-                cy = (y1 + y2) // 2
+                cx = int((x1 + x2) // 2)
+                cy_bottom = int(y2)
+                cy_center = int((y1 + y2) // 2)
 
-                cv2.circle(frame, (cx, cy), 4, (255, 0, 0), -1)
+                # draw center points
+                cv2.circle(frame, (cx, cy_bottom), 4, (255, 0, 0), -1)
+                cv2.circle(frame, (cx, cy_center), 4, (0, 0, 255), -1)
 
-                if zone_manager.check_crossing(track_id, cx, cy):
+                # ===== Check zone crossing =====
+                if zone_manager.check_crossing(track_id, cx, cy_bottom) or \
+                zone_manager.check_crossing(track_id, cx, cy_center):
+
                     counter.count(vehicle_type)
                     event = event_generator.generate(
                         camera_id=camera_id,

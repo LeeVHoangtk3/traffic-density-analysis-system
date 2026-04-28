@@ -45,5 +45,4 @@ tqdm
 ipython
 seaborn
 matplotlib
-notebook
-ipykernel
+supervision
