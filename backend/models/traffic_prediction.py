@@ -11,6 +11,7 @@ class TrafficPrediction(Base):
     id = Column(Integer, primary_key=True)
     camera_id = Column(String, nullable=True)
     predicted_density = Column(Float)
+    suggested_delta = Column(Float, nullable=True)
     horizon_minutes = Column(Integer, default=15)
     source = Column(String, default="fallback")
     timestamp = Column(DateTime, default=datetime.utcnow)

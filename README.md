@@ -1,5 +1,5 @@
 # Hướng dẫn chạy dự án
-
+Mở MT ảo: source .venv/bin/activate
 ## 1. Chạy backend
 
 ```bash

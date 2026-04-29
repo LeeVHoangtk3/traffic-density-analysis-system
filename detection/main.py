@@ -29,7 +29,7 @@ VIDEO_SOURCE = os.getenv("TRAFFIC_VIDEO_SOURCE",  os.path.join(BASE_DIR, "..", "
 MODEL_PATH   = os.getenv("TRAFFIC_MODEL_PATH",    os.path.join(BASE_DIR, "pro_models", "yolov9_img960_ultimate.pt"))
 
 CONF_THRESHOLD = 0.40
-SHOW_VIDEO     = True
+SHOW_VIDEO     = False
 
 # Giữ 960 vì model đã train với imgsz=960
 # Đổi sang 640 sẽ làm lệch feature map, giảm mAP thực sự

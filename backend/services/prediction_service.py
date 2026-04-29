@@ -159,7 +159,7 @@ def predict_next_density(
         predicted_density=predicted_value,
         horizon_minutes=settings.prediction_horizon_minutes,
         source=source,
-        # suggested_delta=suggested_delta  # Bỏ comment dòng này sau khi đã cập nhật DB model
+        suggested_delta=suggested_delta
     )
     
     # Gán tạm vào object để API có thể trả về (dù có lưu DB hay không)

@@ -37,6 +37,7 @@ def predict_next(camera_id: str | None = None, db: Session = Depends(get_db)):
     return PredictionResponse(
         camera_id=prediction.camera_id,
         predicted_density=prediction.predicted_density,
+        suggested_delta=prediction.suggested_delta,
         horizon_minutes=prediction.horizon_minutes,
         source=prediction.source,
         timestamp=prediction.timestamp,
@@ -66,6 +67,7 @@ def get_prediction_history(
                 id=item.id,
                 camera_id=item.camera_id,
                 predicted_density=item.predicted_density,
+                suggested_delta=item.suggested_delta,
                 horizon_minutes=item.horizon_minutes,
                 source=item.source,
                 timestamp=item.timestamp,
