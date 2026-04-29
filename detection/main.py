@@ -208,6 +208,7 @@ def main():
                         camera_id=camera_id,
                         track=track,
                         direction=direction,
+                        density=traffic_density,
                     )
                     if DRY_RUN:
                         dry_run_event_count += 1
