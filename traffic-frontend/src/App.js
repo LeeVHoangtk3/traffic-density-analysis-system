@@ -22,7 +22,7 @@ ChartJS.register(
   Legend
 );
 
-// ❌ Không dùng video API nữa
+// ✅ Kết nối với Backend FastAPI
 const API = "http://localhost:8000";
 
 export default function App() {
@@ -133,9 +133,9 @@ export default function App() {
       <div className="section">
         <h3>Live Traffic Feed</h3>
         <div className="video-box">
-          {/* ✅ VIDEO LOCAL */}
+          {/* ✅ Cập nhật src để gọi thẳng API video từ Backend */}
           <video
-            src="/traffictrim.mp4"
+            src={`${API}/video/output.mp4`}
             autoPlay
             loop
             muted

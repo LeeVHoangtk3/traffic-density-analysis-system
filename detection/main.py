@@ -5,8 +5,10 @@ import sys
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Add the project root to sys.path so 'detection.*' imports work correctly
 sys.path.append(os.path.dirname(BASE_DIR))
-# ===== ADD THIS =====
+
+# ===== GLOBAL FRAME (for streaming) =====
 latest_frame = None
+
 import cv2
 import json
 
@@ -20,33 +22,32 @@ from engine.zone_manager import ZoneManager
 from engine.event_generator import EventGenerator
 from integration.publisher import EventPublisher
 
-
 # ===== Detect if running on Google Colab =====
 IS_COLAB = "COLAB_GPU" in os.environ
 
-
 API_URL = os.getenv("TRAFFIC_API_URL", "http://127.0.0.1:8000/detection")
+
 VIDEO_SOURCE = os.getenv(
     "TRAFFIC_VIDEO_SOURCE",
     os.path.join(BASE_DIR, "..", "traffictrim.mp4")
 )
 
-# ĐÂY LÀ NƠI BẠN CHỌN MODEL YOLOv9 CỦA MÌNH
-
-# MODEL_PATH = os.path.join(BASE_DIR, "pro_models", "yolov9c.pt")
 MODEL_PATH = os.getenv(
     "TRAFFIC_MODEL_PATH",
     os.path.join(BASE_DIR, "..", "yolov9c.pt")
 )
 
 CONF_THRESHOLD = 0.5
-# ===== Performance tuning =====
-FRAME_SKIP = 3        # skip frames để tăng tốc
-SHOW_VIDEO = True   # tắt nếu muốn chạy cực nhanh
-TARGET_WIDTH = 640    # resize nhỏ hơn để YOLO chạy nhanh
-def main():
 
-    # ===== Camera ID =====
+# ===== Performance tuning =====
+FRAME_SKIP = 3
+SHOW_VIDEO = True
+TARGET_WIDTH = 640
+
+
+def main():
+    global latest_frame
+
     CAMERA_ID = "CAM_01"
 
     # ===== Load camera config =====
@@ -75,24 +76,13 @@ def main():
 
     # ===== Initialize components =====
     camera = CameraEngine(VIDEO_SOURCE)
-
     processor = FrameProcessor(target_width=TARGET_WIDTH)
-
-    detector = Detector(
-        MODEL_PATH,
-        conf_threshold=CONF_THRESHOLD
-    )
-
+    detector = Detector(MODEL_PATH, conf_threshold=CONF_THRESHOLD)
     tracker = Tracker()
-
     counter = VehicleCounter()
-
     density_estimator = DensityEstimator()
-
     event_generator = EventGenerator()
-
     publisher = EventPublisher(API_URL)
-
     zone_manager = ZoneManager(zones)
 
     print("Module A Started")
@@ -100,8 +90,16 @@ def main():
     frame_count = 0
     MAX_FRAMES = 100000
 
-    try:
+    # ===== VIDEO WRITER =====
+    OUTPUT_FOLDER = os.path.join(BASE_DIR, "..", "videos")
+    os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
+    output_path = os.path.join(OUTPUT_FOLDER, "output.mp4")
+
+    fourcc = cv2.VideoWriter_fourcc(*'avc1')
+    out = None
+
+    try:
         while frame_count < MAX_FRAMES:
 
             ret, frame = camera.read()
@@ -110,12 +108,18 @@ def main():
                 break
 
             frame_count += 1
-            # ===== Skip frame để tăng tốc =====
+
+            # ===== Skip frame =====
             if frame_count % FRAME_SKIP != 0:
                 continue
 
-            # ===== Frame preprocessing =====
+            # ===== Preprocess =====
             frame = processor.process(frame)
+
+            # ===== INIT VideoWriter khi có frame đầu (SAU KHI RESIZE) =====
+            if out is None:
+                h, w = frame.shape[:2]
+                out = cv2.VideoWriter(output_path, fourcc, 20.0, (w, h))
 
             # ===== Detection =====
             detections = detector.detect(frame)
@@ -123,29 +127,21 @@ def main():
             # ===== Tracking =====
             tracks = tracker.update(detections, frame)
 
-            # ===== Density estimation =====
+            # ===== Density =====
             density_estimator.update(tracks)
-
             traffic_density = density_estimator.get_density()
 
-            # ===== Process tracks =====
             for track in tracks:
-
                 x1, y1, x2, y2 = track["bbox"]
-
                 track_id = track["track_id"]
-
                 vehicle_type = track["class_name"]
 
                 cx = (x1 + x2) // 2
                 cy = (y1 + y2) // 2
 
-                # draw center point
-                cv2.circle(frame,(cx,cy),4,(255,0,0),-1)
+                cv2.circle(frame, (cx, cy), 4, (255, 0, 0), -1)
 
-                # ===== Check zone crossing =====
                 if zone_manager.check_crossing(track_id, cx, cy):
-
                     counter.count(vehicle_type)
 
                     event = event_generator.generate(
@@ -156,16 +152,7 @@ def main():
 
                     publisher.publish(event)
 
-                    # print("EVENT:", event)
-
-                # ===== Draw bounding box =====
-                cv2.rectangle(
-                    frame,
-                    (x1, y1),
-                    (x2, y2),
-                    (0, 255, 0),
-                    2
-                )
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
                 cv2.putText(
                     frame,
@@ -191,13 +178,11 @@ def main():
                 2
             )
 
-            # ===== Draw vehicle totals =====
+            # ===== Draw totals =====
             totals = counter.get_totals()
-
             y_offset = 80
 
             for vehicle, count in totals.items():
-
                 cv2.putText(
                     frame,
                     f"{vehicle}: {count}",
@@ -207,24 +192,25 @@ def main():
                     (255, 255, 255),
                     2
                 )
-
                 y_offset += 30
 
-            # ===== Show video (local only) =====
-            if not IS_COLAB and SHOW_VIDEO:
-                # ===== ADD THIS =====
-                global latest_frame
+            # ===== SAVE VIDEO =====
+            if out is not None:
+                out.write(frame)
 
+            # ===== STREAM FRAME =====
+            if not IS_COLAB and SHOW_VIDEO:
                 _, buffer = cv2.imencode('.jpg', frame)
                 latest_frame = buffer.tobytes()
 
     except KeyboardInterrupt:
-
         print("Interrupted by user")
 
     finally:
-
         camera.release()
+
+        if out is not None:
+            out.release()
 
         cv2.destroyAllWindows()
 
