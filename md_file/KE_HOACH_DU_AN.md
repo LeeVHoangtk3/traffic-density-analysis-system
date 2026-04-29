@@ -372,3 +372,4 @@ E (web_demo)
 
 > **Ghi chú**: `direction_router.py` được giữ đơn giản vì hệ thống chỉ có 1 camera 1 hướng.  
 > Nếu mở rộng thêm camera sau này — chỉ cần thêm entry vào `CAMERA_PHASE_MAP`, không cần refactor logic.
+

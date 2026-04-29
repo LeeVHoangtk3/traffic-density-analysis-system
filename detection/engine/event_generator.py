@@ -20,12 +20,14 @@ class EventGenerator:
         camera_id: str,
         track: dict,
         direction: str,
+        density: str = "LOW",
     ) -> dict:
         """
         Args:
             camera_id:  ID camera (e.g. "CAM_01")
             track:      Dict từ Tracker: track_id, class_name, bbox, confidence
             direction:  Hướng xe từ zone config ("inbound" | "outbound")
+            density:    Mật độ hiện tại từ DensityEstimator ("LOW"|"MEDIUM"|"HIGH")
         Returns:
             Event dict sẵn sàng gửi lên backend qua EventPublisher
         """
@@ -34,7 +36,8 @@ class EventGenerator:
             "camera_id":    camera_id,
             "track_id":     track["track_id"],
             "vehicle_type": track["class_name"],
-            "event_type":   "zone_crossing",
+            "density":      density,
+            "event_type":   "zone_entry",
             "direction":    direction,
             "timestamp":    datetime.now(timezone.utc).isoformat(),
             "confidence":   round(float(track.get("confidence") or 0.0), 4),

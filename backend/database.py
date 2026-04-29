@@ -76,6 +76,7 @@ def sync_vehicle_detection_schema():
         "camera_id": "TEXT",
         "horizon_minutes": "INTEGER DEFAULT 15",
         "source": "TEXT DEFAULT 'fallback'",
+        "suggested_delta": "FLOAT",
     }
 
     if "traffic_predictions" in inspector.get_table_names():
