@@ -13,6 +13,7 @@ from backend.models.traffic_aggregation import TrafficAggregation
 from backend.models.traffic_prediction import TrafficPrediction
 from backend.models.vehicle_detection import VehicleDetection
 
+# --- HÀM HỖ TRỢ LẤY DỮ LIỆU ---
 
 def get_recent_aggregations(
     db: Session,
@@ -36,10 +37,13 @@ def get_recent_aggregations(
     return df.sort_values("timestamp").reset_index(drop=True)
 
 
-def _load_predictor():
+# --- HÀM LOAD CÁC BỘ NÃO AI ---
+
+def _load_predictors():
+    """Load cả TrafficPredictor (Model 1) và LightDeltaModel (Model 2)"""
     ml_service_dir = Path(__file__).resolve().parents[2] / "ml_service"
     if not ml_service_dir.exists():
-        return None
+        return None, None
 
     ml_service_path = str(ml_service_dir)
     if ml_service_path not in sys.path:
@@ -47,14 +51,23 @@ def _load_predictor():
 
     try:
         from traffic_predictor import TrafficPredictor
+        from light_delta_model import LightDeltaModel # Import Model 2 mới
     except Exception:
-        return None
+        return None, None
 
-    model_path = ml_service_dir / "model.pkl"
-    predictor = TrafficPredictor(model_path=str(model_path))
+    # Load Model 1 (Dự báo xe)
+    model1_path = ml_service_dir / "model.pkl"
+    predictor = TrafficPredictor(model_path=str(model1_path))
     if not predictor.load_model():
-        return None
-    return predictor
+        predictor = None
+
+    # Load Model 2 (Điều khiển đèn)
+    model2_path = ml_service_dir / "light_model.pkl"
+    light_model = LightDeltaModel(model_path=str(model2_path))
+    # Lưu ý: Class LightDeltaModel cần có hàm load_model hoặc logic tương tự
+    # Nếu trong file light_delta_model.py chưa có load_model, bạn có thể bổ sung sau
+    
+    return predictor, light_model
 
 
 def _build_prediction_history(
@@ -96,26 +109,62 @@ def _build_prediction_history(
     )
 
 
+# --- HÀM DỰ BÁO CHÍNH (TÍCH HỢP 2 MODEL) ---
+
 def predict_next_density(
     db: Session,
     camera_id: Optional[str] = None,
 ) -> TrafficPrediction:
     history = _build_prediction_history(db, camera_id)
-    predictor = _load_predictor()
+    predictor, light_model = _load_predictors()
+
+    suggested_delta = 0.0 # Giá trị mặc định
 
     if predictor is not None and len(history) >= 3:
+        # 1. Dự báo số lượng xe (Model 1)
         predicted_value = float(predictor.predict(history))
         source = "ml_service"
+
+        # 2. Dự báo Delta Đèn (Model 2)
+        if light_model is not None and len(history) >= 2:
+            try:
+                # Lấy 2 mốc gần nhất để tính Queue Proxy
+                last_row = history.iloc[-1]
+                prev_row = history.iloc[-2]
+                
+                # Chuẩn bị input cho Model 2
+                current_features = pd.DataFrame([{
+                    'hour': last_row['timestamp'].hour,
+                    'day_of_week': last_row['timestamp'].dayofweek,
+                    'is_peak_hour': 1 if (7 <= last_row['timestamp'].hour <= 9 or 17 <= last_row['timestamp'].hour <= 19) else 0,
+                    'inbound_count': int(last_row['vehicle_count']),
+                    'queue_proxy': int(last_row['vehicle_count'] - prev_row['vehicle_count'])
+                }])
+                
+                # Gọi Model 2 dự báo số giây delta
+                suggested_delta = float(light_model.predict_delta(current_features))
+            except Exception as e:
+                print(f"Error predicting light delta: {e}")
+                suggested_delta = 0.0
     else:
+        # Fallback khi không đủ dữ liệu hoặc thiếu model
         predicted_value = float(history["vehicle_count"].mean()) if not history.empty else 0.0
         source = "fallback"
 
+    # Tạo object kết quả
+    # Chú ý: Nếu bảng traffic_predictions của bạn chưa có cột suggested_delta, 
+    # bạn cần thêm nó vào model SQLAlchemy TrafficPrediction trước.
     prediction = TrafficPrediction(
         camera_id=camera_id,
         predicted_density=predicted_value,
         horizon_minutes=settings.prediction_horizon_minutes,
         source=source,
+        # suggested_delta=suggested_delta  # Bỏ comment dòng này sau khi đã cập nhật DB model
     )
+    
+    # Gán tạm vào object để API có thể trả về (dù có lưu DB hay không)
+    prediction.suggested_delta = suggested_delta 
+
     db.add(prediction)
     db.commit()
     db.refresh(prediction)

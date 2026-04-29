@@ -23,6 +23,7 @@ class EventType(str, Enum):
     line_crossing = "line_crossing"
     zone_entry = "zone_entry"
     zone_exit = "zone_exit"
+    zone_crossing = "zone_crossing"
 
 
 class DetectionCreate(BaseModel):
@@ -34,3 +35,4 @@ class DetectionCreate(BaseModel):
     event_type: EventType
     timestamp: datetime
     confidence: Optional[float] = Field(default=None, ge=0, le=1)
+    direction: Optional[str] = Field(default=None)
