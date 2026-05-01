@@ -119,6 +119,11 @@ __pypackages__/
 .vscode/
 .idea/
 
+# =======================================================
+# TRAFFIC AI SYSTEM - CUSTOM CONFIGURATION
+# =======================================================
+
+# Media & archives
 *.mp4
 *.avi
 *.mov
