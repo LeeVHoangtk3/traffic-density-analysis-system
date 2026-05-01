@@ -6,6 +6,8 @@ from pydantic import BaseModel
 class CameraBase(BaseModel):
     name: str
     location: Optional[str] = None
+    baseline_green: int = 30
+    monitored_direction: str = "inbound"
 
 
 class CameraCreate(CameraBase):
@@ -13,9 +15,7 @@ class CameraCreate(CameraBase):
 
 
 class CameraResponse(CameraBase):
-    id: int
+    id: str
     camera_id: Optional[str] = None
 
-    class Config:
-        orm_mode = True
-        from_attributes = True
+    model_config = {"from_attributes": True}

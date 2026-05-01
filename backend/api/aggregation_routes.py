@@ -1,7 +1,6 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
 
 from backend.config import settings
 from backend.schemas.aggregation_schema import (
@@ -27,7 +26,7 @@ def get_aggregation(
     camera_id: str | None = None,
     start_time: datetime | None = None,
     end_time: datetime | None = None,
-    db: Session = Depends(get_db),
+    db=Depends(get_db),
 ):
     generated_at = datetime.utcnow()
 
@@ -36,6 +35,8 @@ def get_aggregation(
         return AggregationResponse(
             camera_id=camera_id,
             vehicle_count=vehicle_count,
+            inbound_count=vehicle_count,
+            queue_proxy=0,
             congestion_level=level,
             start_time=start_time,
             end_time=end_time,
@@ -51,6 +52,8 @@ def get_aggregation(
     return AggregationResponse(
         camera_id=aggregation.camera_id,
         vehicle_count=aggregation.vehicle_count,
+        inbound_count=aggregation.inbound_count or 0,
+        queue_proxy=aggregation.queue_proxy or 0,
         congestion_level=aggregation.congestion_level,
         start_time=start_time,
         end_time=aggregation.timestamp,
@@ -63,7 +66,7 @@ def get_aggregation_history(
     camera_id: str | None = None,
     limit: int = Query(default=20, ge=1),
     offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_db),
+    db=Depends(get_db),
 ):
     safe_limit = min(limit, settings.max_page_size)
     total, items = list_aggregations(
@@ -81,6 +84,8 @@ def get_aggregation_history(
                 id=item.id,
                 camera_id=item.camera_id,
                 vehicle_count=item.vehicle_count,
+                inbound_count=item.inbound_count or 0,
+                queue_proxy=item.queue_proxy or 0,
                 congestion_level=item.congestion_level,
                 timestamp=item.timestamp,
             )
@@ -93,7 +98,7 @@ def get_aggregation_history(
 def compute_aggregation(
     camera_id: str = "CAM_01",
     window_minutes: int = Query(default=15, ge=1, le=1440),
-    db: Session = Depends(get_db),
+    db=Depends(get_db),
 ):
     record, window_start = compute_window_aggregation(
         db=db,
@@ -106,5 +111,7 @@ def compute_aggregation(
         window_start=window_start,
         window_end=record.timestamp,
         vehicle_count=record.vehicle_count,
+        inbound_count=record.inbound_count or 0,
+        queue_proxy=record.queue_proxy or 0,
         congestion_level=record.congestion_level,
     )
