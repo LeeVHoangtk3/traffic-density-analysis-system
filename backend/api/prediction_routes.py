@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
 
 from backend.config import settings
 from backend.schemas.prediction_schema import (
@@ -18,7 +17,7 @@ router = APIRouter(tags=["prediction"])
 
 
 @router.get("/predict-next", response_model=PredictionResponse)
-def predict_next(camera_id: str | None = None, db: Session = Depends(get_db)):
+def predict_next(camera_id: str | None = None, db=Depends(get_db)):
     recent_camera_id = camera_id or "CAM_01"
     history = get_recent_aggregations(db, camera_id=recent_camera_id, n=5)
     if history.empty:
@@ -49,7 +48,7 @@ def get_prediction_history(
     camera_id: str | None = None,
     limit: int = Query(default=20, ge=1),
     offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_db),
+    db=Depends(get_db),
 ):
     safe_limit = min(limit, settings.max_page_size)
     total, items = list_predictions(

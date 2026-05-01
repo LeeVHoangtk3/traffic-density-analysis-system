@@ -7,6 +7,8 @@ from pydantic import BaseModel
 class AggregationResponse(BaseModel):
     camera_id: Optional[str] = None
     vehicle_count: int
+    inbound_count: int = 0
+    queue_proxy: int = 0
     congestion_level: str
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
@@ -14,9 +16,11 @@ class AggregationResponse(BaseModel):
 
 
 class AggregationHistoryItem(BaseModel):
-    id: int
+    id: str
     camera_id: Optional[str] = None
     vehicle_count: int
+    inbound_count: int = 0
+    queue_proxy: int = 0
     congestion_level: str
     timestamp: datetime
 
@@ -29,9 +33,11 @@ class AggregationHistoryResponse(BaseModel):
 
 
 class AggregationComputeResponse(BaseModel):
-    aggregation_id: int
+    aggregation_id: str
     camera_id: str
     window_start: datetime
     window_end: datetime
     vehicle_count: int
+    inbound_count: int
+    queue_proxy: int
     congestion_level: str
