@@ -2,6 +2,7 @@ import logging
 import time
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from backend.api import aggregation_routes
@@ -10,17 +11,26 @@ from backend.api import detection_routes
 from backend.api import health_routes
 from backend.api import prediction_routes
 from backend.api import traffic_routes
+from backend.api import video
 from backend.config import settings
 from backend.database import Base, engine, sync_vehicle_detection_schema
 from backend.models import Camera, TrafficAggregation, TrafficPrediction, VehicleDetection
-# ===== ADD THIS =====
-from backend.api import video
 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("backend")
 
 app = FastAPI(title=settings.api_title)
+
+# ===== CORS: cho phép React frontend (localhost:3000) gọi API =====
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["Content-Range", "Accept-Ranges", "Content-Length"],
+)
 
 Base.metadata.create_all(bind=engine)
 sync_vehicle_detection_schema()

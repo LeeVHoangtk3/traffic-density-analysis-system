@@ -44,7 +44,10 @@ export default function App() {
     const fetchData = async () => {
       try {
         const res = await fetch(`${API}/raw-data`);
-        const data = await res.json();
+        const result = await res.json();
+        
+        // Backend trả về { "items": [...], "total": ... } 
+        const data = result.items || [];
 
         let counts = { car: 0, motorcycle: 0, truck: 0, bus: 0 };
 
