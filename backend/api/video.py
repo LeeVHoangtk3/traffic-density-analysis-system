@@ -1,8 +1,9 @@
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, UploadFile, Form
 from fastapi.responses import Response, StreamingResponse
+import shutil
 
 router = APIRouter(tags=["video"])
 
@@ -103,4 +104,48 @@ def get_video(filename: str, request: Request):
         status_code=200,
         headers=headers,
         media_type="video/mp4",
-    )
+    )
+
+
+@router.post("/video/upload")
+async def upload_video_chunk(
+    file: UploadFile,
+    filename: str = Form(...),
+    chunk_index: int = Form(...),
+    total_chunks: int = Form(...),
+):
+    """
+    Nhận chunk video và lưu vào thư mục tạm. 
+    Khi nhận đủ các chunk, tiến hành ghép file.
+    """
+    # Ngăn path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="Tên file không hợp lệ")
+
+    temp_dir = VIDEO_FOLDER / "tmp" / filename
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
+    chunk_path = temp_dir / f"chunk_{chunk_index}"
+    
+    with open(chunk_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    # Kiểm tra xem đã đủ chunk chưa
+    chunks = list(temp_dir.glob("chunk_*"))
+    
+    if len(chunks) == total_chunks:
+        # Sắp xếp để ghép đúng thứ tự
+        sorted_chunks = sorted(chunks, key=lambda x: int(x.name.split("_")[1]))
+        
+        final_path = VIDEO_FOLDER / filename
+        with open(final_path, "wb") as outfile:
+            for chunk_file in sorted_chunks:
+                with open(chunk_file, "rb") as infile:
+                    shutil.copyfileobj(infile, outfile)
+        
+        # Xóa thư mục tạm sau khi ghép xong
+        shutil.rmtree(temp_dir)
+        return {"status": "completed", "filename": filename}
+
+    return {"status": "chunk_received", "chunk_index": chunk_index}
+

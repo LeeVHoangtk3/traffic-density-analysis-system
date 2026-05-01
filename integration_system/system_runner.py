@@ -61,21 +61,15 @@ BACKEND_RAW_URL  = f"{API_BASE}/raw-data"
 class CongestionClassifier:
     """Phan loai muc tac nghen theo so xe (rule-based, chay local)."""
 
-    THRESHOLDS = {
-        "low":    (0,  15),
-        "medium": (15, 30),
-        "high":   (30, 50),
-    }
-
     def classify(self, vehicle_count: int) -> str:
         if vehicle_count < 15:
-            return "low"
+            return "Low"
         elif vehicle_count < 30:
-            return "medium"
+            return "Medium"
         elif vehicle_count < 50:
-            return "high"
+            return "High"
         else:
-            return "severe"
+            return "Severe"
 
 
 # ===========================================================================
@@ -159,7 +153,7 @@ def _get_light_model():
     return _light_model
 
 
-def apply_delta(
+def apply(
     camera_id: str,
     queue_proxy: float,
     inbound_count: int,
@@ -169,35 +163,29 @@ def apply_delta(
 ) -> float:
     """
     Tinh green_time bang cach cong delta du doan vao baseline cua camera.
-
     Tra ve: green_time (giay, float, >= 0)
     """
     if camera_id not in CAMERA_BASELINE:
-        raise KeyError(
-            f"[DeltaApplier] Camera '{camera_id}' not in CAMERA_BASELINE. "
-            f"Valid: {list(CAMERA_BASELINE.keys())}"
-        )
-    baseline_green = CAMERA_BASELINE[camera_id]
+        baseline_green = 30
+    else:
+        baseline_green = CAMERA_BASELINE[camera_id]
 
-    feature_dict = {
-        "queue_proxy":      queue_proxy,
-        "inbound_count":    inbound_count,
-        "congestion_level": congestion_level,
-        "baseline_green":   baseline_green,
-        "hour":             hour,
-        "day_of_week":      dow,
-    }
-    raw_delta: float = _get_light_model().predict_delta(feature_dict)
-
-    # Clamp delta (bao ve kep)
-    delta: float = max(_DELTA_MIN, min(_DELTA_MAX, raw_delta))
-
-    # Khong de green_time am
-    green_time: float = max(0.0, baseline_green + delta)
-
-    print(f"    [DeltaApplier] {camera_id} | baseline={baseline_green}s "
-          f"delta={delta:+.2f}s -> green_time={green_time:.1f}s")
-    return green_time
+    try:
+        feature_dict = {
+            "queue_proxy":      queue_proxy,
+            "inbound_count":    inbound_count,
+            "congestion_level": congestion_level.lower(),
+            "baseline_green":   baseline_green,
+            "hour":             hour,
+            "day_of_week":      dow,
+        }
+        raw_delta: float = _get_light_model().predict_delta(feature_dict)
+        delta: float = max(_DELTA_MIN, min(_DELTA_MAX, raw_delta))
+        green_time: float = max(0.0, baseline_green + delta)
+        return green_time
+    except Exception as e:
+        print(f"    [DeltaApplier] Error: {e}. Using baseline.")
+        return float(baseline_green)
 
 
 # ===========================================================================
@@ -215,15 +203,14 @@ _RULE_MAP: dict[str, int] = {
 class TrafficLightOptimizer:
     """
     Dieu phoi thoi gian den xanh.
-
-    - optimize()          : rule-based (tuong thich nguoc)
+    - optimize()          : rule-based fallback
     - optimize_with_ml()  : ML delta + direction router
     """
 
     def optimize(self, congestion_level: str) -> dict:
         """Rule-based fallback."""
-        normalized = str(congestion_level).strip().lower()
-        green_time = _RULE_MAP.get(normalized, 90)
+        lvl = str(congestion_level).lower()
+        green_time = _RULE_MAP.get(lvl, 90)
         return {"green_time": green_time, "mode": "rule"}
 
     def optimize_with_ml(
@@ -237,15 +224,12 @@ class TrafficLightOptimizer:
     ) -> dict:
         """
         Tinh green_time bang ML delta model ket hop direction router.
-        Tu dong fallback ve rule-based neu ML gap loi.
         """
         try:
             phase_info = get_phase(camera_id)
-            phase      = phase_info["phase"]
-            direction  = phase_info["direction"]
             baseline   = CAMERA_BASELINE.get(camera_id, 30)
 
-            green_time = apply_delta(
+            green_time = apply(
                 camera_id=camera_id,
                 queue_proxy=queue_proxy,
                 inbound_count=inbound_count,
@@ -257,8 +241,8 @@ class TrafficLightOptimizer:
 
             return {
                 "camera_id":  camera_id,
-                "phase":      phase,
-                "direction":  direction,
+                "phase":      phase_info["phase"],
+                "direction":  phase_info["direction"],
                 "green_time": round(green_time, 2),
                 "baseline":   baseline,
                 "delta":      delta,
@@ -266,8 +250,7 @@ class TrafficLightOptimizer:
             }
 
         except Exception as exc:
-            print(f"    [TrafficLightOptimizer] WARNING ML error ({exc}). "
-                  "Fallback to rule-based.")
+            print(f"    [TrafficLightOptimizer] WARNING: {exc}. Fallback to rule.")
             rule_result = self.optimize(congestion_level)
             return {
                 "camera_id":  camera_id,
