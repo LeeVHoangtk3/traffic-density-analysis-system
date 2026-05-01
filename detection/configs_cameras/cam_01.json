@@ -1,8 +1,12 @@
 {
     "camera_id": "CAM_01",
+    "name": "Camera 01 - Main Detection",
+    "monitored_direction": "inbound",
+    "baseline_green": 30,
     "zones": [
         {
             "id": "main_detection_zone",
+            "direction": "inbound",
             "points": [
                 [
                     0,
