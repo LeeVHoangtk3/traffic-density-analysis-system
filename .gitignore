@@ -129,7 +129,6 @@ __pypackages__/
 *.mov
 *.zip
 data/
-videos/
 visualized/
 images/
 
