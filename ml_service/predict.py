@@ -1,35 +1,60 @@
+"""
+ml_service/predict.py
+Goi API backend de lay ket qua du bao dua tren du lieu thuc da duoc luu.
+
+Yeu cau: backend dang chay tai TRAFFIC_API_URL (mac dinh localhost:8000)
+Chay: python -m ml_service.predict
+"""
+
 import os
-import pandas as pd
-from traffic_predictor import TrafficPredictor
+import sys
+
+import requests
+
+API_BASE = os.getenv("TRAFFIC_API_URL", "http://127.0.0.1:8000")
+CAMERA_ID = os.getenv("TRAFFIC_CAMERA_ID", "CAM_01")
+
 
 def main():
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(current_dir, 'model.pkl')
-    predictor = TrafficPredictor(model_path=model_path)
+    url = f"{API_BASE}/predict-next"
+    params = {"camera_id": CAMERA_ID}
 
-    if not predictor.load_model():
-        print("❌ Lỗi: Chưa có file model.pkl. Hãy chạy train.py trước!")
-        return
+    print("-" * 40)
+    print(f"[*] Dang goi API du bao: {url}")
+    print(f"    Camera ID : {CAMERA_ID}")
+    print("-" * 40)
 
-    # GIẢ LẬP: Lấy dữ liệu từ video 5 phút của bạn
-    # Ví dụ video 5 phút bạn đếm được 40 xe.
-    real_count = 40 
-    now = pd.Timestamp.now().floor('15min')
+    try:
+        response = requests.get(url, params=params, timeout=10)
+    except requests.ConnectionError:
+        print(
+            "Khong the ket noi toi backend.\n"
+            f"Hãy chac chan backend dang chay tai {API_BASE}\n"
+            "Lenh khoi dong: uvicorn backend.main:app --reload"
+        )
+        sys.exit(1)
 
-    # Tạo 3 dòng dữ liệu lịch sử để AI có đủ thông tin (Lag1, Lag2)
-    demo_data = pd.DataFrame({
-        'timestamp': [now - pd.Timedelta(minutes=30), 
-                      now - pd.Timedelta(minutes=15), 
-                      now],
-        'vehicle_count': [real_count - 5, real_count + 2, real_count]
-    })
+    if response.status_code == 422:
+        detail = response.json().get("detail", "")
+        print(f"Chua du du lieu thuc de du bao:\n  {detail}")
+        print("\nHay chay detection truoc de tich luy du lieu:")
+        print("  python -m detection.main")
+        sys.exit(1)
 
-    forecast = predictor.predict(demo_data)
+    if response.status_code != 200:
+        print(f"Loi API (HTTP {response.status_code}): {response.text}")
+        sys.exit(1)
 
-    print("-" * 30)
-    print(f"Dữ liệu thực tế từ video: {real_count} xe/5phút")
-    print(f"🔮 AI DỰ BÁO 15 PHÚT TỚI: {forecast} xe")
-    print("-" * 30)
+    data = response.json()
+    print(f"Camera             : {data['camera_id']}")
+    print(f"Gia tri du bao     : {data['predicted_density']}")
+    if data.get('suggested_delta') is not None:
+        print(f"Du bao delta den   : {data.get('suggested_delta')} giay")
+    print(f"Khung du bao       : {data['horizon_minutes']} phut")
+    print(f"Nguon du bao       : {data['source']}")
+    print(f"Thoi diem du bao   : {data['timestamp']}")
+    print("-" * 40)
+
 
 if __name__ == "__main__":
     main()

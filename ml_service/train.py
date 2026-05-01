@@ -1,33 +1,31 @@
 import os
 import pandas as pd
-from traffic_predictor import TrafficPredictor
+from ml_service.traffic_predictor import TrafficPredictor
+from ml_service.light_delta_model import LightDeltaModel
+from ml_service.label_generator import generate_delta_labels
 
 def main():
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(current_dir, 'model.pkl')
-    csv_path = os.path.join(current_dir, 'data', 'traffic_data.csv') # Đường dẫn file Kaggle
+    base = os.path.dirname(__file__)
+    raw_csv = os.path.join(base, 'data/urban_traffic.csv')
+    delta_csv = os.path.join(base, 'data/training_data_delta.csv')
+    
+    # 1. Tạo nhãn
+    generate_delta_labels(raw_csv, delta_csv)
+    df_delta = pd.read_csv(delta_csv)
+    df_delta['timestamp'] = pd.to_datetime(df_delta['timestamp'])
 
-    predictor = TrafficPredictor(model_path=model_path)
-
-    print("[*] Đang đọc dữ liệu từ Dataset Kaggle...")
-    # 1. Đọc dữ liệu từ CSV
-    df_raw = pd.read_csv(csv_path)
-
-    # 2. Chuẩn hóa tên cột để khớp với class TrafficPredictor
-    # Dataset Kaggle có cột 'date_time' và 'traffic_volume'
-    df = pd.DataFrame()
-    df['timestamp'] = pd.to_datetime(df_raw['date_time'])
-    df['vehicle_count'] = df_raw['traffic_volume']
-
-    print(f" -> Đã tải {len(df)} dòng dữ liệu.")
-
-    # 3. Huấn luyện
-    predictor.train_and_evaluate(df)
-
-    # 4. Lưu mô hình
+    # 2. Huấn luyện Model 1: Dự báo số xe (TrafficPredictor)
+    print("\n--- Training Model 1: Vehicle Forecast ---")
+    predictor = TrafficPredictor(os.path.join(base, 'model.pkl'))
+    # Chuẩn bị format cho model 1 (dùng code cũ của bạn)
+    df_m1 = df_delta[['timestamp', 'inbound_count']].rename(columns={'inbound_count': 'vehicle_count'})
+    predictor.train_and_evaluate(df_m1)
     predictor.save_model()
-    print("="*50)
-    print("XONG! File model.pkl đã sẵn sàng.")
+
+    # 3. Huấn luyện Model 2: Đề xuất đèn (LightDeltaModel)
+    print("\n--- Training Model 2: Light Delta ---")
+    light_model = LightDeltaModel(os.path.join(base, 'light_model.pkl'))
+    light_model.train(df_delta)
 
 if __name__ == "__main__":
     main()

@@ -1,227 +1,227 @@
 MODEL COMPARISON REPORT
-Generated,2026-03-31 21:22:37
+Generated,2026-04-19 02:26:34
 Model 1,best_final.pt
 Model 2,yolov9c.pt (pre-trained)
 
 SUMMARY STATISTICS
 Metric,best_final.pt,yolov9c.pt,Difference
-Total Detections,2036,615,1421
+Total Detections,2175,670,1505
 Total Images Processed,195,195,0
-Average Detections per Image,10.44,3.15,7.29
+Average Detections per Image,11.15,3.44,7.72
 
 CLASS DISTRIBUTION COMPARISON
 Class Name,best_final Count,best_final %,yolov9c Count,yolov9c %,Difference
-bus,28,1.38%,14,2.28%,14
-car,618,30.35%,453,73.66%,165
-motorcycle,1333,65.47%,92,14.96%,1241
-truck,57,2.80%,56,9.11%,1
+bus,26,1.20%,18,2.69%,8
+car,655,30.11%,490,73.13%,165
+motorcycle,1433,65.89%,116,17.31%,1317
+truck,61,2.80%,46,6.87%,15
 
 AGREEMENT ANALYSIS
 Metric,Value
-Images with Matching Detection Count,9
-Images with Different Detection Count,186
-Agreement Rate (%),4.62%
+Images with Matching Detection Count,7
+Images with Different Detection Count,188
+Agreement Rate (%),3.59%
 
 DETAILED IMAGE COMPARISON
 Image Name,best_final Detections,yolov9c Detections,Difference,Agreement,best_final Classes,yolov9c Classes
-1689957051-8314376_jpg.rf.9ab15eca9966dce1b5da7144af6eaf10,2,3,-1,✗ DIFFER,motorcycle:2,"car:2, motorcycle:1"
-1689957096-906131_jpg.rf.40895413625f73d36e1756b2c777a059,4,3,1,✗ DIFFER,"car:2, motorcycle:2",car:3
-1689957178-1570923_jpg.rf.0406f008952165dcb21a4bed2860b851,5,3,2,✗ DIFFER,"car:1, motorcycle:4","car:2, motorcycle:1"
-1689957424-7950566_jpg.rf.ca3f21e300ce44dac15c2688c45ec4cb,10,3,7,✗ DIFFER,"car:3, motorcycle:7","car:2, motorcycle:1"
-1689958581-7357266_jpg.rf.8f12c23ab023f2f590a1131be0074db2,2,3,-1,✗ DIFFER,car:2,car:3
-1690019893-5628843_jpg.rf.ac1fe96e32de2cbc3bd34908ba87157f,20,10,10,✗ DIFFER,"car:9, motorcycle:11","car:8, motorcycle:2"
+1689957051-8314376_jpg.rf.9ab15eca9966dce1b5da7144af6eaf10,3,3,0,✓ AGREE,motorcycle:3,"car:2, motorcycle:1"
+1689957096-906131_jpg.rf.40895413625f73d36e1756b2c777a059,6,3,3,✗ DIFFER,"car:4, motorcycle:2",car:3
+1689957178-1570923_jpg.rf.0406f008952165dcb21a4bed2860b851,5,2,3,✗ DIFFER,"motorcycle:4, truck:1",car:2
+1689957424-7950566_jpg.rf.ca3f21e300ce44dac15c2688c45ec4cb,10,5,5,✗ DIFFER,"car:4, motorcycle:6","car:3, motorcycle:2"
+1689958581-7357266_jpg.rf.8f12c23ab023f2f590a1131be0074db2,2,4,-2,✗ DIFFER,car:2,car:4
+1690019893-5628843_jpg.rf.ac1fe96e32de2cbc3bd34908ba87157f,19,11,8,✗ DIFFER,"car:8, motorcycle:11","car:8, motorcycle:3"
 1690020050-8840277_jpg.rf.1fcf3c4e571842ef43ccc9c4ecbfbac3,4,3,1,✗ DIFFER,"bus:1, car:1, motorcycle:2","bus:1, car:1, motorcycle:1"
-1690020061-9988086_jpg.rf.a4572641ae318c9f507d50095ea47104,6,3,3,✗ DIFFER,"bus:1, car:2, motorcycle:3","bus:1, car:1, truck:1"
-1690020095-4031048_jpg.rf.b34fa3d0a191c3451e51dd1cc8977a3d,14,7,7,✗ DIFFER,"bus:1, car:6, motorcycle:7","bus:1, car:4, motorcycle:2"
-1690020141-1648912_jpg.rf.18f3bcfaf186130a26e43ce213cc19e8,16,4,12,✗ DIFFER,"bus:1, car:5, motorcycle:9, truck:1","bus:2, car:1, truck:1"
-1690020207-8965504_jpg.rf.1f3d2defde3db3d54bb321359bc851e6,11,4,7,✗ DIFFER,"bus:1, car:3, motorcycle:7","bus:1, car:2, truck:1"
-1690020391-8925207_jpg.rf.f7b3c5b7040d6d8304878ad85e4a8d9b,17,8,9,✗ DIFFER,"car:8, motorcycle:8, truck:1","car:6, motorcycle:1, truck:1"
-1690020491-630813_jpg.rf.c5f623c086de2047d2fa527a7d8df2e7,11,5,6,✗ DIFFER,"car:5, motorcycle:6","car:4, truck:1"
-1690020661-0039923_jpg.rf.a6003bcaa71084b8a46f6e42e97c5d19,10,2,8,✗ DIFFER,"bus:1, car:3, motorcycle:6","bus:1, car:1"
-1690020672-0440373_jpg.rf.32daefd6c629cfc7499e8fb36b42618c,10,3,7,✗ DIFFER,"bus:1, car:3, motorcycle:6","bus:1, car:2"
-1690020977-9327524_jpg.rf.a8bdbaf499b67854b65c517db26caaae,12,5,7,✗ DIFFER,"car:3, motorcycle:8, truck:1","car:3, motorcycle:1, truck:1"
-1690021089-217471_jpg.rf.3c241c1e4f5d7f42ffe1dce86ef5cd99,17,4,13,✗ DIFFER,"car:8, motorcycle:8, truck:1",car:4
-1690021311-7515073_jpg.rf.bdb2a5dfcc7f4015ab7eb0244f6f580b,13,6,7,✗ DIFFER,"car:5, motorcycle:7, truck:1","car:4, motorcycle:2"
+1690020061-9988086_jpg.rf.a4572641ae318c9f507d50095ea47104,8,3,5,✗ DIFFER,"bus:1, car:2, motorcycle:5","bus:1, car:1, truck:1"
+1690020095-4031048_jpg.rf.b34fa3d0a191c3451e51dd1cc8977a3d,17,7,10,✗ DIFFER,"bus:1, car:7, motorcycle:9","bus:1, car:5, motorcycle:1"
+1690020141-1648912_jpg.rf.18f3bcfaf186130a26e43ce213cc19e8,16,8,8,✗ DIFFER,"bus:1, car:5, motorcycle:9, truck:1","bus:2, car:6"
+1690020207-8965504_jpg.rf.1f3d2defde3db3d54bb321359bc851e6,11,5,6,✗ DIFFER,"bus:1, car:3, motorcycle:7","bus:1, car:2, motorcycle:1, truck:1"
+1690020391-8925207_jpg.rf.f7b3c5b7040d6d8304878ad85e4a8d9b,17,10,7,✗ DIFFER,"car:9, motorcycle:8","car:8, motorcycle:1, truck:1"
+1690020491-630813_jpg.rf.c5f623c086de2047d2fa527a7d8df2e7,12,5,7,✗ DIFFER,"car:5, motorcycle:7","car:4, truck:1"
+1690020661-0039923_jpg.rf.a6003bcaa71084b8a46f6e42e97c5d19,11,3,8,✗ DIFFER,"bus:1, car:3, motorcycle:7","bus:1, car:1, motorcycle:1"
+1690020672-0440373_jpg.rf.32daefd6c629cfc7499e8fb36b42618c,11,6,5,✗ DIFFER,"bus:1, car:3, motorcycle:7","bus:1, car:3, motorcycle:1, truck:1"
+1690020977-9327524_jpg.rf.a8bdbaf499b67854b65c517db26caaae,16,5,11,✗ DIFFER,"car:4, motorcycle:11, truck:1","car:3, motorcycle:1, truck:1"
+1690021089-217471_jpg.rf.3c241c1e4f5d7f42ffe1dce86ef5cd99,18,5,13,✗ DIFFER,"car:8, motorcycle:9, truck:1",car:5
+1690021311-7515073_jpg.rf.bdb2a5dfcc7f4015ab7eb0244f6f580b,13,7,6,✗ DIFFER,"car:5, motorcycle:7, truck:1","car:5, motorcycle:2"
 1690021412-5924308_jpg.rf.9e7a4dab097b491c0ac7c4400d0d8e5f,3,2,1,✗ DIFFER,"car:2, motorcycle:1","car:1, truck:1"
-1690021715-0493248_jpg.rf.864c4b3cd25896cc68b2a5c090723823,22,5,17,✗ DIFFER,"car:8, motorcycle:14",car:5
-1695451564-863289_jpg.rf.fc8b26144cbcf834ff9ee8407c3f524b,15,2,13,✗ DIFFER,"car:4, motorcycle:11",car:2
-1695455030-979051_jpg.rf.4318bd65b8e39e365f0b4464de30568a,6,4,2,✗ DIFFER,"car:2, motorcycle:4","car:3, motorcycle:1"
-1695455055-7384264_jpg.rf.1c1f2c75a8e7656e906aeb0280b684fc,17,9,8,✗ DIFFER,"car:9, motorcycle:8","car:8, motorcycle:1"
-1695455117-4529665_jpg.rf.b7f94b2f69f80bf46d503f8b5b8b4117,13,6,7,✗ DIFFER,"car:7, motorcycle:5, truck:1","car:5, truck:1"
+1690021715-0493248_jpg.rf.864c4b3cd25896cc68b2a5c090723823,20,5,15,✗ DIFFER,"car:7, motorcycle:13","car:4, truck:1"
+1695451564-863289_jpg.rf.fc8b26144cbcf834ff9ee8407c3f524b,14,2,12,✗ DIFFER,"car:4, motorcycle:10",car:2
+1695455030-979051_jpg.rf.4318bd65b8e39e365f0b4464de30568a,10,3,7,✗ DIFFER,"car:3, motorcycle:7","car:2, motorcycle:1"
+1695455055-7384264_jpg.rf.1c1f2c75a8e7656e906aeb0280b684fc,19,12,7,✗ DIFFER,"car:9, motorcycle:9, truck:1","car:9, motorcycle:2, truck:1"
+1695455117-4529665_jpg.rf.b7f94b2f69f80bf46d503f8b5b8b4117,17,5,12,✗ DIFFER,"car:8, motorcycle:8, truck:1","car:4, truck:1"
 1695455237-1389945_jpg.rf.5e971d5474411bb98e0848dc0853b553,3,3,0,✓ AGREE,"bus:1, car:2","bus:1, car:2"
-1695455260-2602904_jpg.rf.e6c1a066e770ad31536c9249b847180a,19,1,18,✗ DIFFER,motorcycle:19,motorcycle:1
-1695455430-2309344_jpg.rf.4f95eb6a9780939c1341937a590ae6ec,23,3,20,✗ DIFFER,"car:3, motorcycle:20",car:3
-1695455455-1572685_jpg.rf.d8cc9ff2c36cda090f111f0ce59ade18,26,9,17,✗ DIFFER,"car:7, motorcycle:18, truck:1","car:8, motorcycle:1"
+1695455260-2602904_jpg.rf.e6c1a066e770ad31536c9249b847180a,22,3,19,✗ DIFFER,"car:1, motorcycle:21","car:1, motorcycle:2"
+1695455430-2309344_jpg.rf.4f95eb6a9780939c1341937a590ae6ec,21,3,18,✗ DIFFER,"car:3, motorcycle:18",car:3
+1695455455-1572685_jpg.rf.d8cc9ff2c36cda090f111f0ce59ade18,26,10,16,✗ DIFFER,"car:6, motorcycle:19, truck:1","car:9, motorcycle:1"
 1695455493-4031286_jpg.rf.4b3adf6d539bea25f6ed8b5365691037,2,2,0,✓ AGREE,"car:1, motorcycle:1","car:1, motorcycle:1"
-1695456022-8204298_jpg.rf.a7a56e590bc6d84be5a0bb4a78589861,19,9,10,✗ DIFFER,"bus:1, car:9, motorcycle:9","car:8, truck:1"
-1695456062-8487346_jpg.rf.0d311dee9f7eb39d2074b11ab02164b0,21,12,9,✗ DIFFER,"bus:1, car:10, motorcycle:10","bus:1, car:11"
-1695456159-9127038_jpg.rf.9bd1b2b2a07b1a1fdecd6913c109b768,10,4,6,✗ DIFFER,"car:4, motorcycle:6",car:4
-1695456233-9403682_jpg.rf.5f5a707259ae7cba959c5e29df3797d8,12,6,6,✗ DIFFER,"car:6, motorcycle:6",car:6
+1695456022-8204298_jpg.rf.a7a56e590bc6d84be5a0bb4a78589861,20,10,10,✗ DIFFER,"bus:1, car:9, motorcycle:10","bus:1, car:9"
+1695456062-8487346_jpg.rf.0d311dee9f7eb39d2074b11ab02164b0,23,12,11,✗ DIFFER,"bus:1, car:12, motorcycle:10","bus:1, car:11"
+1695456159-9127038_jpg.rf.9bd1b2b2a07b1a1fdecd6913c109b768,12,5,7,✗ DIFFER,"car:4, motorcycle:8","car:4, motorcycle:1"
+1695456233-9403682_jpg.rf.5f5a707259ae7cba959c5e29df3797d8,12,5,7,✗ DIFFER,"bus:1, car:5, motorcycle:6",car:5
 1695456347-6295044_jpg.rf.bd5a901e39e85830ca45f7e0a876a77d,7,4,3,✗ DIFFER,"car:4, motorcycle:3","car:3, truck:1"
 1695459393-2276013_jpg.rf.9c2d4cc0c98629e044ff67f3aa7fa2c4,7,2,5,✗ DIFFER,"car:2, motorcycle:5",car:2
-1695459583-5528154_jpg.rf.20986488f848fe2923efedc13caa7e69,13,1,12,✗ DIFFER,"car:3, motorcycle:10",car:1
-1695459595-3440485_jpg.rf.ed1b35a86c78651c2312d0b5e917ee40,18,2,16,✗ DIFFER,"car:5, motorcycle:13",car:2
+1695459583-5528154_jpg.rf.20986488f848fe2923efedc13caa7e69,11,1,10,✗ DIFFER,"car:3, motorcycle:8",car:1
+1695459595-3440485_jpg.rf.ed1b35a86c78651c2312d0b5e917ee40,19,2,17,✗ DIFFER,"car:5, motorcycle:14",car:2
 1695459814-821511_jpg.rf.4cd3a2d68aa24fa8e75623df577b75af,21,2,19,✗ DIFFER,"car:1, motorcycle:20",car:2
-1695459861-0024147_jpg.rf.e34c0d03fd582b6502ce2d2877f55cba,5,1,4,✗ DIFFER,"car:1, motorcycle:4",car:1
-1695459941-9451575_jpg.rf.f8f1b74258208b637c50a4380194a644,13,3,10,✗ DIFFER,"car:4, motorcycle:9","car:2, truck:1"
-1695459953-783093_jpg.rf.7522266a6430d10c07ef718e0770495c,13,1,12,✗ DIFFER,"car:3, motorcycle:10",car:1
-1695459976-8297467_jpg.rf.43c4bd3b1373e46ce402bcd6309c9f88,11,4,7,✗ DIFFER,"car:6, motorcycle:5",car:4
-1695460024-1044781_jpg.rf.f09e8385bf7ac8a006190d499f9dad79,12,1,11,✗ DIFFER,"car:3, motorcycle:9",car:1
-1695479469-7081308_jpg.rf.10ac182ca14deba61e8f6bed1b74f6cf,8,1,7,✗ DIFFER,"car:4, motorcycle:4",car:1
-1695479518-5684865_jpg.rf.16ed1d982d07b46b0f2ec266ab8e650f,23,4,19,✗ DIFFER,"car:6, motorcycle:17",car:4
-1695482074-9752364_jpg.rf.3363c47e721ee28dd11fa37992f3db47,17,3,14,✗ DIFFER,"car:5, motorcycle:12",car:3
-1695482101-4439068_jpg.rf.34c78d9fc9759d6c37799af2a0fed119,9,1,8,✗ DIFFER,motorcycle:9,car:1
-1695482159-288289_jpg.rf.6c217da43d7e42a5c0bb318df941f029,13,1,12,✗ DIFFER,"car:4, motorcycle:9",car:1
-1695482820-5850222_jpg.rf.d4f49142c4aa4a5f4c5e951c6e03f628,19,4,15,✗ DIFFER,"bus:1, car:6, motorcycle:11, truck:1","bus:1, car:3"
-1695482867-9964542_jpg.rf.e9b1b9c20faef639eac2ea78c5222ec6,11,4,7,✗ DIFFER,"bus:1, car:3, motorcycle:6, truck:1","bus:1, car:3"
-1695483188-686207_jpg.rf.95ee04c08846cd506092499baa2366ba,16,2,14,✗ DIFFER,"car:9, motorcycle:7",car:2
-1695483495-4039135_jpg.rf.8d204e71d03470cb37bade60bbf83d23,16,1,15,✗ DIFFER,"car:2, motorcycle:14",car:1
-1695483865-6113422_jpg.rf.26c19ed788878b1a7ed225b328c71fec,28,2,26,✗ DIFFER,"car:6, motorcycle:22",car:2
-1695534851-0313036_jpg.rf.0c7a2530227299b3ca0033ef22cb2ebc,7,1,6,✗ DIFFER,"car:2, motorcycle:5",motorcycle:1
-1695535047-1527348_jpg.rf.18074eba587ee7cb5438c63fdd910a11,7,2,5,✗ DIFFER,"car:3, motorcycle:4","car:1, truck:1"
-1695535385-4716544_jpg.rf.72b1baa0f416f1b55b03b8cc2a2e6935,4,2,2,✗ DIFFER,"car:1, motorcycle:3","car:1, truck:1"
-1695535462-4307013_jpg.rf.d962e09549818c6a3d5e967ba3097b17,13,8,5,✗ DIFFER,"car:7, motorcycle:6","car:7, motorcycle:1"
-1695535531-8639345_jpg.rf.dd922ae5958f2b10925ed0a807d32cf8,15,8,7,✗ DIFFER,"car:9, motorcycle:6","car:6, motorcycle:2"
-1695535646-653287_jpg.rf.11d16890bc41a205a0d869a89e63ca60,7,6,1,✗ DIFFER,"car:4, motorcycle:3","car:3, motorcycle:1, truck:2"
-1695535708-7997243_jpg.rf.39d04fa81607c96275a479de0704d922,4,1,3,✗ DIFFER,"car:1, motorcycle:3",truck:1
-1711508039-6696627_jpg.rf.91d8c75e9e0d41747080973184dfa870,7,1,6,✗ DIFFER,"car:1, motorcycle:3, truck:3",car:1
-1711508844-846982_jpg.rf.137ea635559d7a8ed475e52fc6ba2af7,30,11,19,✗ DIFFER,"car:10, motorcycle:15, truck:5","car:9, truck:2"
-1711510180-3422282_jpg.rf.5a164d2b6ff37b2a417211b5a11397f0,32,13,19,✗ DIFFER,"car:12, motorcycle:16, truck:4","car:12, truck:1"
-1711510555-109006_jpg.rf.23b9e457901864f566a346ef4c5d5be4,13,5,8,✗ DIFFER,"car:4, motorcycle:7, truck:2",car:5
+1695459861-0024147_jpg.rf.e34c0d03fd582b6502ce2d2877f55cba,5,2,3,✗ DIFFER,"car:1, motorcycle:4",car:2
+1695459941-9451575_jpg.rf.f8f1b74258208b637c50a4380194a644,12,2,10,✗ DIFFER,"car:3, motorcycle:9",car:2
+1695459953-783093_jpg.rf.7522266a6430d10c07ef718e0770495c,14,2,12,✗ DIFFER,"car:3, motorcycle:11","car:1, truck:1"
+1695459976-8297467_jpg.rf.43c4bd3b1373e46ce402bcd6309c9f88,10,4,6,✗ DIFFER,"car:5, motorcycle:5",car:4
+1695460024-1044781_jpg.rf.f09e8385bf7ac8a006190d499f9dad79,8,1,7,✗ DIFFER,"car:3, motorcycle:5",car:1
+1695479469-7081308_jpg.rf.10ac182ca14deba61e8f6bed1b74f6cf,9,3,6,✗ DIFFER,"car:5, motorcycle:4",car:3
+1695479518-5684865_jpg.rf.16ed1d982d07b46b0f2ec266ab8e650f,24,4,20,✗ DIFFER,"car:8, motorcycle:16",car:4
+1695482074-9752364_jpg.rf.3363c47e721ee28dd11fa37992f3db47,21,3,18,✗ DIFFER,"car:5, motorcycle:16",car:3
+1695482101-4439068_jpg.rf.34c78d9fc9759d6c37799af2a0fed119,11,1,10,✗ DIFFER,motorcycle:11,car:1
+1695482159-288289_jpg.rf.6c217da43d7e42a5c0bb318df941f029,12,2,10,✗ DIFFER,"car:4, motorcycle:8",car:2
+1695482820-5850222_jpg.rf.d4f49142c4aa4a5f4c5e951c6e03f628,20,3,17,✗ DIFFER,"bus:1, car:5, motorcycle:13, truck:1","bus:1, car:2"
+1695482867-9964542_jpg.rf.e9b1b9c20faef639eac2ea78c5222ec6,13,4,9,✗ DIFFER,"bus:1, car:3, motorcycle:8, truck:1","bus:1, car:3"
+1695483188-686207_jpg.rf.95ee04c08846cd506092499baa2366ba,15,1,14,✗ DIFFER,"car:9, motorcycle:6",car:1
+1695483495-4039135_jpg.rf.8d204e71d03470cb37bade60bbf83d23,19,1,18,✗ DIFFER,"car:3, motorcycle:16",car:1
+1695483865-6113422_jpg.rf.26c19ed788878b1a7ed225b328c71fec,23,4,19,✗ DIFFER,"car:5, motorcycle:18",car:4
+1695534851-0313036_jpg.rf.0c7a2530227299b3ca0033ef22cb2ebc,10,1,9,✗ DIFFER,"car:3, motorcycle:7",motorcycle:1
+1695535047-1527348_jpg.rf.18074eba587ee7cb5438c63fdd910a11,9,3,6,✗ DIFFER,"car:3, motorcycle:5, truck:1",car:3
+1695535385-4716544_jpg.rf.72b1baa0f416f1b55b03b8cc2a2e6935,4,1,3,✗ DIFFER,"car:1, motorcycle:3",car:1
+1695535462-4307013_jpg.rf.d962e09549818c6a3d5e967ba3097b17,15,8,7,✗ DIFFER,"car:8, motorcycle:7","car:7, motorcycle:1"
+1695535531-8639345_jpg.rf.dd922ae5958f2b10925ed0a807d32cf8,16,9,7,✗ DIFFER,"car:10, motorcycle:6","car:6, motorcycle:2, truck:1"
+1695535646-653287_jpg.rf.11d16890bc41a205a0d869a89e63ca60,10,7,3,✗ DIFFER,"car:5, motorcycle:5","bus:1, car:3, motorcycle:2, truck:1"
+1695535708-7997243_jpg.rf.39d04fa81607c96275a479de0704d922,8,7,1,✗ DIFFER,"car:4, motorcycle:4","bus:1, car:3, motorcycle:2, truck:1"
+1711508039-6696627_jpg.rf.91d8c75e9e0d41747080973184dfa870,12,1,11,✗ DIFFER,"car:3, motorcycle:5, truck:4",car:1
+1711508844-846982_jpg.rf.137ea635559d7a8ed475e52fc6ba2af7,30,12,18,✗ DIFFER,"car:11, motorcycle:14, truck:5","car:10, truck:2"
+1711510180-3422282_jpg.rf.5a164d2b6ff37b2a417211b5a11397f0,36,14,22,✗ DIFFER,"car:14, motorcycle:17, truck:5","car:11, truck:3"
+1711510555-109006_jpg.rf.23b9e457901864f566a346ef4c5d5be4,15,5,10,✗ DIFFER,"car:6, motorcycle:7, truck:2","car:4, motorcycle:1"
 1711510675-4308696_jpg.rf.b90edfd0702693cbfd05d13880dbbe3b,4,2,2,✗ DIFFER,"car:2, motorcycle:1, truck:1",car:2
-1711510998-9150603_jpg.rf.23e59ee9665862d779912bdb1c327f91,22,6,16,✗ DIFFER,"car:7, motorcycle:14, truck:1",car:6
-1711511297-1837194_jpg.rf.953b2c13768af305ea61c7cae205ace6,18,5,13,✗ DIFFER,"car:6, motorcycle:12",car:5
-1711511652-4580777_jpg.rf.6534d90601d67072146eba63cbb15769,29,8,21,✗ DIFFER,"car:9, motorcycle:17, truck:3","car:7, truck:1"
-1711511853-0533066_jpg.rf.f3beb5d764c56bea5024619cfd35a196,5,4,1,✗ DIFFER,"car:2, motorcycle:2, truck:1","car:3, truck:1"
-1711511966-3807726_jpg.rf.11c51467848433c1a36615a4d3f8ca36,23,7,16,✗ DIFFER,"car:7, motorcycle:14, truck:2","car:6, truck:1"
-1711519374-9967434_jpg.rf.10c16d88d2bb0810a3dbf4df53b19ab9,14,7,7,✗ DIFFER,"car:4, motorcycle:8, truck:2","car:4, truck:3"
-1711519825-0443964_jpg.rf.5fed7a9fc9c7fcb8e9d68507ceec47f9,18,5,13,✗ DIFFER,"car:5, motorcycle:10, truck:3","car:3, truck:2"
-1711520751-0357249_jpg.rf.1724683c4cf223ef63f379b55099bd64,16,6,10,✗ DIFFER,"car:7, motorcycle:7, truck:2","car:2, truck:4"
-1711520964-8704734_jpg.rf.3447aa9db82ddc60b03e879ba6e2af8b,23,9,14,✗ DIFFER,"car:11, motorcycle:10, truck:2","car:6, truck:3"
-1711529623-8752573_jpg.rf.01c2747dda68f2e1a36434feefdbefad,13,0,13,✗ DIFFER,motorcycle:13,No detections
-1711529730-8012002_jpg.rf.66f18dfa087fc6037807f32234408b3b,11,2,9,✗ DIFFER,"car:3, motorcycle:7, truck:1","car:1, truck:1"
-1711529875-4316695_jpg.rf.dcaf56532ca6cd70b9f9660f8df9bb57,20,0,20,✗ DIFFER,"motorcycle:19, truck:1",No detections
-1711530560-3575313_jpg.rf.20d046211493f5b73df023b9cc2559d5,13,4,9,✗ DIFFER,"car:4, motorcycle:9","car:3, motorcycle:1"
-1711552927-6902158_jpg.rf.36c7e1a4a40089d424b6f2fa7a4b1a14,13,3,10,✗ DIFFER,"car:1, motorcycle:12",motorcycle:3
-1711552933-9805267_jpg.rf.bb353754171ab4e3b4e63d1f1205ddea,10,2,8,✗ DIFFER,"car:1, motorcycle:9","car:1, motorcycle:1"
-1711552936-0484655_jpg.rf.c5c8c9f0b3b8e3e384c48dd04923ed07,7,1,6,✗ DIFFER,"car:1, motorcycle:6",car:1
-1711552939-775153_jpg.rf.476222c65add325b12aa8ace005978f9,4,1,3,✗ DIFFER,motorcycle:4,car:1
-1711552954-174345_jpg.rf.73fc95d615418c1c8ab85be81a6e71bf,3,1,2,✗ DIFFER,motorcycle:3,car:1
-1711552957-2897458_jpg.rf.be96cc4f7725c7e10a21320ecfcd1fca,3,1,2,✗ DIFFER,motorcycle:3,car:1
-1711552964-4187138_jpg.rf.394b7c28f43617339a4e4b59d074c85c,9,1,8,✗ DIFFER,motorcycle:9,car:1
-1711552968-5859501_jpg.rf.9d29a1a2351d603375cdaca90216b8ce,13,1,12,✗ DIFFER,"car:1, motorcycle:12",car:1
+1711510998-9150603_jpg.rf.23e59ee9665862d779912bdb1c327f91,21,5,16,✗ DIFFER,"car:7, motorcycle:13, truck:1",car:5
+1711511297-1837194_jpg.rf.953b2c13768af305ea61c7cae205ace6,20,4,16,✗ DIFFER,"car:7, motorcycle:12, truck:1",car:4
+1711511652-4580777_jpg.rf.6534d90601d67072146eba63cbb15769,30,9,21,✗ DIFFER,"car:9, motorcycle:18, truck:3","car:7, truck:2"
+1711511853-0533066_jpg.rf.f3beb5d764c56bea5024619cfd35a196,9,2,7,✗ DIFFER,"car:2, motorcycle:6, truck:1",car:2
+1711511966-3807726_jpg.rf.11c51467848433c1a36615a4d3f8ca36,24,5,19,✗ DIFFER,"car:7, motorcycle:15, truck:2","car:4, truck:1"
+1711519374-9967434_jpg.rf.10c16d88d2bb0810a3dbf4df53b19ab9,14,6,8,✗ DIFFER,"car:5, motorcycle:7, truck:2","car:4, truck:2"
+1711519825-0443964_jpg.rf.5fed7a9fc9c7fcb8e9d68507ceec47f9,19,6,13,✗ DIFFER,"car:5, motorcycle:11, truck:3","car:4, truck:2"
+1711520751-0357249_jpg.rf.1724683c4cf223ef63f379b55099bd64,16,7,9,✗ DIFFER,"car:7, motorcycle:7, truck:2","car:5, truck:2"
+1711520964-8704734_jpg.rf.3447aa9db82ddc60b03e879ba6e2af8b,24,10,14,✗ DIFFER,"car:11, motorcycle:11, truck:2","car:8, truck:2"
+1711529623-8752573_jpg.rf.01c2747dda68f2e1a36434feefdbefad,18,1,17,✗ DIFFER,motorcycle:18,motorcycle:1
+1711529730-8012002_jpg.rf.66f18dfa087fc6037807f32234408b3b,13,5,8,✗ DIFFER,"car:4, motorcycle:9","car:2, motorcycle:2, truck:1"
+1711529875-4316695_jpg.rf.dcaf56532ca6cd70b9f9660f8df9bb57,23,1,22,✗ DIFFER,"motorcycle:22, truck:1",motorcycle:1
+1711530560-3575313_jpg.rf.20d046211493f5b73df023b9cc2559d5,15,6,9,✗ DIFFER,"car:4, motorcycle:11","car:3, motorcycle:3"
+1711552927-6902158_jpg.rf.36c7e1a4a40089d424b6f2fa7a4b1a14,13,2,11,✗ DIFFER,"car:1, motorcycle:12","car:1, motorcycle:1"
+1711552933-9805267_jpg.rf.bb353754171ab4e3b4e63d1f1205ddea,11,1,10,✗ DIFFER,"car:1, motorcycle:10",car:1
+1711552936-0484655_jpg.rf.c5c8c9f0b3b8e3e384c48dd04923ed07,7,1,6,✗ DIFFER,"car:1, motorcycle:6",motorcycle:1
+1711552939-775153_jpg.rf.476222c65add325b12aa8ace005978f9,4,1,3,✗ DIFFER,motorcycle:4,motorcycle:1
+1711552954-174345_jpg.rf.73fc95d615418c1c8ab85be81a6e71bf,3,1,2,✗ DIFFER,motorcycle:3,motorcycle:1
+1711552957-2897458_jpg.rf.be96cc4f7725c7e10a21320ecfcd1fca,3,1,2,✗ DIFFER,motorcycle:3,motorcycle:1
+1711552964-4187138_jpg.rf.394b7c28f43617339a4e4b59d074c85c,10,0,10,✗ DIFFER,motorcycle:10,No detections
+1711552968-5859501_jpg.rf.9d29a1a2351d603375cdaca90216b8ce,14,1,13,✗ DIFFER,"car:1, motorcycle:13",car:1
 1711552986-626171_jpg.rf.418c4d3a8ef5a2fe7431be85bcac94d2,4,1,3,✗ DIFFER,motorcycle:4,car:1
-1711552995-9608254_jpg.rf.492cbead9e09cc8b6e202062f1b6be9c,14,1,13,✗ DIFFER,"car:1, motorcycle:13",car:1
-1711553015-2999723_jpg.rf.26dff75fbde18b2d0f75cf01cb16cf37,7,1,6,✗ DIFFER,"car:2, motorcycle:5",car:1
-1711553024-8531308_jpg.rf.6455346dc11a7548ec444d4ac5e81446,7,1,6,✗ DIFFER,"car:2, motorcycle:5",car:1
+1711552995-9608254_jpg.rf.492cbead9e09cc8b6e202062f1b6be9c,15,1,14,✗ DIFFER,"car:1, motorcycle:14",car:1
+1711553015-2999723_jpg.rf.26dff75fbde18b2d0f75cf01cb16cf37,10,1,9,✗ DIFFER,"car:2, motorcycle:8",car:1
+1711553024-8531308_jpg.rf.6455346dc11a7548ec444d4ac5e81446,9,1,8,✗ DIFFER,"car:2, motorcycle:7",car:1
 1711554993-2124119_jpg.rf.9c885ad5a9a83336773cd0666835c085,12,1,11,✗ DIFFER,"car:1, motorcycle:11",car:1
-1711554997-0152204_jpg.rf.82268e35c233ba245b246aff40349fec,12,0,12,✗ DIFFER,motorcycle:12,No detections
-1711555008-616014_jpg.rf.39097f3f21c90b7a05c75ffdb336e540,9,0,9,✗ DIFFER,motorcycle:9,No detections
+1711554997-0152204_jpg.rf.82268e35c233ba245b246aff40349fec,12,1,11,✗ DIFFER,motorcycle:12,car:1
+1711555008-616014_jpg.rf.39097f3f21c90b7a05c75ffdb336e540,9,1,8,✗ DIFFER,motorcycle:9,car:1
 1711555016-8212426_jpg.rf.8ae71a7d5d4cc39861d211d75ff15ea3,10,1,9,✗ DIFFER,motorcycle:10,car:1
 1711555025-2192383_jpg.rf.6f350f0557569134bb7b894c6927ffc2,1,1,0,✓ AGREE,car:1,car:1
-1711555057-689164_jpg.rf.dce102e3efd797e162f836127ac4a52d,2,1,1,✗ DIFFER,car:2,car:1
-1711555062-1850111_jpg.rf.edd55b0621241f88221170c1a0733a33,5,4,1,✗ DIFFER,"car:3, motorcycle:2",car:4
-1711555089-778182_jpg.rf.2e6559bf49ac0b3eb0a94904e8fbdbd6,12,4,8,✗ DIFFER,"car:5, motorcycle:7",car:4
-1711555090-8680062_jpg.rf.6088ccea80ca10c8591a224627814ce4,13,4,9,✗ DIFFER,"car:5, motorcycle:8",car:4
-1711555097-87127_jpg.rf.b796ec2d1d5b6b03811f1a065d6b008d,17,6,11,✗ DIFFER,"car:5, motorcycle:12","car:5, motorcycle:1"
-1711555100-055214_jpg.rf.b5acda31d564eb06f1e6408b3e1c5902,18,6,12,✗ DIFFER,"car:5, motorcycle:13","car:5, motorcycle:1"
-1711555965-8388333_jpg.rf.bbcb81e2756a93a492614dffca09c092,2,0,2,✗ DIFFER,motorcycle:2,No detections
-1711555980-4539032_jpg.rf.335c333f3961a058791eecfd46a88204,2,1,1,✗ DIFFER,car:2,car:1
-1711556014-1474373_jpg.rf.819f4c0596638eaba08f0b8323cd13d0,9,2,7,✗ DIFFER,"car:2, motorcycle:7",motorcycle:2
-1711556021-500371_jpg.rf.5cb875eedf1f5ebb57047bc84f8eb405,2,2,0,✓ AGREE,"car:1, motorcycle:1",motorcycle:2
-1711556023-6467562_jpg.rf.6a4d8ff1e352c2bb6c9faad252004f95,3,2,1,✗ DIFFER,"car:1, motorcycle:2",motorcycle:2
-1711556024-8914528_jpg.rf.7bda9bb6c131600a9b246550a3357855,3,2,1,✗ DIFFER,"car:1, motorcycle:2",motorcycle:2
-1711556072-881573_jpg.rf.9294125517c4c9b9984a0382f91de820,2,2,0,✓ AGREE,"car:1, motorcycle:1",motorcycle:2
-1711556085-3544014_jpg.rf.f507e7f1205cb38417862243cd64de6b,2,2,0,✓ AGREE,"car:1, motorcycle:1",motorcycle:2
-1711556097-0504408_jpg.rf.c2967518331cdfb648f7c22c67de9c75,9,2,7,✗ DIFFER,"car:1, motorcycle:8",motorcycle:2
-1711556121-217149_jpg.rf.a46e0e6e82c5c0ac367e0ec1fec308c7,16,2,14,✗ DIFFER,"car:1, motorcycle:15",motorcycle:2
-1711556133-106206_jpg.rf.d569869659578b17f8bf5e6b6ce666db,9,2,7,✗ DIFFER,"car:2, motorcycle:7",car:2
-1711556146-3673203_jpg.rf.a39832daabbd72c78d2c1956a0c5ace7,4,2,2,✗ DIFFER,motorcycle:4,car:2
-1711592779-3313658_jpg.rf.54253e827499612f36ee1bfbd6357319,4,3,1,✗ DIFFER,"car:3, motorcycle:1","car:2, truck:1"
-1711592970-5970583_jpg.rf.96d0ec317c96de576806cb1c67972de5,12,6,6,✗ DIFFER,"car:7, motorcycle:5","car:5, motorcycle:1"
-1711593043-0242693_jpg.rf.450ab22fb64ba6c23e53c5c90ac552f2,7,0,7,✗ DIFFER,"car:1, motorcycle:6",No detections
-1711593892-0077558_jpg.rf.83d157d8c21d135a74721a12ed8c115f,12,4,8,✗ DIFFER,"car:3, motorcycle:8, truck:1","motorcycle:2, truck:2"
-1711594122-0320835_jpg.rf.5023e172a412e2f5f4ceb0642c96031c,9,0,9,✗ DIFFER,"car:2, motorcycle:7",No detections
-1711594141-7733388_jpg.rf.24feb9b2917db2625b24b5517cbe7268,8,1,7,✗ DIFFER,"bus:1, motorcycle:6, truck:1",truck:1
-1711594161-0867615_jpg.rf.645d544b04584ef418aa75c19481aa48,4,2,2,✗ DIFFER,"car:2, motorcycle:1, truck:1","car:1, truck:1"
+1711555057-689164_jpg.rf.dce102e3efd797e162f836127ac4a52d,3,1,2,✗ DIFFER,"car:2, motorcycle:1",car:1
+1711555062-1850111_jpg.rf.edd55b0621241f88221170c1a0733a33,6,3,3,✗ DIFFER,"car:3, motorcycle:3",car:3
+1711555089-778182_jpg.rf.2e6559bf49ac0b3eb0a94904e8fbdbd6,12,5,7,✗ DIFFER,"car:5, motorcycle:7","car:4, motorcycle:1"
+1711555090-8680062_jpg.rf.6088ccea80ca10c8591a224627814ce4,12,5,7,✗ DIFFER,"car:5, motorcycle:7","car:4, motorcycle:1"
+1711555097-87127_jpg.rf.b796ec2d1d5b6b03811f1a065d6b008d,17,5,12,✗ DIFFER,"car:5, motorcycle:12","car:4, motorcycle:1"
+1711555100-055214_jpg.rf.b5acda31d564eb06f1e6408b3e1c5902,18,5,13,✗ DIFFER,"car:5, motorcycle:13","car:4, motorcycle:1"
+1711555965-8388333_jpg.rf.bbcb81e2756a93a492614dffca09c092,3,5,-2,✗ DIFFER,"car:1, motorcycle:2","car:4, motorcycle:1"
+1711555980-4539032_jpg.rf.335c333f3961a058791eecfd46a88204,2,5,-3,✗ DIFFER,car:2,"car:4, motorcycle:1"
+1711556014-1474373_jpg.rf.819f4c0596638eaba08f0b8323cd13d0,10,2,8,✗ DIFFER,"car:3, motorcycle:7",motorcycle:2
+1711556021-500371_jpg.rf.5cb875eedf1f5ebb57047bc84f8eb405,5,2,3,✗ DIFFER,"car:3, motorcycle:2",motorcycle:2
+1711556023-6467562_jpg.rf.6a4d8ff1e352c2bb6c9faad252004f95,5,2,3,✗ DIFFER,"car:3, motorcycle:2",motorcycle:2
+1711556024-8914528_jpg.rf.7bda9bb6c131600a9b246550a3357855,5,2,3,✗ DIFFER,"car:2, motorcycle:3",motorcycle:2
+1711556072-881573_jpg.rf.9294125517c4c9b9984a0382f91de820,2,1,1,✗ DIFFER,"car:1, motorcycle:1",car:1
+1711556085-3544014_jpg.rf.f507e7f1205cb38417862243cd64de6b,2,1,1,✗ DIFFER,"car:1, motorcycle:1",car:1
+1711556097-0504408_jpg.rf.c2967518331cdfb648f7c22c67de9c75,10,1,9,✗ DIFFER,"car:1, motorcycle:9",car:1
+1711556121-217149_jpg.rf.a46e0e6e82c5c0ac367e0ec1fec308c7,15,0,15,✗ DIFFER,"car:1, motorcycle:14",No detections
+1711556133-106206_jpg.rf.d569869659578b17f8bf5e6b6ce666db,10,1,9,✗ DIFFER,"car:2, motorcycle:8",car:1
+1711556146-3673203_jpg.rf.a39832daabbd72c78d2c1956a0c5ace7,6,1,5,✗ DIFFER,motorcycle:6,car:1
+1711592779-3313658_jpg.rf.54253e827499612f36ee1bfbd6357319,6,2,4,✗ DIFFER,"car:3, motorcycle:3",car:2
+1711592970-5970583_jpg.rf.96d0ec317c96de576806cb1c67972de5,13,6,7,✗ DIFFER,"car:6, motorcycle:7","car:5, motorcycle:1"
+1711593043-0242693_jpg.rf.450ab22fb64ba6c23e53c5c90ac552f2,8,0,8,✗ DIFFER,"car:1, motorcycle:7",No detections
+1711593892-0077558_jpg.rf.83d157d8c21d135a74721a12ed8c115f,13,3,10,✗ DIFFER,"car:3, motorcycle:9, truck:1","car:1, motorcycle:1, truck:1"
+1711594122-0320835_jpg.rf.5023e172a412e2f5f4ceb0642c96031c,10,2,8,✗ DIFFER,"car:2, motorcycle:8",motorcycle:2
+1711594141-7733388_jpg.rf.24feb9b2917db2625b24b5517cbe7268,9,0,9,✗ DIFFER,"car:1, motorcycle:8",No detections
+1711594161-0867615_jpg.rf.645d544b04584ef418aa75c19481aa48,7,2,5,✗ DIFFER,"car:2, motorcycle:3, truck:2","car:1, truck:1"
 1711597564-7279646_jpg.rf.9da82a0b9a6b1b376d42f513193e9b18,5,2,3,✗ DIFFER,"car:1, motorcycle:3, truck:1",truck:2
 1711597582-1342921_jpg.rf.22ed6b57cb69d4aa4097ad71045df14d,6,2,4,✗ DIFFER,"car:2, motorcycle:4",car:2
-1711597700-5759237_jpg.rf.723215a2ecd7c5ec3f7c0ff0f7f615ad,8,4,4,✗ DIFFER,"car:4, motorcycle:2, truck:2","car:3, truck:1"
-1711597809-4480755_jpg.rf.66831484e959e8ba9624790ec990b3b3,15,4,11,✗ DIFFER,"car:2, motorcycle:13","car:3, motorcycle:1"
-1711619923-9920902_jpg.rf.d8a9beef0455c4bd2b493cbe3c727b40,9,2,7,✗ DIFFER,"car:5, motorcycle:4",car:2
-1711620309-3143294_jpg.rf.6e45ee98c545254f3ed506b3ae54eb25,42,7,35,✗ DIFFER,"car:9, motorcycle:33",car:7
-1711621862-7413943_jpg.rf.50203cfe9726fcbb5bf25e41bb51a99d,35,3,32,✗ DIFFER,"car:9, motorcycle:26",car:3
-1711621902-895617_jpg.rf.ffd7e77c0b8a542df723a513eab3d197,4,1,3,✗ DIFFER,"bus:1, car:2, motorcycle:1",car:1
-1711622690-9410179_jpg.rf.21834dc7973dc3c0eef409b4d30021c2,7,1,6,✗ DIFFER,"bus:1, car:4, motorcycle:2",car:1
-1711622721-4178078_jpg.rf.90a1f00ce8db65bef00d89404023b529,16,4,12,✗ DIFFER,"car:2, motorcycle:14","car:2, motorcycle:2"
-1711622733-8168633_jpg.rf.5e81e94813c44548a25e81d41ffe82c0,4,3,1,✗ DIFFER,"car:2, motorcycle:2","car:2, motorcycle:1"
-1711622737-9643638_jpg.rf.e64410714517470e6ce7d4af3abb9c3c,8,4,4,✗ DIFFER,"car:3, motorcycle:5","car:2, motorcycle:2"
-1711622761-4268048_jpg.rf.f9759b32ec98051f6c18f8a5beb80750,11,1,10,✗ DIFFER,"car:4, motorcycle:7",car:1
-1711622768-7246218_jpg.rf.60a97289081e0120534d87c0f0b0af95,8,3,5,✗ DIFFER,"car:4, motorcycle:4",car:3
-1711622770-7847214_jpg.rf.761c973c7a590d03020a8473f3d64d8b,6,2,4,✗ DIFFER,"car:3, motorcycle:3",car:2
-1711622795-0394099_jpg.rf.2a806be2ee701c80d430cd72cb7ee463,11,2,9,✗ DIFFER,"car:4, motorcycle:7",car:2
-1711622814-038569_jpg.rf.e0358c0b0a02d42005fa2c970ee8d664,6,0,6,✗ DIFFER,"car:3, motorcycle:3",No detections
-1711622831-3718991_jpg.rf.2d3a6c0f0415951cbd996fddbb410ba4,8,1,7,✗ DIFFER,"car:2, motorcycle:6",car:1
-1711622835-4998_jpg.rf.6c9c99034ae6e1ec600371074b7bae83,5,1,4,✗ DIFFER,motorcycle:5,car:1
-1711622862-3026292_jpg.rf.cbddbf0dbe5707b2bded3ace9167160d,4,1,3,✗ DIFFER,"car:1, motorcycle:3",car:1
-1711622865-415756_jpg.rf.d239d897f352917748ce6ba0486698d6,4,2,2,✗ DIFFER,"car:2, motorcycle:2",car:2
-1711622882-8626478_jpg.rf.78f3d6258350ae93da85cd56495a17df,14,2,12,✗ DIFFER,"car:2, motorcycle:12",car:2
-1711622940-6503105_jpg.rf.af0cb6b250d3a562485f576ef7b66cb2,2,2,0,✓ AGREE,car:2,car:2
-1711626874-8521495_jpg.rf.450453a10506688b7b670d94691ac0c8,8,0,8,✗ DIFFER,motorcycle:8,No detections
-1711627131-221431_jpg.rf.9a68692fcc4e3d1f1971794e87ad0019,7,1,6,✗ DIFFER,"car:2, motorcycle:5",car:1
-1711627394-3728955_jpg.rf.c8f9e00a400f7355d997a41cd2abc42a,9,4,5,✗ DIFFER,"car:5, motorcycle:4","car:3, truck:1"
-1711627632-9909534_jpg.rf.f8680d416b5839940238c340cdc19d6e,11,5,6,✗ DIFFER,"car:4, motorcycle:7","car:3, motorcycle:2"
-1711627659-319656_jpg.rf.a8bb9e1bdc303329c35578a17a12dbd9,9,5,4,✗ DIFFER,motorcycle:9,"car:3, motorcycle:2"
-1711627720-0893016_jpg.rf.39f54f6535b631b594ff9d84b7c1e01e,11,5,6,✗ DIFFER,"car:4, motorcycle:7","car:4, motorcycle:1"
-1711627742-7073154_jpg.rf.2804bee1a8d1a5b7b1abd9f3f9ef8e5a,1,5,-4,✗ DIFFER,car:1,"car:4, motorcycle:1"
-1711627772-3113418_jpg.rf.adf515a4afaedcb8ca4479c0c27eb065,8,1,7,✗ DIFFER,"car:3, motorcycle:5",car:1
-1711634217-3696349_jpg.rf.a013f04fb069059518bfe47370aebcf3,9,5,4,✗ DIFFER,"car:5, motorcycle:4","car:3, motorcycle:2"
+1711597700-5759237_jpg.rf.723215a2ecd7c5ec3f7c0ff0f7f615ad,12,4,8,✗ DIFFER,"car:5, motorcycle:5, truck:2","car:3, truck:1"
+1711597809-4480755_jpg.rf.66831484e959e8ba9624790ec990b3b3,18,5,13,✗ DIFFER,"car:3, motorcycle:15","car:2, motorcycle:3"
+1711619923-9920902_jpg.rf.d8a9beef0455c4bd2b493cbe3c727b40,10,5,5,✗ DIFFER,"car:6, motorcycle:4","car:4, truck:1"
+1711620309-3143294_jpg.rf.6e45ee98c545254f3ed506b3ae54eb25,42,4,38,✗ DIFFER,"car:9, motorcycle:33",car:4
+1711621862-7413943_jpg.rf.50203cfe9726fcbb5bf25e41bb51a99d,30,3,27,✗ DIFFER,"car:8, motorcycle:22",car:3
+1711621902-895617_jpg.rf.ffd7e77c0b8a542df723a513eab3d197,4,2,2,✗ DIFFER,"car:2, motorcycle:2","car:1, truck:1"
+1711622690-9410179_jpg.rf.21834dc7973dc3c0eef409b4d30021c2,6,2,4,✗ DIFFER,"car:4, motorcycle:2","car:1, truck:1"
+1711622721-4178078_jpg.rf.90a1f00ce8db65bef00d89404023b529,16,5,11,✗ DIFFER,"car:2, motorcycle:14","car:3, motorcycle:2"
+1711622733-8168633_jpg.rf.5e81e94813c44548a25e81d41ffe82c0,5,3,2,✗ DIFFER,"car:2, motorcycle:3","car:2, motorcycle:1"
+1711622737-9643638_jpg.rf.e64410714517470e6ce7d4af3abb9c3c,7,5,2,✗ DIFFER,"car:3, motorcycle:4","car:3, motorcycle:2"
+1711622761-4268048_jpg.rf.f9759b32ec98051f6c18f8a5beb80750,11,3,8,✗ DIFFER,"car:4, motorcycle:7",car:3
+1711622768-7246218_jpg.rf.60a97289081e0120534d87c0f0b0af95,11,3,8,✗ DIFFER,"car:4, motorcycle:7",car:3
+1711622770-7847214_jpg.rf.761c973c7a590d03020a8473f3d64d8b,9,2,7,✗ DIFFER,"car:4, motorcycle:5",car:2
+1711622795-0394099_jpg.rf.2a806be2ee701c80d430cd72cb7ee463,14,3,11,✗ DIFFER,"car:4, motorcycle:10",car:3
+1711622814-038569_jpg.rf.e0358c0b0a02d42005fa2c970ee8d664,11,2,9,✗ DIFFER,"car:4, motorcycle:7","car:1, motorcycle:1"
+1711622831-3718991_jpg.rf.2d3a6c0f0415951cbd996fddbb410ba4,8,0,8,✗ DIFFER,"car:2, motorcycle:6",No detections
+1711622835-4998_jpg.rf.6c9c99034ae6e1ec600371074b7bae83,5,0,5,✗ DIFFER,motorcycle:5,No detections
+1711622862-3026292_jpg.rf.cbddbf0dbe5707b2bded3ace9167160d,4,2,2,✗ DIFFER,"car:1, motorcycle:3","car:1, motorcycle:1"
+1711622865-415756_jpg.rf.d239d897f352917748ce6ba0486698d6,5,2,3,✗ DIFFER,"car:2, motorcycle:3",car:2
+1711622882-8626478_jpg.rf.78f3d6258350ae93da85cd56495a17df,12,0,12,✗ DIFFER,"car:2, motorcycle:10",No detections
+1711622940-6503105_jpg.rf.af0cb6b250d3a562485f576ef7b66cb2,0,0,0,✓ AGREE,No detections,No detections
+1711626874-8521495_jpg.rf.450453a10506688b7b670d94691ac0c8,10,0,10,✗ DIFFER,"car:2, motorcycle:8",No detections
+1711627131-221431_jpg.rf.9a68692fcc4e3d1f1971794e87ad0019,10,1,9,✗ DIFFER,"car:3, motorcycle:7",car:1
+1711627394-3728955_jpg.rf.c8f9e00a400f7355d997a41cd2abc42a,9,4,5,✗ DIFFER,"car:5, motorcycle:4",car:4
+1711627632-9909534_jpg.rf.f8680d416b5839940238c340cdc19d6e,9,4,5,✗ DIFFER,"car:4, motorcycle:5","car:2, motorcycle:2"
+1711627659-319656_jpg.rf.a8bb9e1bdc303329c35578a17a12dbd9,10,4,6,✗ DIFFER,motorcycle:10,"car:2, motorcycle:2"
+1711627720-0893016_jpg.rf.39f54f6535b631b594ff9d84b7c1e01e,12,5,7,✗ DIFFER,"car:4, motorcycle:8","car:4, motorcycle:1"
+1711627742-7073154_jpg.rf.2804bee1a8d1a5b7b1abd9f3f9ef8e5a,2,5,-3,✗ DIFFER,"car:1, motorcycle:1","car:4, motorcycle:1"
+1711627772-3113418_jpg.rf.adf515a4afaedcb8ca4479c0c27eb065,7,5,2,✗ DIFFER,"car:3, motorcycle:4","car:4, motorcycle:1"
+1711634217-3696349_jpg.rf.a013f04fb069059518bfe47370aebcf3,10,6,4,✗ DIFFER,"car:6, motorcycle:4","car:4, motorcycle:2"
 1711634346-9088495_jpg.rf.7af539618091817f4738719315e2cbcb,17,9,8,✗ DIFFER,"car:1, motorcycle:16","car:1, motorcycle:8"
 1711666638-4402053_jpg.rf.80c4103b7da66ebec94d5de321904c62,5,9,-4,✗ DIFFER,"car:1, motorcycle:4","car:1, motorcycle:8"
-1711666652-9497938_jpg.rf.84ead28ab368aed0fe3eb0f87dd8a3df,7,1,6,✗ DIFFER,"car:2, motorcycle:4, truck:1",car:1
+1711666652-9497938_jpg.rf.84ead28ab368aed0fe3eb0f87dd8a3df,8,1,7,✗ DIFFER,"car:3, motorcycle:5",car:1
 1711666656-3409715_jpg.rf.2cdd192ade01b65360ee0c200a32cb3b,7,1,6,✗ DIFFER,"car:2, motorcycle:5",car:1
-1711666667-6682613_jpg.rf.0670a9cff54952a4637d219ace2e9a60,8,3,5,✗ DIFFER,"car:3, motorcycle:5",car:3
-1711666687-6629965_jpg.rf.843f9b61b470a95ff3e7e3d624cc73fe,9,2,7,✗ DIFFER,"car:3, motorcycle:6",car:2
-1711666690-8791938_jpg.rf.87c604770e7b69792902f4b1f9d2be69,4,2,2,✗ DIFFER,"car:3, motorcycle:1",car:2
-1711666703-0408025_jpg.rf.0972db51d32c75165e3c527508e6a5a9,5,1,4,✗ DIFFER,"bus:2, car:2, motorcycle:1",truck:1
-1711666712-990417_jpg.rf.a94087652a12a817e94813cc065ddd38,6,1,5,✗ DIFFER,"bus:2, car:2, motorcycle:2",truck:1
-1711666727-2022405_jpg.rf.aa1166f5c2694f91ff9a7749ee0fce2d,5,1,4,✗ DIFFER,"bus:2, car:2, motorcycle:1",truck:1
-1711666746-0098314_jpg.rf.4324d906f853726b5a301f13334efc29,4,1,3,✗ DIFFER,"bus:2, car:2",truck:1
-1711666755-3412151_jpg.rf.03f2dd7bff012b35402813252fe95677,15,4,11,✗ DIFFER,"bus:2, car:4, motorcycle:9","car:2, motorcycle:1, truck:1"
-1711666759-6123078_jpg.rf.754ef6eec3265c2032b5ba1a5f51956b,11,2,9,✗ DIFFER,"bus:3, car:4, motorcycle:4",car:2
+1711666667-6682613_jpg.rf.0670a9cff54952a4637d219ace2e9a60,10,1,9,✗ DIFFER,"car:3, motorcycle:7",car:1
+1711666687-6629965_jpg.rf.843f9b61b470a95ff3e7e3d624cc73fe,10,3,7,✗ DIFFER,"car:3, motorcycle:7","car:2, motorcycle:1"
+1711666690-8791938_jpg.rf.87c604770e7b69792902f4b1f9d2be69,7,3,4,✗ DIFFER,"car:4, motorcycle:3","car:2, truck:1"
+1711666703-0408025_jpg.rf.0972db51d32c75165e3c527508e6a5a9,5,1,4,✗ DIFFER,"bus:2, car:2, motorcycle:1",car:1
+1711666712-990417_jpg.rf.a94087652a12a817e94813cc065ddd38,5,0,5,✗ DIFFER,"bus:2, car:2, motorcycle:1",No detections
+1711666727-2022405_jpg.rf.aa1166f5c2694f91ff9a7749ee0fce2d,5,2,3,✗ DIFFER,"bus:2, car:2, motorcycle:1","car:1, truck:1"
+1711666746-0098314_jpg.rf.4324d906f853726b5a301f13334efc29,4,2,2,✗ DIFFER,"bus:2, car:2","car:1, truck:1"
+1711666755-3412151_jpg.rf.03f2dd7bff012b35402813252fe95677,15,5,10,✗ DIFFER,"bus:2, car:5, motorcycle:8","bus:1, car:3, motorcycle:1"
+1711666759-6123078_jpg.rf.754ef6eec3265c2032b5ba1a5f51956b,12,3,9,✗ DIFFER,"bus:3, car:5, motorcycle:4","bus:1, car:2"
 1711677580-727456_jpg.rf.13a183439047c4dc6f94c9f85e8b9c23,7,3,4,✗ DIFFER,"car:3, motorcycle:4",car:3
 1711677603-4629388_jpg.rf.bf8e60a07403221f26c83ae3e4a74af7,10,4,6,✗ DIFFER,"car:5, motorcycle:5",car:4
 1711677721-625052_jpg.rf.03bb756391955f3e271b7a43e27259d7,4,2,2,✗ DIFFER,"car:2, motorcycle:2",car:2
-1711678147-4060001_jpg.rf.dab095649a7245d2b214a0ea645252fa,5,2,3,✗ DIFFER,"car:2, motorcycle:3","bus:1, car:1"
+1711678147-4060001_jpg.rf.dab095649a7245d2b214a0ea645252fa,6,2,4,✗ DIFFER,"car:2, motorcycle:3, truck:1","bus:1, car:1"
 1711678736-5625665_jpg.rf.667506f9e70be4417db952369d20a591,5,3,2,✗ DIFFER,"car:3, motorcycle:2",car:3
-1711678836-8643935_jpg.rf.6dfdc47526070a5e0122ff2609d4204b,3,1,2,✗ DIFFER,"car:2, motorcycle:1",car:1
-1711678856-9998379_jpg.rf.f68b01ebf5c6c4c20038c359ae57f989,4,3,1,✗ DIFFER,motorcycle:4,motorcycle:3
+1711678836-8643935_jpg.rf.6dfdc47526070a5e0122ff2609d4204b,3,2,1,✗ DIFFER,"car:2, motorcycle:1",car:2
+1711678856-9998379_jpg.rf.f68b01ebf5c6c4c20038c359ae57f989,4,2,2,✗ DIFFER,motorcycle:4,motorcycle:2
 1711678970-2779994_jpg.rf.ec5ceee639fd702fdb3a37f836fc2c72,1,0,1,✗ DIFFER,motorcycle:1,No detections
-1711679302-388765_jpg.rf.1c4d39cd4180b0002bd673a21d2570a3,10,3,7,✗ DIFFER,"car:3, motorcycle:7",car:3
-1711679638-1318977_jpg.rf.9eb75d0a868450d7f680e5d94fde6899,19,3,16,✗ DIFFER,"car:3, motorcycle:15, truck:1","car:1, motorcycle:1, truck:1"
-1711679694-116312_jpg.rf.5c37b2e15c08e4151ae1c52303cafee3,1,3,-2,✗ DIFFER,car:1,"car:1, motorcycle:1, truck:1"
+1711679302-388765_jpg.rf.1c4d39cd4180b0002bd673a21d2570a3,9,3,6,✗ DIFFER,"car:3, motorcycle:6",car:3
+1711679638-1318977_jpg.rf.9eb75d0a868450d7f680e5d94fde6899,22,2,20,✗ DIFFER,"car:4, motorcycle:17, truck:1","car:1, truck:1"
+1711679694-116312_jpg.rf.5c37b2e15c08e4151ae1c52303cafee3,1,1,0,✓ AGREE,car:1,car:1
 1711679949-434979_jpg.rf.5c4818aefd72a62e8c844f7a150b897d,7,3,4,✗ DIFFER,"car:2, motorcycle:5","car:2, motorcycle:1"
 1711679985-7318094_jpg.rf.4eca2840c14f2a11bab0dd6055160da2,1,1,0,✓ AGREE,car:1,car:1
 1711680301-3158839_jpg.rf.1d04db387531ed4c5258fc208de538bd,7,2,5,✗ DIFFER,"car:2, motorcycle:5",car:2
 1711680815-5043015_jpg.rf.5a8aa06ae7fcef081d257044ff42d7ec,1,2,-1,✗ DIFFER,motorcycle:1,car:2
-1711680905-7629_jpg.rf.6692a6bc9403d2ef3ae55a65e9b1301d,12,3,9,✗ DIFFER,"car:3, motorcycle:9",car:3
-1711681245-839883_jpg.rf.7d916941f437d4d93fd17e66ae60e14f,11,4,7,✗ DIFFER,"car:5, motorcycle:5, truck:1","car:3, truck:1"
+1711680905-7629_jpg.rf.6692a6bc9403d2ef3ae55a65e9b1301d,11,3,8,✗ DIFFER,"car:3, motorcycle:8",car:3
+1711681245-839883_jpg.rf.7d916941f437d4d93fd17e66ae60e14f,10,4,6,✗ DIFFER,"car:4, motorcycle:5, truck:1",car:4
 1711681350-2359514_jpg.rf.0b3983680b666706124e14ee90b46a3f,13,4,9,✗ DIFFER,"car:5, motorcycle:8",car:4
-1711681899-1218615_jpg.rf.040d8b67c43ab4f69347e52e69dc0e38,15,7,8,✗ DIFFER,"car:6, motorcycle:9","car:4, motorcycle:2, truck:1"
-1711681979-3622239_jpg.rf.1dfd12e032efbdbf5524f7d8115b5ee9,1,1,0,✓ AGREE,car:1,truck:1
-1711682722-2225976_jpg.rf.ffe2481a0a623f28e0c4a8a9067ed391,32,8,24,✗ DIFFER,"car:6, motorcycle:25, truck:1","car:4, motorcycle:3, truck:1"
-1711683259-9922192_jpg.rf.002a7a5da94fb054d3b0d9b841f73485,16,4,12,✗ DIFFER,"car:5, motorcycle:11","car:3, motorcycle:1"
-1711683331-860128_jpg.rf.32a66b6e32656e561639b9758f47dabc,15,6,9,✗ DIFFER,"car:6, motorcycle:9",car:6
-1711683735-3892891_jpg.rf.78544f6a928c29656ae638da40f3a606,12,3,9,✗ DIFFER,"car:1, motorcycle:9, truck:2",car:3
-1711683900-3386858_jpg.rf.a54901c087a4c6d90dc3b6ebf23fb67c,4,5,-1,✗ DIFFER,car:4,"car:4, truck:1"
-1712030501-7122993_jpg.rf.45ed2c6753037cdd1524c7fa5f847ef8,11,3,8,✗ DIFFER,"car:2, motorcycle:7, truck:2",car:3
-1712030601-229359_jpg.rf.87ff80a29a8e30267e182fc8d6b1a19a,9,3,6,✗ DIFFER,"car:2, motorcycle:7","bus:1, car:2"
-1712030749-1499314_jpg.rf.9e3722c59e1fc45528394c90fab90095,6,2,4,✗ DIFFER,"car:2, motorcycle:3, truck:1","car:1, motorcycle:1"
+1711681899-1218615_jpg.rf.040d8b67c43ab4f69347e52e69dc0e38,16,8,8,✗ DIFFER,"car:6, motorcycle:10","car:5, motorcycle:3"
+1711681979-3622239_jpg.rf.1dfd12e032efbdbf5524f7d8115b5ee9,1,8,-7,✗ DIFFER,car:1,"car:5, motorcycle:3"
+1711682722-2225976_jpg.rf.ffe2481a0a623f28e0c4a8a9067ed391,31,9,22,✗ DIFFER,"car:5, motorcycle:25, truck:1","car:4, motorcycle:4, truck:1"
+1711683259-9922192_jpg.rf.002a7a5da94fb054d3b0d9b841f73485,16,7,9,✗ DIFFER,"car:5, motorcycle:11","car:4, motorcycle:3"
+1711683331-860128_jpg.rf.32a66b6e32656e561639b9758f47dabc,16,7,9,✗ DIFFER,"car:6, motorcycle:10","car:6, motorcycle:1"
+1711683735-3892891_jpg.rf.78544f6a928c29656ae638da40f3a606,13,3,10,✗ DIFFER,"car:1, motorcycle:10, truck:2",car:3
+1711683900-3386858_jpg.rf.a54901c087a4c6d90dc3b6ebf23fb67c,4,5,-1,✗ DIFFER,"car:3, truck:1","car:4, truck:1"
+1712030501-7122993_jpg.rf.45ed2c6753037cdd1524c7fa5f847ef8,12,2,10,✗ DIFFER,"car:2, motorcycle:9, truck:1",car:2
+1712030601-229359_jpg.rf.87ff80a29a8e30267e182fc8d6b1a19a,9,1,8,✗ DIFFER,"car:2, motorcycle:7",car:1
+1712030749-1499314_jpg.rf.9e3722c59e1fc45528394c90fab90095,8,1,7,✗ DIFFER,"car:2, motorcycle:5, truck:1",car:1
 1712032468-9747665_jpg.rf.7a1c9662f6aab8781da45edf2f469a00,6,1,5,✗ DIFFER,"car:2, motorcycle:4",car:1
-1712032502-2403479_jpg.rf.98e06bdbec4c424c7ed32cc6631633a2,7,1,6,✗ DIFFER,"car:4, motorcycle:3",car:1
+1712032502-2403479_jpg.rf.98e06bdbec4c424c7ed32cc6631633a2,6,1,5,✗ DIFFER,"car:3, motorcycle:3",car:1
 
 MODEL PERFORMANCE INSIGHTS
 Insight,Value
-More Detections,best_final.pt detected 1421 more objects
-best_final Most Common Class,motorcycle (1333 detections)
-yolov9c Most Common Class,car (453 detections)
+More Detections,best_final.pt detected 1505 more objects
+best_final Most Common Class,motorcycle (1433 detections)
+yolov9c Most Common Class,car (490 detections)

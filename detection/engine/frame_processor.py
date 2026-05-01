@@ -2,7 +2,7 @@ import cv2
 
 
 class FrameProcessor:
-    def __init__(self, target_width=1280):
+    def __init__(self, target_width=960):
         self.target_width = target_width
 
     def process(self, frame):

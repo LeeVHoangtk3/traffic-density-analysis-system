@@ -44,11 +44,11 @@ DATASET_LABELS_DIR = os.path.join(YOLOV9_ROOT, "dataset", "test", "labels")
 PRO_MODELS_DIR = os.path.join(YOLOV9_ROOT, "..", "detection", "pro_models")
 
 # Model paths
-MODEL_BEST = os.path.join(PRO_MODELS_DIR, "yolov9_ultimate_final.pt") # <-- Update this to your best model filename
+MODEL_BEST = os.path.join(PRO_MODELS_DIR, "yolov9_img960_ultimate.pt") # <-- Update this to your best model filename
 MODEL_PRETRAINED = os.path.join(PRO_MODELS_DIR, "yolov9c.pt")
 
 # Output directories
-OUTPUT_LABELS_BEST = os.path.join(YOLOV9_ROOT, "dataset", "test", "labels_ultimate_final") # <-- Update this to match your best model name
+OUTPUT_LABELS_BEST = os.path.join(YOLOV9_ROOT, "dataset", "test", "labels_img960_ultimate") # <-- Update this to match your best model name
 OUTPUT_LABELS_PRETRAINED = os.path.join(YOLOV9_ROOT, "dataset", "test", "labels_yolov9c")
 OUTPUT_VIZ_DIR = os.path.join(YOLOV9_ROOT, "dataset", "test", "visualized")
 
@@ -239,7 +239,7 @@ def run_inference_and_save_labels(models, images_dir, confidence_threshold):
     print(f"\nRunning inference on {len(image_files)} images...")
     
     # Helper function to run inference
-    def run_model_inference(model, img_tensor, img_size=640):
+    def run_model_inference(model, img_tensor, img_size=960): # Assuming model input size is 960x960, adjust if different
         """Run single inference on image tensor"""
         with torch.no_grad():
             output = model(img_tensor)
@@ -282,7 +282,7 @@ def run_inference_and_save_labels(models, images_dir, confidence_threshold):
                 continue
             
             h, w = frame.shape[:2]
-            img_size = 640
+            img_size = 960 # Adjust if your model uses a different input size
             
             # Preprocess image
             img = cv2.resize(frame, (img_size, img_size))
