@@ -14,6 +14,7 @@ class VehicleDetection(Base):
     track_id = Column(String)
     vehicle_type = Column(String)
     density = Column(String)
+    direction = Column(String, default="inbound")
     event_type = Column(String)
     confidence = Column(Float)
     timestamp = Column(DateTime, default=datetime.utcnow)

@@ -1,19 +1,18 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import text
-from sqlalchemy.orm import Session
 
+from backend.mongo_database import ping_mongo
 from backend.services.db_service import get_db
 
 router = APIRouter(tags=["health"])
 
 
 @router.get("/health")
-def health_check(db: Session = Depends(get_db)):
+def health_check(db=Depends(get_db)):
     db_status = "ok"
     try:
-        db.execute(text("SELECT 1"))
+        ping_mongo()
     except Exception:
         db_status = "error"
 

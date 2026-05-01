@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -31,8 +31,8 @@ class DetectionCreate(BaseModel):
     camera_id: str = Field(min_length=1)
     track_id: Union[int, str]
     vehicle_type: VehicleType
-    density: DensityLevel
+    density: Optional[DensityLevel] = None
     event_type: EventType
     timestamp: datetime
     confidence: Optional[float] = Field(default=None, ge=0, le=1)
-    direction: Optional[str] = Field(default=None)
+    direction: Literal["inbound", "outbound"] = "inbound"

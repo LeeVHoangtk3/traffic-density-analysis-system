@@ -1,10 +1,4 @@
-from backend.database import SessionLocal
+from backend.mongo_database import db
 
 def get_db():
-
-    db = SessionLocal()
-
-    try:
-        yield db
-    finally:
-        db.close()
+    yield db

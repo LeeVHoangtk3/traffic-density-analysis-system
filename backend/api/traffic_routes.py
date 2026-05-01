@@ -1,13 +1,17 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
 
 from backend.config import settings
-from backend.models.vehicle_detection import VehicleDetection
 from backend.services.db_service import get_db
 
 router = APIRouter(tags=["traffic"])
+
+
+def normalize_document(document):
+    document = dict(document)
+    document["id"] = str(document.pop("_id"))
+    return document
 
 
 @router.get("/raw-data")
@@ -15,36 +19,43 @@ def get_raw_data(
     camera_id: str | None = None,
     vehicle_type: str | None = None,
     density: str | None = None,
+    direction: str | None = None,
     start_time: datetime | None = None,
     end_time: datetime | None = None,
     limit: int = Query(default=settings.default_page_size, ge=1),
     offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_db),
+    db=Depends(get_db),
 ):
-    query = db.query(VehicleDetection)
-
+    filters = {}
     if camera_id:
-        query = query.filter(VehicleDetection.camera_id == camera_id)
+        filters["camera_id"] = camera_id
     if vehicle_type:
-        query = query.filter(VehicleDetection.vehicle_type == vehicle_type)
+        filters["vehicle_type"] = vehicle_type
     if density:
-        query = query.filter(VehicleDetection.density == density.upper())
-    if start_time:
-        query = query.filter(VehicleDetection.timestamp >= start_time)
-    if end_time:
-        query = query.filter(VehicleDetection.timestamp <= end_time)
+        filters["density"] = density.upper()
+    if direction:
+        filters["direction"] = direction.lower()
 
-    total = query.count()
-    rows = (
-        query.order_by(VehicleDetection.timestamp.desc())
-        .offset(offset)
-        .limit(min(limit, settings.max_page_size))
-        .all()
+    timestamp_filter = {}
+    if start_time:
+        timestamp_filter["$gte"] = start_time
+    if end_time:
+        timestamp_filter["$lte"] = end_time
+    if timestamp_filter:
+        filters["timestamp"] = timestamp_filter
+
+    safe_limit = min(limit, settings.max_page_size)
+    total = db.vehicle_detections.count_documents(filters)
+    rows = list(
+        db.vehicle_detections.find(filters)
+        .sort("timestamp", -1)
+        .skip(offset)
+        .limit(safe_limit)
     )
 
     return {
         "total": total,
-        "limit": min(limit, settings.max_page_size),
+        "limit": safe_limit,
         "offset": offset,
-        "items": rows,
+        "items": [normalize_document(row) for row in rows],
     }

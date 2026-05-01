@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 
 from backend.schemas.detection_schema import DetectionCreate
 from backend.services.db_service import get_db
@@ -13,7 +12,7 @@ router = APIRouter(tags=["detection"])
 
 @router.post("/detection", status_code=status.HTTP_201_CREATED)
 def create_detection_route(
-    data: DetectionCreate, db: Session = Depends(get_db)
+    data: DetectionCreate, db=Depends(get_db)
 ):
     existing = get_detection_by_event_id(db, data.event_id)
     if existing:
@@ -23,4 +22,4 @@ def create_detection_route(
         )
 
     detection = create_detection(db, data)
-    return {"status": "saved", "id": detection.id, "event_id": detection.event_id}
+    return {"status": "saved", "id": detection["id"], "event_id": detection["event_id"]}

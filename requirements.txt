@@ -31,6 +31,8 @@ pydantic
 sqlalchemy
 psycopg2-binary        # PostgreSQL
 # pymysql              # Uncomment nếu dùng MySQL
+pymongo
+dnspython
 
 # ==============================
 # UTILITIES

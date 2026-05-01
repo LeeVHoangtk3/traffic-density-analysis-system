@@ -14,7 +14,7 @@ class PredictionResponse(BaseModel):
 
 
 class PredictionHistoryItem(BaseModel):
-    id: int
+    id: str
     camera_id: Optional[str] = None
     predicted_density: float
     suggested_delta: Optional[float] = None
