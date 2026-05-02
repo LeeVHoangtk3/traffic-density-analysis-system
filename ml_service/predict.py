@@ -48,7 +48,7 @@ def main():
     print(f"Camera             : {data['camera_id']}")
     print(f"Gia tri du bao     : {data['predicted_density']}")
     print(f"Muc do mat do      : {data.get('predicted_congestion_level', 'N/A')}")
-    print(f"Thoi gian den xanh : {data.get('green_light_time', 'N/A')} giay")  # 👈 thêm
+    print(f"Thoi gian den xanh : {data.get('green_light_time', 'N/A')} giay")
     print(f"Khung du bao       : {data['horizon_minutes']} phut")
     print(f"Nguon du bao       : {data['source']}")
     print(f"Thoi diem du bao   : {data['timestamp']}")
