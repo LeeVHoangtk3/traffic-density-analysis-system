@@ -5,6 +5,7 @@ import time
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(BASE_DIR))
+sys.path.append(BASE_DIR)
 
 import cv2
 import json
@@ -29,7 +30,7 @@ VIDEO_SOURCE = os.getenv("TRAFFIC_VIDEO_SOURCE",  os.path.join(BASE_DIR, "..", "
 MODEL_PATH   = os.getenv("TRAFFIC_MODEL_PATH",    os.path.join(BASE_DIR, "pro_models", "yolov9_img960_ultimate.pt"))
 
 CONF_THRESHOLD = 0.40
-SHOW_VIDEO     = False
+SHOW_VIDEO     = True
 
 # Giữ 960 vì model đã train với imgsz=960
 # Đổi sang 640 sẽ làm lệch feature map, giảm mAP thực sự
@@ -97,16 +98,7 @@ def main():
     with open(config_path, encoding="utf-8") as f:
         camera_config = json.load(f)
 
-    # ===== Fix missing variables =====
-    zones = camera_config.get("zones", [])
     direction = camera_config.get("direction", "inbound")
-    camera_id = CAMERA_ID
-    DRY_RUN = False
-    FRAME_SKIP_BY_DENSITY = {"low": 3, "medium": 2, "high": 1, "severe": 1}
-    prev_last_count = 0
-    perf_frames = 0
-    perf_start = time.time()
-    dry_run_event_count = 0
 
     # ===== Initialize components =====
     camera            = CameraEngine(VIDEO_SOURCE)          # raises nếu không mở được
@@ -212,7 +204,7 @@ def main():
 
                 # check_crossing trả về direction (str) hoặc None
                 # None = không trong zone hoặc bị cooldown chặn
-                direction = zone_manager.check_crossing(track_id, cx, cy_bottom)
+                direction = zone_manager.check_crossing(track_id, cx, cy)
                 if direction:
                     counter.count(vehicle_type)
                     cached_totals = counter.get_totals()
@@ -251,7 +243,7 @@ def main():
             for vehicle, cnt in cached_totals.items():
                 cv2.putText(
                     frame,
-                    f"{vehicle}: {count}",
+                    f"{vehicle}: {cnt}",
                     (30, y_offset),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2,
                 )
