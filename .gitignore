@@ -129,6 +129,7 @@ __pypackages__/
 *.mov
 *.zip
 data/
+!ml_service/data/
 visualized/
 images/
 

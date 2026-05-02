@@ -34,14 +34,12 @@ class TrafficSystem:
         time.sleep(5)
 
         from congestion_classifier import CongestionClassifier
-        from traffic_light_logic import TrafficLightOptimizer
+
         from performance_monitor import PerformanceMonitor
 
         self.classifier = CongestionClassifier()
         print("[OK] Loaded CongestionClassifier")
 
-        self.optimizer = TrafficLightOptimizer()
-        print("[OK] Loaded TrafficLightOptimizer")
 
         self.monitor = PerformanceMonitor()
         print("[OK] Loaded PerformanceMonitor")
@@ -108,9 +106,6 @@ class TrafficSystem:
             local_level = self.classifier.classify(vehicle_count)
             print("    Local result:", local_level)
 
-            print("\n[4] Traffic light optimization ...")
-            light = self.optimizer.optimize(level)
-            print("    Light config:", light)
 
             print("\n[5] Monitoring ...")
             perf = self.monitor.monitor()
