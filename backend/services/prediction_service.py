@@ -112,6 +112,35 @@ def _build_prediction_history(
     return _build_history_from_detections(db, camera_id, periods)
 
 
+# =========================================================
+# ✅ GREEN LIGHT TIME (MỚI THEO YÊU CẦU CỦA BẠN)
+# =========================================================
+def _compute_green_light_time(predicted_density: float, history: pd.DataFrame) -> int:
+    base_time = 45
+
+    if history.empty or predicted_density <= 0:
+        return base_time
+
+    avg_density = float(history["vehicle_count"].mean())
+
+    if avg_density == 0:
+        return base_time
+
+    # % chênh lệch so với avg
+    diff_ratio = (predicted_density - avg_density) / avg_density
+
+    # mỗi 10% -> 5s
+    steps = int(diff_ratio / 0.1)
+    delta = steps * 5
+
+    green_time = base_time + delta
+
+    # clamp: không nhỏ hơn 30, không lớn hơn 45
+    green_time = max(30, min(45, green_time))
+
+    return int(green_time)
+
+
 def predict_next_density(
     db,
     camera_id: Optional[str] = None,
@@ -122,7 +151,6 @@ def predict_next_density(
     if predictor is not None and len(history) >= 5:
         predicted_value = float(predictor.predict(history))
         source = "ml_service"
-        # Phân loại mức độ mật độ từ số xe dự báo
         try:
             from backend.services.aggregation_service import compute_congestion
             congestion_level = compute_congestion(int(predicted_value))
@@ -137,6 +165,8 @@ def predict_next_density(
         source = "fallback"
         congestion_level = None
 
+    green_light_time = _compute_green_light_time(predicted_value, history)
+
     document = {
         "camera_id": camera_id,
         "predicted_density": predicted_value,
@@ -144,7 +174,9 @@ def predict_next_density(
         "horizon_minutes": settings.prediction_horizon_minutes,
         "source": source,
         "timestamp": datetime.utcnow(),
+        "green_light_time": green_light_time,
     }
+
     result = db.traffic_predictions.insert_one(document)
     document["_id"] = result.inserted_id
     return to_object(document)

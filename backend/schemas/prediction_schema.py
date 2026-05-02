@@ -8,6 +8,7 @@ class PredictionResponse(BaseModel):
     camera_id: Optional[str] = None
     predicted_density: float
     predicted_congestion_level: Optional[str] = None
+    green_light_time: int = 45 
     horizon_minutes: int
     source: str
     timestamp: datetime
@@ -18,6 +19,7 @@ class PredictionHistoryItem(BaseModel):
     camera_id: Optional[str] = None
     predicted_density: float
     predicted_congestion_level: Optional[str] = None
+    green_light_time: int = 45  # 👈 thêm
     horizon_minutes: int
     source: str
     timestamp: datetime

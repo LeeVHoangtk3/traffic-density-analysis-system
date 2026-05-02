@@ -20,6 +20,7 @@ router = APIRouter(tags=["prediction"])
 def predict_next(camera_id: str | None = None, db=Depends(get_db)):
     recent_camera_id = camera_id or "CAM_01"
     history = get_recent_aggregations(db, camera_id=recent_camera_id, n=5)
+
     if history.empty:
         prediction = predict_next_density(db=db, camera_id=camera_id)
         if prediction.predicted_density == 0:
@@ -36,7 +37,16 @@ def predict_next(camera_id: str | None = None, db=Depends(get_db)):
     return PredictionResponse(
         camera_id=prediction.camera_id,
         predicted_density=prediction.predicted_density,
-        predicted_congestion_level=getattr(prediction, 'predicted_congestion_level', None),
+        predicted_congestion_level=getattr(
+            prediction,
+            "predicted_congestion_level",
+            None
+        ),
+        green_light_time=getattr(
+            prediction,
+            "green_light_time",
+            45
+        ),
         horizon_minutes=prediction.horizon_minutes,
         source=prediction.source,
         timestamp=prediction.timestamp,
@@ -57,6 +67,7 @@ def get_prediction_history(
         limit=safe_limit,
         offset=offset,
     )
+
     return PredictionHistoryResponse(
         total=total,
         limit=safe_limit,
@@ -66,7 +77,16 @@ def get_prediction_history(
                 id=item.id,
                 camera_id=item.camera_id,
                 predicted_density=item.predicted_density,
-                predicted_congestion_level=getattr(item, 'predicted_congestion_level', None),
+                predicted_congestion_level=getattr(
+                    item,
+                    "predicted_congestion_level",
+                    None
+                ),
+                green_light_time=getattr(
+                    item,
+                    "green_light_time",
+                    45
+                ),
                 horizon_minutes=item.horizon_minutes,
                 source=item.source,
                 timestamp=item.timestamp,
