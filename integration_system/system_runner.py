@@ -9,8 +9,8 @@ Cac buoc trong mot chu ky pipeline:
     [2] Goi /aggregation       -> lay vehicle_count + congestion_level
     [3] Phan loai tac nghen    -> CongestionClassifier (rule-based, local)
     [4] Toi uu den tin hieu    -> TrafficLightOptimizer (ML hoac rule-based)
-         [4a] DeltaApplier     -> predict delta tu LightDeltaModel
-         [4b] DirectionRouter  -> anh xa camera_id -> pha den
+    [4a] DeltaApplier     -> predict delta tu LightDeltaModel
+    [4b] DirectionRouter  -> anh xa camera_id -> pha den
     [5] Giam sat hieu nang     -> PerformanceMonitor (CPU / RAM)
 
 Bien moi truong:
@@ -275,43 +275,18 @@ class TrafficSystem:
         print("  TRAFFIC DENSITY ANALYSIS SYSTEM — STARTING")
         print("=" * 60)
 
-<<<<<<< HEAD
-        # Start backend
-        print("Starting Backend...")
-        backend_cmd = ["uvicorn", "backend.main:app", "--reload", "--host", "127.0.0.1", "--port", "8000"]
-        self.backend_process = subprocess.Popen(backend_cmd, cwd=os.path.join(os.path.dirname(__file__), ".."))
-
-        # Wait for backend to start
-        time.sleep(5)
-
-        # Start detection
-        print("Starting Detection Engine...")
-        detection_cmd = ["python", "detection/main.py"]
-        self.detection_process = subprocess.Popen(detection_cmd, cwd=os.path.join(os.path.dirname(__file__), ".."))
-
-        # Wait for detection to start
-        time.sleep(5)
-
-        from congestion_classifier import CongestionClassifier
-
-        from performance_monitor import PerformanceMonitor
-=======
         # --- Khoi dong Backend & Detection (subprocess) ---
         if not NO_SUBPROCESS:
             self._start_subprocess_services()
         else:
             print("[INFO] NO_SUBPROCESS=1 -> Skip launching backend/detection")
->>>>>>> origin/hao
 
         # --- Khoi tao cac component noi tuyen ---
         self.classifier = CongestionClassifier()
         print("[OK] CongestionClassifier ready")
 
-<<<<<<< HEAD
-=======
         self.optimizer = TrafficLightOptimizer()
         print("[OK] TrafficLightOptimizer ready (ML + rule fallback)")
->>>>>>> origin/hao
 
         self.monitor = PerformanceMonitor()
         print("[OK] PerformanceMonitor ready")
@@ -421,13 +396,10 @@ class TrafficSystem:
             local_level = self.classifier.classify(vehicle_count)
             print(f"    Local result     : {local_level}")
 
-<<<<<<< HEAD
-=======
             # -------------------------------------------------------
             # BUOC 4: Toi uu den tin hieu (ML > rule fallback)
             # -------------------------------------------------------
             print("\n[4] Traffic light optimization ...")
->>>>>>> origin/hao
 
             # Lay them cac truong ML neu API tra ve
             queue_proxy   = float(data.get("queue_proxy",   0.0))
