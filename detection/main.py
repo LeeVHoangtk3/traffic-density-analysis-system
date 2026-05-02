@@ -25,19 +25,15 @@ from integration.publisher import EventPublisher
 
 IS_COLAB = "COLAB_GPU" in os.environ
 
-API_URL      = os.getenv("TRAFFIC_API_URL",      "http://127.0.0.1:8000/detection")
-VIDEO_SOURCE = os.getenv("TRAFFIC_VIDEO_SOURCE",  os.path.join(BASE_DIR, "..", "video_data", "traffic1.mp4"))
-MODEL_PATH   = os.getenv("TRAFFIC_MODEL_PATH",    os.path.join(BASE_DIR, "pro_models", "yolov9_img960_ultimate.pt"))
+API_URL      = os.getenv("TRAFFIC_API_URL",       "http://127.0.0.1:8000/detection")
+VIDEO_SOURCE = os.getenv("TRAFFIC_VIDEO_SOURCE",   os.path.join(BASE_DIR, "..", "video_data", "traffic1.mp4"))
+MODEL_PATH   = os.getenv("TRAFFIC_MODEL_PATH",     os.path.join(BASE_DIR, "pro_models", "yolov9_img960_ultimate.pt"))
+OUTPUT_VIDEO = os.getenv("TRAFFIC_OUTPUT_VIDEO",   "output_v2.mp4" if IS_COLAB else None)
 
 CONF_THRESHOLD = 0.40
 SHOW_VIDEO     = True
+TARGET_WIDTH   = 960  # cố định 960 vì model train với imgsz=960
 
-# Giữ 960 vì model đã train với imgsz=960
-# Đổi sang 640 sẽ làm lệch feature map, giảm mAP thực sự
-TARGET_WIDTH = 960
-
-# Dynamic FRAME_SKIP theo density — tách theo hardware
-# CPU không thể xử lý 25FPS @ 960px → skip nhiều hơn
 HAS_CUDA = torch.cuda.is_available()
 FRAME_SKIP_BY_DENSITY = {
     "LOW":    5  if HAS_CUDA else 10,
@@ -45,16 +41,12 @@ FRAME_SKIP_BY_DENSITY = {
     "HIGH":   1  if HAS_CUDA else 2,
 }
 
-# Aggregation trigger theo wall clock thực tế (không phải video time)
-# Tránh trigger liên tục khi chạy video offline với FPS thấp
 AGGREGATION_INTERVAL_SEC = 15 * 60
 
-DRY_RUN      = False
-OUTPUT_VIDEO  = "output_v2.mp4" if IS_COLAB else None
+DRY_RUN = False
 
 
 def _trigger_aggregation(api_url: str, camera_id: str) -> None:
-    """Gọi POST /aggregation/compute trong thread riêng để không block vòng detect."""
     try:
         base_url = api_url.rsplit("/", 1)[0] if "/" in api_url else api_url
         resp = requests.post(
@@ -72,7 +64,6 @@ def _trigger_aggregation(api_url: str, camera_id: str) -> None:
 
 
 def _get_output_size(video_source, target_width: int) -> tuple[int, int]:
-    """Lấy kích thước output frame mà không cần đọc frame rồi reset."""
     src    = int(video_source) if str(video_source).isdigit() else video_source
     cap    = cv2.VideoCapture(src)
     orig_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -98,15 +89,13 @@ def main():
     with open(config_path, encoding="utf-8") as f:
         camera_config = json.load(f)
 
-    direction = camera_config.get("direction", "inbound")
-
     # ===== Initialize components =====
-    camera            = CameraEngine(VIDEO_SOURCE)          # raises nếu không mở được
+    camera            = CameraEngine(VIDEO_SOURCE)
     processor         = FrameProcessor(target_width=TARGET_WIDTH)
     detector          = Detector(MODEL_PATH, conf_threshold=CONF_THRESHOLD, img_size=TARGET_WIDTH)
-    tracker           = Tracker()                           # dùng default tối ưu: buffer=90, thresh=0.35
+    tracker           = Tracker()
     counter           = VehicleCounter()
-    density_estimator = DensityEstimator(window=30)         # window tăng lên 30 frame
+    density_estimator = DensityEstimator(window=30)
     event_generator   = EventGenerator()
     publisher         = EventPublisher(API_URL)
     zone_manager      = ZoneManager(camera_config["zones"])
@@ -127,99 +116,108 @@ def main():
         out = cv2.VideoWriter(
             OUTPUT_VIDEO,
             cv2.VideoWriter_fourcc(*"mp4v"),
-            fps / FRAME_SKIP_BY_DENSITY["MEDIUM"],  # output FPS tương ứng skip MEDIUM
+            fps,  # giữ FPS gốc để video không bị tua nhanh/chậm
             (out_w, out_h),
         )
 
     # ===== State =====
-    frame_count           = 0
-    traffic_density       = "LOW"
-    cached_totals         = {}
-    dry_run_event_count   = 0
+    frame_count         = 0
+    traffic_density     = "LOW"
+    cached_totals       = {}
+    dry_run_event_count = 0
+    last_tracks         = []
 
-    # Spike detection
+    # FIX #3: khởi tạo spike và curr_last_count trước vòng lặp
+    # tránh NameError khi frame đầu tiên bị skip
+    spike           = False
+    curr_last_count = 0
     prev_last_count = 0
     next_skip       = FRAME_SKIP_BY_DENSITY["LOW"]
 
-    # Aggregation wall clock
     last_aggregation_wall = time.time()
-
-    # Perf
     perf_start    = time.time()
     perf_frames   = 0
     last_log_time = time.time()
 
     try:
         while True:
-            ret, frame = camera.read()
+            ret, raw_frame = camera.read()
             if not ret:
                 print("[Module A] Video ended.")
                 break
 
             frame_count += 1
+            frame = processor.process(raw_frame)
 
-            # ===== Dynamic Frame Skip =====
-            if frame_count % next_skip != 0:
-                continue
+            is_detection_frame = (frame_count % next_skip == 0)
 
-            # ===== Aggregation trigger (wall clock) =====
-            wall_now = time.time()
-            if wall_now - last_aggregation_wall >= AGGREGATION_INTERVAL_SEC:
-                last_aggregation_wall = wall_now
-                if not DRY_RUN:
-                    threading.Thread(
-                        target=_trigger_aggregation,
-                        args=(API_URL, camera_id),
-                        daemon=True,
-                    ).start()
+            if is_detection_frame:
+                # ===== Aggregation trigger (wall clock) =====
+                wall_now = time.time()
+                if wall_now - last_aggregation_wall >= AGGREGATION_INTERVAL_SEC:
+                    last_aggregation_wall = wall_now
+                    if not DRY_RUN:
+                        threading.Thread(
+                            target=_trigger_aggregation,
+                            args=(API_URL, camera_id),
+                            daemon=True,
+                        ).start()
 
-            # ===== Detection pipeline =====
-            frame      = processor.process(frame)
-            detections = detector.detect(frame)
-            tracks     = tracker.update(detections, frame)
+                # ===== Detection pipeline =====
+                detections = detector.detect(frame)
+                tracks     = tracker.update(detections, frame)
 
-            density_estimator.update(tracks)
-            traffic_density = density_estimator.get_density()
+                density_estimator.update(tracks)
+                traffic_density = density_estimator.get_density()
 
-            # ===== Spike detection → next frame skip =====
-            curr_last_count = density_estimator.get_last_count()
-            spike           = curr_last_count > prev_last_count * 1.5 and curr_last_count >= 3
-            prev_last_count = curr_last_count
-            next_skip       = 1 if spike else FRAME_SKIP_BY_DENSITY.get(traffic_density, 3)
+                curr_last_count = density_estimator.get_last_count()
+                spike           = curr_last_count > prev_last_count * 1.5 and curr_last_count >= 3
+                prev_last_count = curr_last_count
+                next_skip       = 1 if spike else FRAME_SKIP_BY_DENSITY.get(traffic_density, 3)
 
-            perf_frames += 1
+                perf_frames += 1
+                last_tracks = tracks
 
+                for track in tracks:
+                    x1, y1, x2, y2 = track["bbox"]
+                    track_id     = track["track_id"]
+                    vehicle_type = track["class_name"]
+
+                    cx        = (x1 + x2) // 2
+                    cy_bottom = y2  # FIX #4: dùng cy_bottom (điểm tiếp đất), không phải center
+
+                    # FIX #2: dùng tên biến zone_dir thay vì direction
+                    # tránh ghi đè biến direction cấp camera
+                    zone_dir = zone_manager.check_crossing(track_id, cx, cy_bottom)
+                    if zone_dir:
+                        counter.count(vehicle_type)
+                        cached_totals = counter.get_totals()
+
+                        # FIX #1: bỏ density khỏi generate() — event_generator không nhận nữa
+                        event = event_generator.generate(
+                            camera_id=camera_id,
+                            track=track,
+                            direction=zone_dir,
+                        )
+                        if DRY_RUN:
+                            dry_run_event_count += 1
+                        else:
+                            publisher.publish(event)
+
+            else:
+                # Frame bị skip: dùng lại tracks của frame trước để vẽ mượt
+                tracks = last_tracks
+
+            # ===== DRAWING — vẽ lên mọi frame để video output mượt =====
             for track in tracks:
                 x1, y1, x2, y2 = track["bbox"]
-
-                track_id = track["track_id"]
-
+                track_id     = track["track_id"]
                 vehicle_type = track["class_name"]
 
-                cx = (x1 + x2) // 2
-                cy = (y1 + y2) // 2
+                cx        = (x1 + x2) // 2
+                cy_bottom = y2
 
-                # draw center point
-                cv2.circle(frame,(cx,cy),4,(255,0,0),-1)
-
-                # check_crossing trả về direction (str) hoặc None
-                # None = không trong zone hoặc bị cooldown chặn
-                direction = zone_manager.check_crossing(track_id, cx, cy)
-                if direction:
-                    counter.count(vehicle_type)
-                    cached_totals = counter.get_totals()
-
-                    event = event_generator.generate(
-                        camera_id=camera_id,
-                        track=track,
-                        direction=direction,
-                        density=traffic_density,
-                    )
-                    if DRY_RUN:
-                        dry_run_event_count += 1
-                    else:
-                        publisher.publish(event)
-
+                cv2.circle(frame, (cx, cy_bottom), 4, (255, 0, 0), -1)
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 cv2.putText(
                     frame,
