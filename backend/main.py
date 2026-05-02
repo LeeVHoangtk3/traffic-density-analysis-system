@@ -13,8 +13,7 @@ from backend.api import prediction_routes
 from backend.api import traffic_routes
 from backend.api import video
 from backend.config import settings
-from backend.database import Base, engine, sync_vehicle_detection_schema
-from backend.models import Camera, TrafficAggregation, TrafficPrediction, VehicleDetection
+from backend.mongo_database import init_mongo_indexes
 
 
 logging.basicConfig(level=logging.INFO)
@@ -32,8 +31,8 @@ app.add_middleware(
     expose_headers=["Content-Range", "Accept-Ranges", "Content-Length"],
 )
 
-Base.metadata.create_all(bind=engine)
-sync_vehicle_detection_schema()
+# Initialize MongoDB indexes
+init_mongo_indexes()
 
 app.include_router(video.router)
 app.include_router(detection_routes.router)
