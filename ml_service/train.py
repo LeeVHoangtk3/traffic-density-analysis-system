@@ -2,12 +2,13 @@ import os
 import pandas as pd
 from ml_service.traffic_predictor import TrafficPredictor
 from ml_service.light_delta_model import LightDeltaModel
-from ml_service.label_generator import generate_delta_labels
+from ml_service.label_generator import generate_delta_labels, light_green_time
 
 def main():
     base = os.path.dirname(__file__)
     raw_csv = os.path.join(base, 'data/urban_traffic.csv')
     delta_csv = os.path.join(base, 'data/training_data_delta.csv')
+    
     
     # 1. Tạo nhãn
     generate_delta_labels(raw_csv, delta_csv)
@@ -26,6 +27,11 @@ def main():
     print("\n--- Training Model 2: Light Delta ---")
     light_model = LightDeltaModel(os.path.join(base, 'light_model.pkl'))
     light_model.train(df_delta)
+
+    # 4. Tạo nhãn thời gian đèn xanh
+    print("\n--- Section 4: Generate Green Light Time Labels ---")
+    light_green_time()
+
 
 if __name__ == "__main__":
     main()

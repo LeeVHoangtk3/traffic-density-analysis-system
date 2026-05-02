@@ -52,8 +52,34 @@ def generate_delta_labels(csv_input, csv_output):
     # Lưu file training mới
     df.to_csv(csv_output, index=False)
     print(f" Đã tạo dữ liệu huấn luyện đèn tại: {csv_output}")
+def light_green_time():
+    base_dir = os.path.dirname(__file__)
+    file_path = os.path.join(base_dir, '../ml_service/data/urban_traffic.csv')
 
+    df = pd.read_csv(file_path)
+
+
+    time = 45
+    avg = df['Target_Vehicle_Count'].mean()
+
+    print(avg)
+
+    df['time-green-light'] = 45
+
+    for i in range(len(df)):
+        t = df.iloc[i]['time-green-light']
+
+        delta = (abs(df.iloc[i]['Target_Vehicle_Count'] - avg) / avg) * 100
+        t = t + (delta // 10) * 5
+
+        if df.iloc[i]['Peak_Off_Peak'] == "Peak":
+            t += 10
+        df.at[i, 'time-green-light'] = t
+
+    print(df[['Target_Vehicle_Count', 'Peak_Off_Peak', 'time-green-light']].head())
+    df.to_csv(file_path, index=False)
 if __name__ == "__main__":
     base = os.path.dirname(__file__)
     generate_delta_labels(os.path.join(base, 'data/urban_traffic.csv'), 
                           os.path.join(base, 'data/training_data_delta.csv'))
+    light_green_time()
