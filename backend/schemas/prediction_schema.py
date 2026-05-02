@@ -11,6 +11,7 @@ class PredictionResponse(BaseModel):
     horizon_minutes: int
     source: str
     timestamp: datetime
+    time_green_light: Optional[int] = None
 
 
 class PredictionHistoryItem(BaseModel):
@@ -21,6 +22,7 @@ class PredictionHistoryItem(BaseModel):
     horizon_minutes: int
     source: str
     timestamp: datetime
+    time_green_light: Optional[int] = None
 
 
 class PredictionHistoryResponse(BaseModel):
@@ -28,3 +30,13 @@ class PredictionHistoryResponse(BaseModel):
     limit: int
     offset: int
     items: list[PredictionHistoryItem]
+
+
+class GreenLightRequest(BaseModel):
+    camera_id: Optional[str] = None
+    predicted_density: float
+    predicted_congestion_level: Optional[str] = None  # ✅ FIX
+    horizon_minutes: int                              # ✅ FIX
+    source: str                                       # ✅ FIX
+    time_green_light: int
+    timestamp: Optional[datetime] = None

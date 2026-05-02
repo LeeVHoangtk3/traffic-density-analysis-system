@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.config import settings
 from backend.schemas.prediction_schema import (
+    GreenLightRequest,
     PredictionHistoryItem,
     PredictionHistoryResponse,
     PredictionResponse,
@@ -40,8 +41,30 @@ def predict_next(camera_id: str | None = None, db=Depends(get_db)):
         horizon_minutes=prediction.horizon_minutes,
         source=prediction.source,
         timestamp=prediction.timestamp,
+        time_green_light=getattr(prediction, 'time_green_light', None),
     )
 
+@router.post("/predictions/history", response_model=PredictionHistoryItem)
+def save_prediction_history(payload: GreenLightRequest, db=Depends(get_db)):
+    """
+    Lưu kết quả dự đoán + thời gian đèn xanh vào DB
+    """
+
+    # 👉 bạn cần có hàm insert trong service
+    from backend.services.prediction_service import save_prediction
+
+    item = save_prediction(db=db, data=payload)
+
+    return PredictionHistoryItem(
+        id=item.id,
+        camera_id=item.camera_id,
+        predicted_density=item.predicted_density,
+        predicted_congestion_level=getattr(item, 'predicted_congestion_level', None),
+        horizon_minutes=item.horizon_minutes,
+        source=item.source,
+        timestamp=item.timestamp,
+        time_green_light=getattr(item, 'time_green_light', None),
+    )
 
 @router.get("/predictions/history", response_model=PredictionHistoryResponse)
 def get_prediction_history(
@@ -70,6 +93,7 @@ def get_prediction_history(
                 horizon_minutes=item.horizon_minutes,
                 source=item.source,
                 timestamp=item.timestamp,
+                time_green_light=getattr(item, 'time_green_light', None),
             )
             for item in items
         ],

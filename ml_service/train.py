@@ -1,5 +1,10 @@
 import os
+import sys
 import pandas as pd
+
+# Add parent directory to sys.path to import ml_service modules
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
 from ml_service.traffic_predictor import TrafficPredictor
 
 SCALE_FACTOR = 450.0 / 815.0
