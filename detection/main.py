@@ -5,8 +5,7 @@ import time
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(BASE_DIR))
-# ===== ADD THIS =====
-latest_frame = None
+
 import cv2
 import json
 import torch
@@ -25,37 +24,68 @@ from integration.publisher import EventPublisher
 
 IS_COLAB = "COLAB_GPU" in os.environ
 
+API_URL      = os.getenv("TRAFFIC_API_URL",      "http://127.0.0.1:8000/detection")
+VIDEO_SOURCE = os.getenv("TRAFFIC_VIDEO_SOURCE",  os.path.join(BASE_DIR, "..", "video_data", "traffic1.mp4"))
+MODEL_PATH   = os.getenv("TRAFFIC_MODEL_PATH",    os.path.join(BASE_DIR, "pro_models", "yolov9_img960_ultimate.pt"))
 
-API_URL = os.getenv("TRAFFIC_API_URL", "http://127.0.0.1:8000/detection")
-VIDEO_SOURCE = os.getenv(
-    "TRAFFIC_VIDEO_SOURCE",
-    os.path.join(BASE_DIR, "..", "traffictrim.mp4")
-)
+CONF_THRESHOLD = 0.40
+SHOW_VIDEO     = False
 
-# ĐÂY LÀ NƠI BẠN CHỌN MODEL YOLOv9 CỦA MÌNH
+# Giữ 960 vì model đã train với imgsz=960
+# Đổi sang 640 sẽ làm lệch feature map, giảm mAP thực sự
+TARGET_WIDTH = 960
 
-# MODEL_PATH = os.path.join(BASE_DIR, "pro_models", "yolov9c.pt")
-MODEL_PATH = os.getenv(
-    "TRAFFIC_MODEL_PATH",
-    os.path.join(BASE_DIR, "..", "yolov9c.pt")
-)
+# Dynamic FRAME_SKIP theo density — tách theo hardware
+# CPU không thể xử lý 25FPS @ 960px → skip nhiều hơn
+HAS_CUDA = torch.cuda.is_available()
+FRAME_SKIP_BY_DENSITY = {
+    "LOW":    5  if HAS_CUDA else 10,
+    "MEDIUM": 3  if HAS_CUDA else 6,
+    "HIGH":   1  if HAS_CUDA else 2,
+}
 
-CONF_THRESHOLD = 0.5
-# ===== Performance tuning =====
-FRAME_SKIP = 3        # skip frames để tăng tốc
-SHOW_VIDEO = True   # tắt nếu muốn chạy cực nhanh
-TARGET_WIDTH = 640    # resize nhỏ hơn để YOLO chạy nhanh
+# Aggregation trigger theo wall clock thực tế (không phải video time)
+# Tránh trigger liên tục khi chạy video offline với FPS thấp
+AGGREGATION_INTERVAL_SEC = 15 * 60
+
+DRY_RUN      = False
+OUTPUT_VIDEO  = "output_v2.mp4" if IS_COLAB else None
+
+
+def _trigger_aggregation(api_url: str, camera_id: str) -> None:
+    """Gọi POST /aggregation/compute trong thread riêng để không block vòng detect."""
+    try:
+        base_url = api_url.rsplit("/", 1)[0] if "/" in api_url else api_url
+        resp = requests.post(
+            f"{base_url}/aggregation/compute",
+            params={"camera_id": camera_id},
+            timeout=5,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            print(f"[Aggregation] {data['vehicle_count']} xe | {data['congestion_level']}")
+        else:
+            print(f"[Aggregation] HTTP {resp.status_code}")
+    except Exception as exc:
+        print(f"[Aggregation] Lỗi: {exc}")
+
+
+def _get_output_size(video_source, target_width: int) -> tuple[int, int]:
+    """Lấy kích thước output frame mà không cần đọc frame rồi reset."""
+    src    = int(video_source) if str(video_source).isdigit() else video_source
+    cap    = cv2.VideoCapture(src)
+    orig_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    orig_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    cap.release()
+    if orig_w == 0 or orig_h == 0:
+        return target_width, target_width
+    scale = target_width / orig_w
+    return target_width, int(orig_h * scale)
+
+
 def main():
-
-    # ===== Camera ID =====
-    CAMERA_ID = "CAM_01"
-
-    # ===== Load camera config =====
-    config_path = os.path.join(
-        BASE_DIR,
-        "configs_cameras",
-        f"{CAMERA_ID.lower()}.json"
-    )
+    camera_id   = "CAM_01"
+    config_path = os.path.join(BASE_DIR, "configs_cameras", f"{camera_id.lower()}.json")
 
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"Camera config not found: {config_path}")
@@ -79,63 +109,83 @@ def main():
     dry_run_event_count = 0
 
     # ===== Initialize components =====
-    camera = CameraEngine(VIDEO_SOURCE)
+    camera            = CameraEngine(VIDEO_SOURCE)          # raises nếu không mở được
+    processor         = FrameProcessor(target_width=TARGET_WIDTH)
+    detector          = Detector(MODEL_PATH, conf_threshold=CONF_THRESHOLD, img_size=TARGET_WIDTH)
+    tracker           = Tracker()                           # dùng default tối ưu: buffer=90, thresh=0.35
+    counter           = VehicleCounter()
+    density_estimator = DensityEstimator(window=30)         # window tăng lên 30 frame
+    event_generator   = EventGenerator()
+    publisher         = EventPublisher(API_URL)
+    zone_manager      = ZoneManager(camera_config["zones"])
 
-    processor = FrameProcessor(target_width=TARGET_WIDTH)
+    fps = camera.get_fps()
+    print(f"[Module A] Started V2")
+    print(f"  Video FPS   : {fps}")
+    print(f"  TARGET_WIDTH: {TARGET_WIDTH}")
+    print(f"  CUDA        : {HAS_CUDA}")
+    print(f"  DRY_RUN     : {DRY_RUN}")
+    print(f"  OUTPUT_VIDEO: {OUTPUT_VIDEO}")
+    print(f"  Frame skip  : {FRAME_SKIP_BY_DENSITY}")
 
-    detector = Detector(
-        MODEL_PATH,
-        conf_threshold=CONF_THRESHOLD
-    )
+    # ===== VideoWriter (Colab only) =====
+    out = None
+    if OUTPUT_VIDEO:
+        out_w, out_h = _get_output_size(VIDEO_SOURCE, TARGET_WIDTH)
+        out = cv2.VideoWriter(
+            OUTPUT_VIDEO,
+            cv2.VideoWriter_fourcc(*"mp4v"),
+            fps / FRAME_SKIP_BY_DENSITY["MEDIUM"],  # output FPS tương ứng skip MEDIUM
+            (out_w, out_h),
+        )
 
-    tracker = Tracker()
+    # ===== State =====
+    frame_count           = 0
+    traffic_density       = "LOW"
+    cached_totals         = {}
+    dry_run_event_count   = 0
 
-    counter = VehicleCounter()
+    # Spike detection
+    prev_last_count = 0
+    next_skip       = FRAME_SKIP_BY_DENSITY["LOW"]
 
-    density_estimator = DensityEstimator()
+    # Aggregation wall clock
+    last_aggregation_wall = time.time()
 
-    event_generator = EventGenerator()
-
-    publisher = EventPublisher(API_URL)
-
-    zone_manager = ZoneManager(zones)
-
-    print("Module A Started")
-
-    frame_count = 0
-    MAX_FRAMES = 100000
-
-    out_video = None
-    output_video_path = os.path.join(BASE_DIR, "..", "videos", "output.mp4")
-    os.makedirs(os.path.dirname(output_video_path), exist_ok=True)
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    # Perf
+    perf_start    = time.time()
+    perf_frames   = 0
+    last_log_time = time.time()
 
     try:
-
-        while frame_count < MAX_FRAMES:
-
+        while True:
             ret, frame = camera.read()
             if not ret:
                 print("[Module A] Video ended.")
                 break
 
             frame_count += 1
-            # ===== Skip frame để tăng tốc =====
-            if frame_count % FRAME_SKIP != 0:
+
+            # ===== Dynamic Frame Skip =====
+            if frame_count % next_skip != 0:
                 continue
 
-            # ===== Frame preprocessing =====
-            frame = processor.process(frame)
+            # ===== Aggregation trigger (wall clock) =====
+            wall_now = time.time()
+            if wall_now - last_aggregation_wall >= AGGREGATION_INTERVAL_SEC:
+                last_aggregation_wall = wall_now
+                if not DRY_RUN:
+                    threading.Thread(
+                        target=_trigger_aggregation,
+                        args=(API_URL, camera_id),
+                        daemon=True,
+                    ).start()
 
-            if out_video is None:
-                h, w = frame.shape[:2]
-                out_video = cv2.VideoWriter(output_video_path, fourcc, 30.0 / FRAME_SKIP, (w, h))
-
-            # ===== Detection =====
+            # ===== Detection pipeline =====
+            frame      = processor.process(frame)
             detections = detector.detect(frame)
             tracks     = tracker.update(detections, frame)
 
-            # ===== Density estimation =====
             density_estimator.update(tracks)
             traffic_density = density_estimator.get_density()
 
@@ -160,9 +210,10 @@ def main():
                 # draw center point
                 cv2.circle(frame,(cx,cy),4,(255,0,0),-1)
 
-                # ===== Check zone crossing =====
-                if zone_manager.check_crossing(track_id, cx, cy):
-
+                # check_crossing trả về direction (str) hoặc None
+                # None = không trong zone hoặc bị cooldown chặn
+                direction = zone_manager.check_crossing(track_id, cx, cy_bottom)
+                if direction:
                     counter.count(vehicle_type)
                     cached_totals = counter.get_totals()
 
@@ -177,17 +228,7 @@ def main():
                     else:
                         publisher.publish(event)
 
-                    # print("EVENT:", event)
-
-                # ===== Draw bounding box =====
-                cv2.rectangle(
-                    frame,
-                    (x1, y1),
-                    (x2, y2),
-                    (0, 255, 0),
-                    2
-                )
-
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 cv2.putText(
                     frame,
                     f"{vehicle_type} ID:{track_id}",
@@ -197,24 +238,17 @@ def main():
 
             zone_manager.draw_zone(frame)
 
-            # ===== Draw density =====
-            cv2.putText(
-                frame,
-                f"Density: {traffic_density}",
-                (30, 50),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (0, 0, 255),
-                2
+            # ===== HUD =====
+            hud = (
+                f"Density:{traffic_density} | "
+                f"Skip:{next_skip} | "
+                f"Spike:{'YES' if spike else 'no'} | "
+                f"Tracks:{curr_last_count}"
             )
+            cv2.putText(frame, hud, (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 0, 255), 2)
 
-            # ===== Draw vehicle totals =====
-            totals = counter.get_totals()
-
-            y_offset = 80
-
-            for vehicle, count in totals.items():
-
+            y_offset = 85
+            for vehicle, cnt in cached_totals.items():
                 cv2.putText(
                     frame,
                     f"{vehicle}: {count}",
@@ -223,49 +257,43 @@ def main():
                 )
                 y_offset += 30
 
-            # ===== Draw traffic light status =====
-            light_status_path = os.path.join(BASE_DIR, "..", "light_status.json")
-            if os.path.exists(light_status_path):
-                try:
-                    with open(light_status_path, "r") as f:
-                        light_data = json.load(f)
-                    green_time = light_data.get("green_time", 0)
-                    phase = light_data.get("phase", "")
-                    
-                    # Draw text background
-                    text = f"LIGHT: {phase} - {green_time}s"
-                    (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 1, 2)
-                    cv2.rectangle(frame, (30, 110 - th - 5), (30 + tw + 10, 110 + 5), (0, 0, 0), -1)
-                    
-                    cv2.putText(
-                        frame,
-                        text,
-                        (35, 110),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2
-                    )
-                except Exception:
-                    pass
+            video_ms = camera.get_video_ms()
+            per_min  = counter.get_per_minute(video_ms)
+            if per_min:
+                print(f"[Per-minute] {per_min}")
 
-            # ===== Show video (local only) =====
-            if not IS_COLAB and SHOW_VIDEO:
-                # ===== ADD THIS =====
-                global latest_frame
+            # ===== Perf log mỗi 5 giây =====
+            if time.time() - last_log_time >= 5:
+                last_log_time = time.time()
+                elapsed    = time.time() - perf_start
+                actual_fps = perf_frames / elapsed if elapsed > 0 else 0
+                queue_size = publisher._queue.qsize() if not DRY_RUN else 0
+                zm_stats   = zone_manager.stats()
+                print(
+                    f"[Perf] Frames:{perf_frames:4d} | "
+                    f"FPS:{actual_fps:.1f} | "
+                    f"Density:{traffic_density} | "
+                    f"Skip:{next_skip} | "
+                    f"ZoneIDs:{zm_stats['tracked_ids_in_memory']} | "
+                    f"Cooldown-blocked:{zm_stats['cooldown_blocked']} | "
+                    f"Queue:{queue_size}"
+                )
 
-                _, buffer = cv2.imencode('.jpg', frame)
-                latest_frame = buffer.tobytes()
-                
-            if out_video is not None:
-                out_video.write(frame)
+            # ===== Output =====
+            if out:
+                out.write(frame)
+            elif not IS_COLAB and SHOW_VIDEO:
+                cv2.imshow("Traffic Monitoring V2", frame)
+                if cv2.waitKey(1) & 0xFF == ord("q"):
+                    break
 
     except KeyboardInterrupt:
-
-        print("Interrupted by user")
-
+        print("[Module A] Interrupted by user")
     finally:
-        if out_video is not None:
-            out_video.release()
         camera.release()
-
+        if out:
+            out.release()
+            print(f"[Module A] Output saved: {OUTPUT_VIDEO}")
         cv2.destroyAllWindows()
         elapsed = time.time() - perf_start
         print(
