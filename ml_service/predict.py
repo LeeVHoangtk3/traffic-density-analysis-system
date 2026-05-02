@@ -48,8 +48,7 @@ def main():
     data = response.json()
     print(f"Camera             : {data['camera_id']}")
     print(f"Gia tri du bao     : {data['predicted_density']}")
-    if data.get('suggested_delta') is not None:
-        print(f"Du bao delta den   : {data.get('suggested_delta')} giay")
+    print(f"Muc do mat do      : {data.get('predicted_congestion_level', 'N/A')}")
     print(f"Khung du bao       : {data['horizon_minutes']} phut")
     print(f"Nguon du bao       : {data['source']}")
     print(f"Thoi diem du bao   : {data['timestamp']}")

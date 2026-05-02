@@ -7,7 +7,7 @@ from pydantic import BaseModel
 class PredictionResponse(BaseModel):
     camera_id: Optional[str] = None
     predicted_density: float
-    suggested_delta: Optional[float] = None
+    predicted_congestion_level: Optional[str] = None
     horizon_minutes: int
     source: str
     timestamp: datetime
@@ -17,7 +17,7 @@ class PredictionHistoryItem(BaseModel):
     id: str
     camera_id: Optional[str] = None
     predicted_density: float
-    suggested_delta: Optional[float] = None
+    predicted_congestion_level: Optional[str] = None
     horizon_minutes: int
     source: str
     timestamp: datetime

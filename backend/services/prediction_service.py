@@ -56,19 +56,16 @@ def _load_predictors():
         sys.path.insert(0, ml_service_path)
 
     try:
-        from traffic_predictor import TrafficPredictor
-        from light_delta_model import LightDeltaModel
+        from traffic_predictor import TrafficPredictor, classify_congestion
     except Exception:
-        return None, None
+        return None
 
     model1_path = ml_service_dir / "model.pkl"
     predictor = TrafficPredictor(model_path=str(model1_path))
     if not predictor.load_model():
         predictor = None
 
-    model2_path = ml_service_dir / "light_model.pkl"
-    light_model = LightDeltaModel(model_path=str(model2_path))
-    return predictor, light_model
+    return predictor
 
 
 def _build_history_from_detections(
@@ -120,52 +117,32 @@ def predict_next_density(
     camera_id: Optional[str] = None,
 ):
     history = _build_prediction_history(db, camera_id)
-    predictor, light_model = _load_predictors()
+    predictor = _load_predictors()
 
-    suggested_delta = 0.0
-
-    if predictor is not None and len(history) >= 3:
+    if predictor is not None and len(history) >= 5:
         predicted_value = float(predictor.predict(history))
         source = "ml_service"
+        # Phân loại mức độ mật độ từ số xe dự báo
+        try:
+            from backend.services.aggregation_service import compute_congestion
+            congestion_level = compute_congestion(int(predicted_value))
+        except Exception as e:
+            print(f"Error computing congestion: {e}")
+            congestion_level = None
 
-        if light_model is not None and len(history) >= 2:
-            try:
-                last_row = history.iloc[-1]
-                prev_row = history.iloc[-2]
-                current_features = pd.DataFrame(
-                    [
-                        {
-                            "hour": last_row["timestamp"].hour,
-                            "day_of_week": last_row["timestamp"].dayofweek,
-                            "is_peak_hour": 1
-                            if (
-                                7 <= last_row["timestamp"].hour <= 9
-                                or 17 <= last_row["timestamp"].hour <= 19
-                            )
-                            else 0,
-                            "inbound_count": int(last_row["vehicle_count"]),
-                            "queue_proxy": int(
-                                last_row["vehicle_count"] - prev_row["vehicle_count"]
-                            ),
-                        }
-                    ]
-                )
-                suggested_delta = float(light_model.predict_delta(current_features))
-            except Exception as exc:
-                print(f"Error predicting light delta: {exc}")
-                suggested_delta = 0.0
     else:
         predicted_value = (
             float(history["vehicle_count"].mean()) if not history.empty else 0.0
         )
         source = "fallback"
+        congestion_level = None
 
     document = {
         "camera_id": camera_id,
         "predicted_density": predicted_value,
+        "predicted_congestion_level": congestion_level,
         "horizon_minutes": settings.prediction_horizon_minutes,
         "source": source,
-        "suggested_delta": suggested_delta,
         "timestamp": datetime.utcnow(),
     }
     result = db.traffic_predictions.insert_one(document)

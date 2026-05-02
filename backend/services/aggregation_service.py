@@ -14,13 +14,18 @@ def to_object(document):
 
 
 def compute_congestion(vehicle_count: int) -> str:
-    if vehicle_count < 10:
+    """
+    Phân loại mức độ mật độ giao thông.
+    Ngưỡng hiệu chỉnh cho thực tế đường đô thị Việt Nam (~400–500 xe/15 phút).
+    """
+    if vehicle_count < 200:
         return "Low"
-    if vehicle_count < 30:
+    if vehicle_count < 350:
         return "Medium"
-    if vehicle_count < 60:
+    if vehicle_count < 500:
         return "High"
     return "Severe"
+
 
 
 def get_previous_inbound_count(
