@@ -50,3 +50,5 @@ matplotlib
 supervision
 notebook
 ipykernel
+
+python-multipart
