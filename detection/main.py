@@ -33,15 +33,15 @@ import json
 import torch
 import requests
 
-from camera_engine import CameraEngine
-from engine.frame_processor import FrameProcessor
-from engine.detector import Detector
-from engine.tracker import Tracker
-from engine.counter import VehicleCounter
-from engine.density_estimator import DensityEstimator
-from engine.zone_manager import ZoneManager
-from engine.event_generator import EventGenerator
-from integration.publisher import EventPublisher
+from .camera_engine import CameraEngine
+from .engine.frame_processor import FrameProcessor
+from .engine.detector import Detector
+from .engine.tracker import Tracker
+from .engine.counter import VehicleCounter
+from .engine.density_estimator import DensityEstimator
+from .engine.zone_manager import ZoneManager
+from .engine.event_generator import EventGenerator
+from .integration.publisher import EventPublisher
 
 
 # ── Môi trường ────────────────────────────────────────────────────────────────
@@ -59,8 +59,8 @@ HAS_CUDA    = torch.cuda.is_available()
 
 # ── Cấu hình ──────────────────────────────────────────────────────────────────
 API_URL      = os.getenv("TRAFFIC_API_URL",     "http://127.0.0.1:8000/detection")
-VIDEO_SOURCE = os.getenv("TRAFFIC_VIDEO_SOURCE", str(Path(BASE_DIR) / ".." / "video_data" / "traffic1.mp4"))
-MODEL_PATH   = os.getenv("TRAFFIC_MODEL_PATH",   str(Path(BASE_DIR) / "pro_models" / "yolov9_img960_ultimate.pt"))
+VIDEO_SOURCE = os.getenv("TRAFFIC_VIDEO_SOURCE", str(Path(BASE_DIR) / "video_data" / "traffic1.mp4"))
+MODEL_PATH   = os.getenv("TRAFFIC_MODEL_PATH",   str(Path(BASE_DIR) / "detection" / "pro_models" / "yolov9_img960_ultimate.pt"))
 OUTPUT_VIDEO = os.getenv("TRAFFIC_OUTPUT_VIDEO", "output_v5.mp4")
 ALERT_LOG    = os.getenv("ALERT_LOG", "")
 
@@ -242,7 +242,7 @@ def display_in_notebook(video_path: str) -> None:
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main() -> None:
     camera_id   = "CAM_01"
-    config_path = os.path.join(BASE_DIR, "configs_cameras", f"{camera_id.lower()}.json")
+    config_path = os.path.join(BASE_DIR, "detection", "configs_cameras", f"{camera_id.lower()}.json")
 
     for path, label in [(config_path, "Camera config"), (MODEL_PATH, "YOLO model")]:
         if not os.path.exists(path):
