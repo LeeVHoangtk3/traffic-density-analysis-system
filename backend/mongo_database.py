@@ -9,7 +9,6 @@ if not settings.db_url:
 client = MongoClient(settings.db_url, serverSelectionTimeoutMS=5000)
 db = client[settings.mongodb_db]
 
-
 def init_mongo_indexes() -> None:
     db.vehicle_detections.create_index([("event_id", ASCENDING)], unique=True)
     db.vehicle_detections.create_index([("camera_id", ASCENDING)])

@@ -1,684 +1,237 @@
-# 📊 Traffic Density Analysis System — Tổng Quan Dự Án
+# 📊 Traffic Density Analysis System — Tổng Quan & Tài Liệu Kiến Trúc
 
-## 1. Giới Thiệu
+Tài liệu này là nguồn chân lý (Source of Truth) kết hợp cung cấp cái nhìn tổng quan về kiến trúc luồng dữ liệu lẫn phân tích chuyên sâu vào chức năng cốt lõi của từng file riêng biệt và thư viện công nghệ trong hệ thống.
 
-**Traffic Density Analysis System** là một hệ thống phân tích mật độ giao thông thời gian thực, sử dụng Computer Vision (YOLOv9) để nhận diện và theo dõi phương tiện, kết hợp Machine Learning (XGBoost) để dự báo lưu lượng xe trong tương lai. Hệ thống được chia thành **4 module chính** giao tiếp với nhau qua REST API.
+---
+
+## 1. Giới Thiệu Tổng Quan
+
+**Traffic Density Analysis System** là một hệ thống phân tích mật độ giao thông thời gian thực (Full-stack AI System), sử dụng Computer Vision (YOLOv9) để nhận diện và theo dõi phương tiện, kết hợp Machine Learning (XGBoost) để dự báo lưu lượng xe và đề xuất điều chỉnh đèn tín hiệu giao thông. Hệ thống hiện tại bao gồm **5 module chính** giao tiếp với nhau qua REST API và sử dụng cơ sở dữ liệu **MongoDB**.
+
+### Công Nghệ Sử Dụng (Tech Stack)
+*   **Computer Vision**: `PyTorch`, `OpenCV`, `YOLOv9` (Object Detection), `supervision` (ByteTrack - Tracking, PolygonZone).
+*   **Backend & Cơ Sở Dữ Liệu**: `FastAPI`, `Uvicorn`, `Pydantic` (Validation), `MongoDB` (`pymongo` - Lưu trữ NoSQL, aggregation framework).
+*   **Machine Learning**: `XGBoost` (Gradient Boosting Trees), `scikit-learn`, `pandas`, `joblib`.
+*   **Tích Hợp & Vận Hành**: `psutil` (giám sát tài nguyên), `requests` (giao tiếp HTTP).
+*   **Frontend**: `React 19` (JavaScript thuần), `Chart.js`, `react-chartjs-2`.
 
 ---
 
 ## 2. Kiến Trúc Tổng Thể
 
-```
+```text
 ┌─────────────────┐     HTTP POST /detection     ┌─────────────────┐
-│                 │ ──────────────────────────▶   │                 │
-│   detection/    │     POST /aggregation/compute │   backend/      │
-│  (Module A)     │ ──────────────────────────▶   │  (Module B)     │
-│  Detect + Track │                               │  FastAPI + DB   │
-└─────────────────┘                               └────────┬────────┘
-                                                           │
-                        GET /aggregation                   │
-┌─────────────────┐ ◀─────────────────────────────         │
-│ integration_    │     GET /raw-data                      │
-│ system/         │ ◀─────────────────────────────         │
-│ (Module D)      │                               ┌───────┴────────┐
-│ Tích hợp hệ    │                               │                │
-│ thống           │                               │  ml_service/   │
-└─────────────────┘                               │  (Module C)    │
-                        GET /predict-next         │  Dự báo ML     │
-                    ◀─────────────────────────────┤                │
-                                                  └────────────────┘
+│                 │ ──────────────────────────▶  │                 │
+│   detection/    │     POST /aggregation/compute│   backend/      │
+│  (Module A)     │ ──────────────────────────▶  │  (Module B)     │
+│  Detect + Track │                              │  FastAPI + Mongo│
+└─────────────────┘                              └────────┬────────┘
+                                                          │
+                        GET /aggregation                  │     GET /raw-data, GET /video
+┌─────────────────┐ ◀────────────────────────────         │  ┌─────────────────┐
+│ integration_    │     GET /raw-data                     │  │ traffic-frontend│
+│ system/         │ ◀────────────────────────────         │  │ (Module E)      │
+│ (Module D)      │                              ┌────────┴──┤ React.js Dash   │
+│ Tích hợp hệ     │                              │           │                 │
+│ thống           │                              │ml_service/└─────────────────┘
+└─────────────────┘                              │(Module C) 
+                        GET /predict-next        │Dự báo xe &
+                    ◀────────────────────────────┤Đèn tín hiệu
+                                                 └───────────
 ```
 
 ### Luồng Dữ Liệu Chính
 
-```
+```text
 Video/Camera ──▶ detection/main.py
                    │
                    ├─▶ Detect (YOLOv9) ──▶ Track (ByteTrack)
                    │
-                   ├─▶ Zone crossing? ──▶ EventGenerator ──▶ POST /detection ──▶ vehicle_detections (DB)
+                   ├─▶ Zone crossing? ──▶ EventGenerator (với direction) ──▶ POST /detection ──▶ MongoDB
                    │
-                   └─▶ Mỗi 15 phút ──▶ POST /aggregation/compute ──▶ traffic_aggregation (DB)
+                   └─▶ Mỗi 15 phút ──▶ POST /aggregation/compute ──▶ MongoDB (traffic_aggregation)
                                                                           │
                                                                           ▼
                                                           GET /predict-next ──▶ ML Predict (XGBoost)
-                                                                                    │
-                                                                                    ▼
-                                                                        traffic_predictions (DB)
+                                                                          │      (Traffic & Light Delta)
+                                                                          ▼
+                                                                MongoDB (traffic_predictions)
 ```
 
 ---
 
-## 3. Cây Thư Mục
+## 3. Cây Thư Mục Toàn Dữ Án
 
-```
+```text
 traffic-density-analysis-system/
 │
 ├── detection/                          # MODULE A: Nhận diện & theo dõi phương tiện
-│   ├── __init__.py
 │   ├── main.py                         # Entry point - vòng lặp xử lý video chính
 │   ├── camera_engine.py                # Đọc video/camera bằng OpenCV
-│   │
 │   ├── engine/                         # Core engine xử lý Computer Vision
-│   │   ├── __init__.py
 │   │   ├── detector.py                 # YOLOv9 inference - nhận diện phương tiện
 │   │   ├── tracker.py                  # ByteTrack - theo dõi phương tiện qua các frame
 │   │   ├── counter.py                  # Đếm phương tiện (tổng + theo phút)
 │   │   ├── density_estimator.py        # Ước lượng mật độ giao thông (LOW/MEDIUM/HIGH)
-│   │   ├── zone_manager.py             # Quản lý vùng đếm (polygon zone)
+│   │   ├── zone_manager.py             # Quản lý vùng đếm (polygon zone) hỗ trợ direction
 │   │   ├── event_generator.py          # Tạo event khi xe vượt zone
 │   │   └── frame_processor.py          # Tiền xử lý frame (resize)
-│   │
 │   ├── integration/                    # Gửi event đến backend
-│   │   ├── __init__.py
 │   │   └── publisher.py                # Non-blocking HTTP publisher (queue)
-│   │
 │   ├── configs_cameras/                # Cấu hình camera & vùng đếm
-│   │   └── cam_01.json                 # Zone polygon cho camera CAM_01
-│   │
 │   ├── pro_models/                     # Trọng số model YOLOv9
-│   │   ├── yolov9c.pt                  # Model pre-trained gốc (COCO)
-│   │   ├── yolov9_img960_ultimate.pt   # Model custom đã fine-tune
-│   │   ├── yolov9_ultimate_final.pt    # Model custom (bản khác)
-│   │   └── best_final.pt              # Model custom (best)
-│   │
-│   ├── Ultralytics/                    # Config dir cho Ultralytics (tránh download)
-│   └── ultralytics_yolov9/            # Code core YOLOv9 (models + utils)
+│   └── Ultralytics/, ultralytics_yolov9/ # Code core YOLOv9
 │
-├── backend/                            # MODULE B: Backend API & Database
+├── backend/                            # MODULE B: Backend API & MongoDB
 │   ├── main.py                         # Entry point FastAPI app
-│   ├── config.py                       # Cấu hình (database URL, page size, ...)
-│   ├── database.py                     # SQLAlchemy engine, session, schema migration
-│   ├── seed_data.py                    # Script tạo dữ liệu mẫu từ detection data
-│   ├── README.md                       # Tài liệu chi tiết backend
-│   │
+│   ├── config.py                       # Cấu hình (MongoDB URL, page size, ...)
+│   ├── mongo_database.py               # Kết nối PyMongo, quản lý schema index
+│   ├── seed_data.py                    # Khởi tạo dữ liệu mẫu cho hệ thống
 │   ├── api/                            # API Routes (controllers)
-│   │   ├── detection_routes.py         # POST /detection
-│   │   ├── traffic_routes.py           # GET /raw-data
-│   │   ├── aggregation_routes.py       # GET /aggregation, GET /aggregation/history, POST /aggregation/compute
-│   │   ├── prediction_routes.py        # GET /predict-next, GET /predictions/history
-│   │   ├── camera_routes.py            # GET /cameras, POST /cameras
-│   │   └── health_routes.py            # GET /health
-│   │
-│   ├── models/                         # SQLAlchemy ORM models
-│   │   ├── __init__.py                 # Export tất cả models
-│   │   ├── vehicle_detection.py        # Bảng vehicle_detections
-│   │   ├── traffic_aggregation.py      # Bảng traffic_aggregation
-│   │   ├── traffic_prediction.py       # Bảng traffic_predictions
-│   │   └── camera.py                   # Bảng cameras
-│   │
-│   ├── schemas/                        # Pydantic schemas (request/response validation)
-│   │   ├── detection_schema.py         # Schema cho detection API
-│   │   ├── aggregation_schema.py       # Schema cho aggregation API
-│   │   ├── prediction_schema.py        # Schema cho prediction API
-│   │   ├── camera_schema.py            # Schema cho camera API
-│   │   └── traffic_schema.py           # Schema cho traffic API
-│   │
+│   │   ├── detection_routes.py, traffic_routes.py, aggregation_routes.py
+│   │   ├── prediction_routes.py, camera_routes.py, health_routes.py
+│   │   └── video.py                    # Cung cấp file video đầu ra cho Frontend
+│   ├── schemas/                        # Pydantic schemas validation
 │   └── services/                       # Business logic layer
-│       ├── db_service.py               # Database session dependency injection
-│       ├── detection_service.py        # CRUD cho vehicle_detections
-│       ├── aggregation_service.py      # Gom dữ liệu + tính mức ùn tắc
-│       ├── prediction_service.py       # Dự báo mật độ (gọi ml_service hoặc fallback)
-│       └── camera_service.py           # CRUD cho cameras
 │
 ├── ml_service/                         # MODULE C: Machine Learning - Dự báo
-│   ├── traffic_predictor.py            # Class TrafficPredictor (XGBoost)
-│   ├── train.py                        # Script huấn luyện model
+│   ├── traffic_predictor.py            # TrafficPredictor (XGBoost) - Dự báo số lượng xe
+│   ├── light_delta_model.py            # LightDeltaModel (XGBoost) - Đề xuất thay đổi đèn (delta)
+│   ├── train.py                        # Huấn luyện cả 2 model
 │   ├── predict.py                      # Script test dự báo qua API
-│   └── model.pkl                       # Model đã huấn luyện (serialized)
+│   ├── model.pkl                       # Trọng số model dự báo xe
+│   └── light_model.pkl                 # Trọng số model dự báo đèn
 │
 ├── integration_system/                 # MODULE D: Tích hợp hệ thống
 │   ├── system_runner.py                # Entry point - chạy pipeline tích hợp
 │   ├── congestion_classifier.py        # Phân loại mức ùn tắc local
 │   ├── traffic_light_logic.py          # Tối ưu đèn giao thông
+│   ├── delta_applier.py                # Áp dụng delta từ ML Model vào baseline_green của camera
+│   ├── direction_router.py             # Ánh xạ camera_id tới pha đèn tín hiệu (phase)
 │   ├── performance_monitor.py          # Giám sát CPU/RAM
-│   ├── scheduler.py                    # Lập lịch gọi aggregation + prediction
-│   └── pipeline_test.py               # Test pipeline end-to-end
+│   └── scheduler.py                    # Lập lịch gọi aggregation định kỳ
 │
-├── yolov9-cus/                         # Training & Evaluation YOLOv9
-│   ├── auto_label_test_images.py       # Auto-label + so sánh 2 models
-│   ├── AUTO_LABEL_DUAL_MODELS_README.md
-│   ├── CHANGES_DETAILED.md
-│   ├── CLASS_MAPPING_FIX.md
-│   ├── dataset/                        # Dataset training (images + labels)
-│   ├── dataset2/                       # Dataset bổ sung
-│   └── yolov9/                         # Code gốc YOLOv9 + tài liệu phân tích
-│       ├── analysis.md
-│       ├── detect_track_analysis.md
-│       └── figure/                     # Biểu đồ kết quả
+├── traffic-frontend/                   # MODULE E: Frontend Dashboard (React.js - Pure JavaScript)
+│   ├── package.json                    # Dependencies (React, Chart.js)
+│   └── src/
+│       ├── App.js                      # Giao diện chính hiển thị chart và video live (JS)
+│       └── App.css                     # Styling
 │
-├── video_data/                         # Video đầu vào để test
-│   ├── traffic1.mp4
-│   └── traffictrim.mp4
-│
-├── md_file/                            # Tài liệu báo cáo dự án
-│   ├── BAO_CAO_DU_AN.md
-│   ├── BAO_CAO_TIEN_TRINH_DU_AN.md
-│   ├── BAO_CAO_GIAI_DOAN_2_MODULE_B.md
-│   ├── BAO_CAO_MODULE_B_BACKEND.md
-│   ├── MODULE_INTEGRATION_SYSTEM.md
-│   └── MODULE_ML_SERVICE.md
-│
-├── traffic.db                          # SQLite database
-├── yolov9c.pt                          # Trọng số YOLOv9 pre-trained (root)
-├── requirements.txt                    # Danh sách thư viện Python
-├── traffic_density_git_project.ipynb   # Notebook thử nghiệm
-├── README.md                           # Hướng dẫn chạy dự án
-└── .gitignore
+├── video_data/                         # Video đầu vào
+└── md_file/                            # Tài liệu báo cáo (chứa OVERVIEW.md này)
 ```
 
 ---
 
-## 4. Chi Tiết Từng Module
+## 4. Phân Tích Chuyên Sâu Từng Module & Các File Chính
 
-### 4.1. Module A — `detection/` (Nhận Diện & Theo Dõi)
+### 4.1. MODULE A: `detection/` (Computer Vision Engine)
+Chịu trách nhiệm trực tiếp giao tiếp với dữ liệu hình ảnh, tracking và tính toán logic không gian.
 
-**Mục đích**: Đọc video/camera → nhận diện phương tiện → theo dõi → đếm → gửi event đến backend.
+*   **`main.py`**: **Entry point**. Khởi tạo `CameraEngine`, vòng lặp while đọc video liên tục. Có chứa logic **Dynamic Frame Skip**: Khi `density` (mật độ) là `HIGH`, hệ thống chủ động skip một số frame để giảm tải CPU/GPU, khi `LOW` thì xử lý mọi frame.
+*   **`camera_engine.py`**: Sử dụng `cv2.VideoCapture` để đọc luồng hình ảnh đầu vào.
+*   **`engine/detector.py`**: Khởi tạo model `YOLOv9`. Quản lý `torch.cuda.empty_cache()` để tối ưu VRAM. Cho phép cấu hình confidence threshold khác nhau cho từng loại xe (VD: Ô tô `0.40`, Xe máy `0.25`).
+*   **`engine/tracker.py`**: Khởi chạy `supervision.ByteTrack`. Quản lý ID phương tiện xuyên suốt các khung hình với `lost_track_buffer=90`, giúp duy trì ID ngay cả khi phương tiện bị che khuất tạm thời.
+*   **`engine/zone_manager.py`**: Khai báo vùng đếm (PolygonZone). Dựa trên toạ độ xe khi giao cắt vùng, nó có khả năng **xác định hướng** (direction: `inbound` / `outbound`).
+*   **`engine/density_estimator.py`**: Cung cấp hàm ước lượng `LOW`, `MEDIUM`, `HIGH` theo tổng số lượng bounding box xuất hiện trong một khung hình.
+*   **`engine/event_generator.py`**: Lấy thông tin từ sự kiện tracking (xe, ID, camera_id, direction) và đóng gói thành một Event có ý nghĩa để Backend tiếp nhận.
+*   **`integration/publisher.py`**: Khởi tạo luồng nền (Background Thread) và một cấu trúc dữ liệu Queue. Nó gộp (batching) và đẩy HTTP `POST /detection` không đồng bộ, giúp luồng phân tích hình ảnh chính **không bị lag (block)** khi gặp vấn đề về mạng.
 
-| File | Chức năng |
-|------|-----------|
-| `main.py` | Vòng lặp chính: đọc frame → pipeline detect/track → gửi event. Hỗ trợ Dynamic Frame Skip và Spike Detection (phản ứng nhanh khi có thay đổi đột ngột). Tự gọi aggregation mỗi 15 phút thời gian thực. |
-| `camera_engine.py` | Wrapper OpenCV `VideoCapture`. Cung cấp `read()`, `get_video_ms()` (timestamp video), `get_fps()`. |
-| `engine/detector.py` | Load model YOLOv9 bằng `torch.load()`. Inference, NMS, lọc vehicle classes. Áp dụng per-class confidence (Motorcycle: 0.25, khác: 0.40) và scale tọa độ x/y độc lập theo frame gốc. |
-| `engine/tracker.py` | Sử dụng **ByteTrack** (qua thư viện `supervision`) để gán ID theo dõi cho mỗi phương tiện qua nhiều frame. |
-| `engine/counter.py` | Đếm tổng phương tiện theo loại + đếm theo chu kỳ 1 phút (dựa theo thời gian video). |
-| `engine/density_estimator.py` | Rolling window (30 frame) tính trung bình số xe → phân loại LOW (<5), MEDIUM (<15), HIGH (≥15). Cung cấp tín hiệu real-time cho Frame Skip. |
-| `engine/zone_manager.py` | Quản lý polygon zone. Kiểm tra xe vượt zone. Dùng OrderedDict LRU (Least Recently Used) và cơ chế cooldown (30s) để tránh đếm trùng khi xe dừng đèn đỏ. |
-| `engine/event_generator.py` | Tạo dict event chứa: `event_id` (UUID), `camera_id`, `track_id`, `vehicle_type`, `density`, `timestamp`. |
-| `engine/frame_processor.py` | Resize frame về `target_width` (960px) giữ tỉ lệ. |
-| `integration/publisher.py` | Non-blocking publisher: đẩy event vào Queue (max 200), background thread gửi HTTP POST. Nếu queue đầy, bỏ event cũ nhất. |
-| `configs_cameras/cam_01.json` | Cấu hình zone cho camera CAM_01: polygon 4 điểm xác định vùng đếm. |
+### 4.2. MODULE B: `backend/` (FastAPI & MongoDB)
+Trung tâm lưu trữ và cầu nối API. Sử dụng kiến trúc routing RESTful chuẩn với schema validate bởi Pydantic.
 
-**Luồng xử lý trong main.py:**
+*   **`main.py`**: Khởi tạo FastAPI, cấu hình CORS middleware cho React. Có Global Exception Handler và Logger để đo đạc `duration_ms` của mỗi request.
+*   **`mongo_database.py`**: Quản lý connection pooling thông qua `pymongo.MongoClient`. Quản lý logic tạo Indexes tối ưu trên các Collection (như `timestamp` và `camera_id` trên data tracking).
+*   **`api/detection_routes.py`**: API `POST /detection`. Map dữ liệu payload với `DetectionSchema` và lưu bản ghi sự kiện xe vào collection `vehicle_detections`.
+*   **`api/aggregation_routes.py`**: API `POST /aggregation/compute`. Cốt lõi gom nhóm dữ liệu. Sử dụng **MongoDB Aggregation Pipeline** (`$match` các sự kiện trong 15 phút qua -> `$group`) đếm `inbound_count`, `total_vehicles`, tính ùn tắc trung bình, sau đó lưu một Record duy nhất vào `traffic_aggregation`.
+*   **`api/prediction_routes.py`**: `GET /predict-next`. API phục vụ ML Pipeline. Gọi trực tiếp mô hình AI để đưa ra kết quả phân tích đèn và số lượng xe tương lai, sau đó cập nhật collection `traffic_predictions`.
+*   **`api/video.py`**: Chứa endpoint `/video/{filename}` trả về luồng video dạng byte (HTTP 206 Partial Content) để Frontend sử dụng thẻ HTML5 `<video>` trơn tru.
 
-```
-1. Đọc frame từ video
-2. Dynamic Frame Skip (dựa vào density frame trước)
-3. FrameProcessor.process() → resize
-4. Detector.detect() → list bounding boxes
-5. Tracker.update() → gán track_id
-6. DensityEstimator.update() → cập nhật mật độ
-7. Với mỗi track:
-   ├── ZoneManager.check_crossing() → xe đã vào zone?
-   ├── VehicleCounter.count() → tăng bộ đếm
-   ├── EventGenerator.generate() → tạo event
-   └── EventPublisher.publish() → gửi backend (async)
-8. Vẽ bounding box + density lên frame
-9. Mỗi 15 phút video → trigger POST /aggregation/compute
-```
+### 4.3. MODULE C: `ml_service/` (AI & Machine Learning)
+Module cung cấp sức mạnh dự báo với **2 mô hình XGBoost** vận hành song song:
 
----
+*   **`traffic_predictor.py`**: Load model `model.pkl`. Nhận lịch sử khung thời gian gần nhất và xuất ra `predicted_density` (Dự báo mật độ xe 15 phút kế).
+*   **`light_delta_model.py`**: Load model `light_model.pkl`. Mô hình điều hướng thiết thực: dựa trên số xe lưu thông vào (inbound) và hàng đợi (queue), đề xuất `suggested_delta` linh hoạt (trong khoảng `-30s` đến `+45s`) để cấu hình tín hiệu đèn giao thông thực tế.
+*   **`train.py`**: Lệnh huấn luyện lại hai mô hình (sử dụng thư viện `xgboost`, `scikit-learn` xử lý pipeline tách train/test và các độ đo MAE/RMSE).
 
-### 4.2. Module B — `backend/` (Backend API & Database)
+### 4.4. MODULE D: `integration_system/` (System Orchestrator)
+Đóng vai trò điều phối tổng và ra quyết định, vận hành như một dịch vụ chạy ngầm.
 
-**Mục đích**: Nhận dữ liệu từ detection, lưu trữ, gom nhóm (aggregation), dự báo, và cung cấp API cho các module khác.
+*   **`system_runner.py`**: Vòng lặp Orchestrator gốc kiểm tra luồng API đều đặn định kỳ mỗi 5 giây.
+*   **`scheduler.py`**: Hệ thống lập lịch nhận biết các mốc chẵn thời gian (Ví dụ 12:00, 12:15, 12:30) để tự động gọi endpoint Aggregation.
+*   **`delta_applier.py`**: Liên kết Module ML và thế giới thực bằng cách tính toán thời gian `green_time` cụ thể dựa trên thông số `CAMERA_BASELINE` và `delta` tiên đoán.
+*   **`direction_router.py`**: Bảng điều hướng logic, map `camera_id` với các pha đèn tín hiệu vật lý tại ngã tư (như `north_green`, `west_green`).
+*   **`traffic_light_logic.py`**: Xử lý logic hiển thị hoặc tương tác tín hiệu đèn với bên thứ ba sau khi quá trình phân tích hoàn tất.
+*   **`performance_monitor.py`**: Theo dõi chỉ số RAM và CPU server thông qua `psutil` để phòng chống nguy cơ sập phần cứng.
 
-**Framework**: FastAPI + SQLAlchemy + SQLite (có thể đổi sang PostgreSQL).
+### 4.5. MODULE E: `traffic-frontend/` (React Dashboard)
+Hiển thị giao diện người dùng trực quan. Code base đã được chuyển sang **JavaScript thuần (.js)**.
 
-#### API Endpoints
-
-| Method | Endpoint | Chức năng |
-|--------|----------|-----------|
-| `POST` | `/detection` | Nhận event phát hiện phương tiện từ Module A, lưu vào `vehicle_detections` |
-| `GET` | `/raw-data` | Truy vấn dữ liệu thô với filter (camera_id, vehicle_type, density, time range) |
-| `GET` | `/aggregation` | Lấy thống kê gom nhóm (realtime hoặc từ DB) |
-| `GET` | `/aggregation/history` | Lịch sử aggregation (phân trang) |
-| `POST` | `/aggregation/compute` | Gom dữ liệu 15 phút gần nhất, tính congestion level, lưu DB |
-| `GET` | `/predict-next` | Dự báo lưu lượng 15 phút tới (gọi ML hoặc fallback trung bình) |
-| `GET` | `/predictions/history` | Lịch sử dự báo (phân trang) |
-| `GET` | `/cameras` | Danh sách camera |
-| `POST` | `/cameras` | Thêm camera |
-| `GET` | `/health` | Health check (status + database) |
-
-#### Database Schema
-
-| Bảng | Cột chính | Mô tả |
-|------|-----------|-------|
-| `vehicle_detections` | id, event_id, camera_id, track_id, vehicle_type, density, event_type, confidence, timestamp | Mỗi sự kiện xe vượt zone |
-| `traffic_aggregation` | id, camera_id, vehicle_count, congestion_level, timestamp | Thống kê gom nhóm theo chu kỳ |
-| `traffic_predictions` | id, camera_id, predicted_density, horizon_minutes, source, timestamp | Kết quả dự báo |
-| `cameras` | id, camera_id, name, location | Thông tin camera |
-
-#### Kiến trúc phân lớp
-
-```
-api/ (Routes/Controllers)
-  └── Nhận request, validation, gọi service
-schemas/ (Pydantic)
-  └── Request/Response schemas, validation rules
-services/ (Business Logic)
-  └── CRUD, aggregation logic, prediction logic
-models/ (ORM)
-  └── SQLAlchemy models mapping database tables
-database.py
-  └── Engine, Session, schema migration
-config.py
-  └── Environment-based configuration
-```
-
-#### Công thức tính mức ùn tắc (`compute_congestion`)
-
-| Số xe | Mức độ |
-|-------|--------|
-| < 10  | Low |
-| < 30  | Medium |
-| < 60  | High |
-| ≥ 60  | Severe |
+*   **`src/App.js`**: React component chính. Liên tục Poll API lấy về số lượng xe thực tế, kết hợp thư viện `Chart.js` để render các biểu đồ tương quan với dự báo. Nhúng luồng `<video>` thời gian thực được đẩy từ module backend.
+*   **`src/index.js`**: Trình khởi động App gắn vào React DOM.
 
 ---
 
-### 4.3. Module C — `ml_service/` (Machine Learning)
+## 5. Sơ Đồ Cơ Sở Dữ Liệu (MongoDB)
 
-**Mục đích**: Huấn luyện và sử dụng model XGBoost để dự báo lưu lượng giao thông 15 phút tiếp theo.
-
-| File | Chức năng |
-|------|-----------|
-| `traffic_predictor.py` | Class `TrafficPredictor` — core ML: feature engineering, train (TimeSeriesSplit 5-fold CV), predict |
-| `train.py` | Script huấn luyện: đọc CSV `urban_traffic.csv` → train → lưu `model.pkl` |
-| `predict.py` | Script test: gọi API `GET /predict-next` → hiển thị kết quả |
-| `model.pkl` | Model XGBoost đã serialize bằng joblib |
-
-#### Feature Engineering
-
-| Feature | Mô tả |
-|---------|-------|
-| `hour` | Giờ trong ngày (0-23) |
-| `day_of_week` | Ngày trong tuần (0=Thứ 2, 6=Chủ nhật) |
-| `is_peak_hour` | 1 nếu giờ 7-9 hoặc 17-19, ngược lại 0 |
-| `lag_1` | Số xe 15 phút trước |
-| `lag_2` | Số xe 30 phút trước |
-| `rolling_mean_3` | Trung bình 3 khung gần nhất |
-
-#### Quy trình dự báo (Tích hợp vào Backend)
-
-```
-backend/services/prediction_service.py
-   │
-   ├── Lấy N bản ghi aggregation gần nhất từ DB
-   │
-   ├── Nếu có model.pkl + đủ ≥3 dòng dữ liệu:
-   │   └── Gọi TrafficPredictor.predict() → source = "ml_service"
-   │
-   └── Nếu không:
-       └── Tính trung bình vehicle_count → source = "fallback"
-```
+Cơ sở dữ liệu dạng Document-Oriented tối ưu cho Real-time Write-heavy:
+1. **`cameras`**: Collection thiết lập dữ liệu vật lý của camera. Có Unique Index trên `camera_id`.
+2. **`vehicle_detections`**: Collection ghi lại lịch sử phương tiện được đếm. Rất nhiều sự kiện nhỏ liên tục. Được đánh Index trên `[camera_id, timestamp]` để tăng tốc tính toán Aggregation. Dữ liệu gồm: `event_id`, `camera_id`, `vehicle_type`, `direction`, `timestamp`.
+3. **`traffic_aggregation`**: Lưu trữ block dữ liệu đã nén sau mỗi 15 phút: `total_vehicles`, `inbound_count`, `congestion_level`, `avg_speed`, `period_start`, `period_end`.
+4. **`traffic_predictions`**: Lưu trữ log dự báo của Model: `predicted_density`, `suggested_delta`, `timestamp`.
 
 ---
 
-### 4.4. Module D — `integration_system/` (Tích Hợp Hệ Thống)
+## 6. Luồng Hoạt Động (Flows) Cụ Thể
 
-**Mục đích**: Tích hợp các module lại, bổ sung phân loại ùn tắc, tối ưu đèn giao thông, giám sát hiệu năng.
+### Flow 1: Nhận Diện & Tracking (Real-time Video)
+1. **CameraEngine** đọc frame từ camera (ví dụ 30 FPS).
+2. Tùy thuộc `congestion_level`, **Dynamic Frame Skip** có thể cắt bớt số frame xử lý nếu tài nguyên quá tải.
+3. Frame đi qua `YOLOv9Detector` → Tạo các Bounding Box.
+4. Bounding Box đẩy vào `VehicleTracker` (ByteTrack) → Gán ID cho xe.
+5. `ZoneManager` kiểm tra nếu xe giao cắt vùng đếm (polygon), tạo ra trạng thái `inbound` (đi vào) hoặc `outbound` (rời đi).
+6. `EventPublisher` gói lại sự kiện thành một JSON rồi đưa vào hàng đợi `Queue`. Dữ liệu sẽ được đẩy bằng HTTP tới REST API `/detection` qua một luồng chạy nền không làm đứng ứng dụng chính.
 
-| File | Chức năng |
-|------|-----------|
-| `system_runner.py` | Entry point: vòng lặp 5 giây, gọi `/raw-data` → `/aggregation` → phân loại → tối ưu đèn → monitor |
-| `congestion_classifier.py` | Phân loại mức ùn tắc local: Low (<15), Medium (<30), High (<50), Severe (≥50) |
-| `traffic_light_logic.py` | Tối ưu thời gian đèn xanh: Low=20s, Medium=40s, High=60s, Severe=90s |
-| `performance_monitor.py` | Đo CPU% và RAM% bằng `psutil` |
-| `scheduler.py` | Lập lịch gọi aggregation + ML prediction mỗi 60 giây |
-| `pipeline_test.py` | Test pipeline đơn giản với vehicle_count ngẫu nhiên |
-
----
-
-### 4.5. `yolov9-cus/` (Training & Đánh Giá Model)
-
-**Mục đích**: Chứa code huấn luyện custom YOLOv9, auto-label, đánh giá so sánh model.
-
-| File/Folder | Chức năng |
-|-------------|-----------|
-| `auto_label_test_images.py` | Script inference 2 model (custom vs pre-trained) trên tập test, tạo label YOLO format, báo cáo so sánh CSV |
-| `dataset/`, `dataset2/` | Dataset gồm images + labels (YOLO format) cho train/val/test |
-| `yolov9/` | Source code gốc YOLOv9 + tài liệu phân tích (analysis.md, detect_track_analysis.md) |
-
-#### Custom Vehicle Classes
-
-| Class ID | Tên |
-|----------|-----|
-| 0        | bus |
-| 1        | car |
-| 2        | motorcycle |
-| 3        | truck |
+### Flow 2: Tổng Hợp Dữ Liệu & ML Prediction (Mỗi 15 Phút)
+1. Tiến trình `scheduler.py` trong Integration module bắt được khoảnh khắc đến mốc 15 phút.
+2. Gọi API `POST /aggregation/compute`.
+3. Backend gọi MongoDB aggregation, tự động tính tổng số `inbound`, `outbound` trong 15 phút đó để xuất ra document mới lưu vào collection `traffic_aggregation`.
+4. Tiếp tục gọi `GET /predict-next`. Hệ thống ML nạp dữ liệu quá khứ, chạy XGBoost để trả về số lượng dự báo tương lai và đặc biệt là số giây cần bù trừ đèn xanh (`suggested_delta`).
 
 ---
 
-## 5. Công Nghệ & Thư Viện
+## 7. Hướng Dẫn Chạy Toàn Hệ Thống
 
-### 5.1. Core AI — Detection & Tracking
+Bạn cần mở **4 Terminal/Command Prompt** độc lập để kích hoạt toàn bộ luồng kiến trúc:
 
-| Thư viện | Phiên bản | Vai trò |
-|----------|-----------|---------|
-| **PyTorch** (`torch`, `torchvision`) | — | Framework deep learning, load model YOLOv9, inference, NMS |
-| **OpenCV** (`opencv-python`) | — | Đọc video, xử lý frame, vẽ bounding box, resize |
-| **Supervision** (`supervision`) | — | ByteTrack tracker, tiện ích Computer Vision |
-| **NumPy** (`numpy`) | — | Xử lý mảng số, tọa độ bounding box |
-| **Ultralytics** (`ultralytics`) | — | Tiện ích YOLO (config, model loading) |
-| **SciPy** (`scipy`) | — | Thuật toán Hungarian matching (cho tracking) |
-| **Shapely** (`shapely`) | — | Xử lý hình học đa giác |
-
-### 5.2. Machine Learning
-
-| Thư viện | Vai trò |
-|----------|---------|
-| **XGBoost** (`xgboost`) | Thuật toán gradient boosting cho dự báo lưu lượng |
-| **scikit-learn** (`scikit-learn`) | TimeSeriesSplit, metrics (MAE, RMSE) |
-| **pandas** (`pandas`) | Xử lý dữ liệu dạng bảng, feature engineering |
-| **joblib** | Serialize/deserialize model (.pkl) |
-
-### 5.3. Backend API
-
-| Thư viện | Vai trò |
-|----------|---------|
-| **FastAPI** (`fastapi`) | Web framework async, tự động tạo OpenAPI docs |
-| **Uvicorn** (`uvicorn`) | ASGI server chạy FastAPI |
-| **Pydantic** (`pydantic`) | Validation request/response schemas |
-| **SQLAlchemy** (`sqlalchemy`) | ORM, quản lý database |
-| **SQLite** / **PostgreSQL** | Database lưu trữ (SQLite mặc định, hỗ trợ PostgreSQL) |
-
-### 5.4. Utilities
-
-| Thư viện | Vai trò |
-|----------|---------|
-| **requests** | HTTP client (detection → backend) |
-| **python-dotenv** | Load biến môi trường từ `.env` |
-| **loguru** | Logging nâng cao |
-| **tqdm** | Progress bar |
-| **psutil** | Monitoring CPU/RAM |
-| **matplotlib**, **seaborn** | Trực quan hóa dữ liệu |
-
----
-
-## 6. Hướng Dẫn Chạy
-
-### Bước 1: Cài đặt dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### Bước 2: Chạy Backend (bắt buộc chạy trước)
-
+**Terminal 1: Khởi động Backend (FastAPI + MongoDB)**
 ```bash
 uvicorn backend.main:app --reload
 ```
-> Backend chạy tại `http://127.0.0.1:8000`. Swagger UI: `http://127.0.0.1:8000/docs`
 
-### Bước 3: Chạy Detection
-
+**Terminal 2: Khởi động hệ thống Detection (Computer Vision)**
 ```bash
 python -m detection.main
 ```
-> Đọc video từ `video_data/traffic1.mp4`, detect + track, gửi event lên backend.
+> *Hệ thống sẽ bật cửa sổ OpenCV, đọc file video đầu vào và đẩy dữ liệu HTTP sang backend.*
 
-### Bước 4: Seed dữ liệu (nếu cần)
-
+**Terminal 3: Khởi động Frontend Dashboard**
 ```bash
-python -m backend.seed_data
+cd traffic-frontend
+npm install
+npm start
 ```
+> *Dashboard tại `http://localhost:3000` sẽ liên tục load hình ảnh video stream và đồ thị phân tích thực.*
 
-### Bước 5: Chạy ML Prediction
-
-```bash
-python -m ml_service.predict
-```
-
-### Bước 6: Chạy Integration System
-
+**Terminal 4: Khởi động Integration System (Orchestrator)**
 ```bash
 python integration_system/system_runner.py
 ```
+> *Hệ thống ngầm sẽ chạy, thu thập tài nguyên hệ thống, định kỳ tính toán AI và in thông số đèn thực tế lên terminal.*
 
----
-
-## 7. Biến Môi Trường
-
-| Biến | Mặc định | Mô tả |
-|------|----------|-------|
-| `DATABASE_URL` | `sqlite:///./traffic.db` | Connection string database |
-| `TRAFFIC_API_URL` | `http://127.0.0.1:8000/detection` | URL API nhận event detection |
-| `TRAFFIC_VIDEO_SOURCE` | `video_data/traffic1.mp4` | Đường dẫn video đầu vào |
-| `TRAFFIC_MODEL_PATH` | `detection/pro_models/yolov9_img960_ultimate.pt` | Đường dẫn model YOLOv9 |
-| `TRAFFIC_API_BASE` | `http://127.0.0.1:8000` | Base URL backend (dùng bởi integration) |
-| `TRAFFIC_CAMERA_ID` | `CAM_01` | ID camera mặc định |
-| `BACKEND_API_TITLE` | `Traffic AI Backend` | Tiêu đề API |
-| `DEFAULT_PAGE_SIZE` | `100` | Số record mặc định mỗi trang |
-| `MAX_PAGE_SIZE` | `500` | Số record tối đa mỗi trang |
-| `PREDICTION_HORIZON_MINUTES` | `15` | Khung dự báo (phút) |
-
----
-
-## 8. Điểm Nổi Bật Kỹ Thuật
-
-### Dynamic Frame Skip
-- **LOW density**: skip 5 frame (CPU) / skip 10 frame (CUDA) → tiết kiệm tài nguyên
-- **MEDIUM density**: skip 3 frame (CPU) / skip 6 frame (CUDA)
-- **HIGH density**: skip 1 frame (CPU) / skip 2 frame (CUDA)
-- **Spike Detection**: nếu số xe frame mới > 1.5× frame trước **và** ≥ 3 xe → bỏ skip hoàn toàn 1 frame
-
-### Non-blocking Event Publishing
-- Sử dụng `queue.Queue(maxsize=200)` + background daemon thread
-- `publish()` return ngay lập tức, không block vòng lặp detect
-- Queue đầy → drop event **cũ nhất** và thêm event mới (đảm bảo dữ liệu mới nhất luôn được gửi)
-
-### Rolling Window Density (30 frame)
-- Trung bình **30 frame** gần nhất (tăng từ 10 frame)
-- Với FRAME_SKIP=3, window=30 tương đương ~90 frame thật (~3 giây)
-- Đủ mượt để tránh giật HIGH↔LOW khi detector miss vài frame
-- Đủ nhanh để phản ứng kịp thay đổi mật độ thực sự
-
-### Cooldown Zone (30 giây)
-- Cùng `track_id` vào zone < 30s → **KHÔNG đếm** (tránh đếm xe dừng đèn đỏ)
-- Khi ByteTrack re-assign ID cũ cho xe mới đi qua → đủ cooldown sẽ đếm lại bình thường
-- OrderedDict LRU eviction: tối đa 5.000 track_id trong memory, xóa entry **ít dùng nhất**
-
-### Schema Migration tự động
-- `database.py`: tự thêm cột mới vào bảng đã tồn tại bằng `ALTER TABLE`
-- Không cần migration tool riêng (Alembic)
-
-### ML Prediction Fallback
-- Nếu model.pkl tồn tại + đủ dữ liệu → dùng XGBoost (`source = "ml_service"`)
-- Nếu không → dùng trung bình vehicle_count gần nhất (`source = "fallback"`)
-
----
-
-## 9. Tham Số Chi Tiết Các Class Chính
-
-### `Detector.__init__`
-| Tham số | Kiểu | Mặc định | Mô tả |
-|---------|------|----------|-------|
-| `model_path` | `str` | — | Đường dẫn file `.pt` |
-| `conf_threshold` | `float` | `0.40` | Ngưỡng confidence chung |
-| `img_size` | `int` | `960` | Kích thước resize ảnh đầu vào (phải match `imgsz` khi train) |
-
-**Per-class confidence override:**
-```
-bus       → 0.40
-car       → 0.40
-motorcycle → 0.25  (nhỏ, chiếm 70-80% traffic VN)
-truck     → 0.40
+**Tùy chọn: Huấn luyện lại Model AI (ML Service)**
+```bash
+python -m ml_service.train
 ```
 
-### `Tracker.__init__`
-| Tham số | Mặc định | Ghi chú |
-|---------|----------|---------|
-| `track_activation_threshold` | `0.35` | Giảm track "ma" từ false positive |
-| `lost_track_buffer` | `90` | Giữ ID lên đến ~3.6s @ 25FPS, tránh double counting khi occlusion |
-| `minimum_matching_threshold` | `0.8` | Matching chặt hơn khi re-associate |
-
-### `DensityEstimator.__init__`
-| Tham số | Mặc định | Ghi chú |
-|---------|----------|---------|
-| `window` | `30` frame | ~3s thực với FRAME_SKIP=3 |
-
-**Ngưỡng phân loại:**
-```
-avg < 5  xe → LOW
-avg < 15 xe → MEDIUM
-avg ≥ 15 xe → HIGH
-```
-
-### `ZoneManager.__init__`
-| Tham số | Mặc định | Ghi chú |
-|---------|----------|---------|
-| `zones` | từ JSON | List polygon dicts, mỗi dict có key `points: [[x,y],...]` |
-| `max_history` | `5000` | Số track_id tối đa lưu trong LRU dict |
-| `cooldown_seconds` | `30.0` | Thời gian chặn giữa 2 lần đếm cùng `track_id` |
-
-### `EventPublisher.__init__`
-| Tham số | Mặc định | Ghi chú |
-|---------|----------|---------|
-| `api_url` | — | Endpoint POST nhận event |
-| `max_queue` | `200` | Giới hạn buffer event trong memory |
-
----
-
-## 10. Schema Pydantic (backend/schemas)
-
-### `DetectionCreate` — Dữ liệu event detection gửi từ Module A
-```python
-class VehicleType(str, Enum):
-    bus = "bus" | car = "car" | motorcycle = "motorcycle" | truck = "truck"
-
-class DensityLevel(str, Enum):
-    low = "LOW" | medium = "MEDIUM" | high = "HIGH" | severe = "SEVERE"
-
-class EventType(str, Enum):
-    line_crossing = "line_crossing" | zone_entry = "zone_entry" | zone_exit = "zone_exit"
-
-class DetectionCreate(BaseModel):
-    event_id:     str          # UUID, min_length=1
-    camera_id:    str          # VD: "CAM_01"
-    track_id:     int | str    # ID từ ByteTrack
-    vehicle_type: VehicleType
-    density:      DensityLevel
-    event_type:   EventType
-    timestamp:    datetime
-    confidence:   float | None  # 0.0 ~ 1.0
-```
-
-### `AggregationComputeResponse` — Kết quả tính aggregation 15 phút
-```python
-class AggregationComputeResponse(BaseModel):
-    aggregation_id:   int
-    camera_id:        str
-    window_start:     datetime
-    window_end:       datetime
-    vehicle_count:    int
-    congestion_level: str   # Low / Medium / High / Severe
-```
-
-### `PredictionResponse` — Kết quả dự báo ML
-```python
-class PredictionResponse(BaseModel):
-    camera_id:        str | None
-    predicted_density: float     # Số xe dự báo cho 15 phút tới
-    horizon_minutes:  int        # Mặc định 15
-    source:           str        # "ml_service" hoặc "fallback"
-    timestamp:        datetime
-```
-
----
-
-## 11. Database Schema (SQL)
-
-```sql
--- Bảng lưu mỗi sự kiện xe vượt qua detection zone
-CREATE TABLE vehicle_detections (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    event_id     TEXT,        -- UUID duy nhất mỗi event
-    camera_id    TEXT,        -- VD: "CAM_01"
-    track_id     TEXT,        -- ID xe từ ByteTrack
-    vehicle_type TEXT,        -- bus / car / motorcycle / truck
-    density      TEXT,        -- LOW / MEDIUM / HIGH
-    event_type   TEXT,        -- line_crossing / zone_entry / zone_exit
-    confidence   FLOAT,       -- 0.0 - 1.0
-    timestamp    DATETIME     -- UTC thời điểm phát hiện
-);
-CREATE INDEX ix_vehicle_detections_event_id   ON vehicle_detections(event_id);
-CREATE INDEX ix_vehicle_detections_camera_id  ON vehicle_detections(camera_id);
-CREATE INDEX ix_vehicle_detections_timestamp  ON vehicle_detections(timestamp);
-
--- Bảng thống kê gom nhóm 15 phút
-CREATE TABLE traffic_aggregation (
-    id               INTEGER PRIMARY KEY AUTOINCREMENT,
-    camera_id        TEXT,
-    vehicle_count    INTEGER,  -- Số xe DISTINCT track_id trong window
-    congestion_level TEXT,     -- Low / Medium / High / Severe
-    timestamp        DATETIME
-);
-
--- Bảng lưu kết quả dự báo ML
-CREATE TABLE traffic_predictions (
-    id                INTEGER PRIMARY KEY AUTOINCREMENT,
-    camera_id         TEXT,
-    predicted_density FLOAT,     -- Số xe dự báo
-    horizon_minutes   INTEGER DEFAULT 15,
-    source            TEXT DEFAULT 'fallback',  -- ml_service | fallback
-    timestamp         DATETIME
-);
-
--- Bảng thông tin camera
-CREATE TABLE cameras (
-    id        INTEGER PRIMARY KEY AUTOINCREMENT,
-    camera_id TEXT
-);
-```
-
----
-
-## 12. Cấu Hình Camera JSON (`configs_cameras/cam_01.json`)
-
-```json
-{
-  "camera_id": "CAM_01",
-  "zones": [
-    {
-      "id": "main_detection_zone",
-      "points": [
-        [0,   420],
-        [960, 420],
-        [960, 640],
-        [0,   640]
-      ]
-    }
-  ]
-}
-```
-
-> Zone mặc định là **dải ngang nửa dưới** của frame 960×640 (từ y=420 đến y=640).  
-> Điểm kiểm tra là **cy_bottom** (tọa độ y2 của bbox — điểm tiếp đất thực tế của xe),  
-> không phải tâm bbox, để tránh đếm sai khi xe chồng lấn.
-
----
-
-## 13. Sơ Đồ Quan Hệ Module
-
-```mermaid
-graph LR
-    A[detection/] -->|POST /detection| B[backend/]
-    A -->|POST /aggregation/compute| B
-    B -->|SQLite/PostgreSQL| DB[(traffic.db)]
-    C[ml_service/] -->|import TrafficPredictor| B
-    D[integration_system/] -->|GET /raw-data| B
-    D -->|GET /aggregation| B
-    E[yolov9-cus/] -.->|model weights .pt| A
-    V[video_data/] -.->|video input| A
-```
-
----
-
-## 14. Thứ Tự Chạy Khuyến Nghị
-
-```
-1. uvicorn backend.main:app --reload          # Khởi động Backend API (port 8000)
-2. python -m detection.main                   # Chạy detection, tích lũy dữ liệu vào DB
-3. python -m ml_service.train                 # (Tuỳ chọn) Retrain model với dữ liệu CSV
-4. python -m ml_service.predict               # Kiểm tra dự báo qua API
-5. python integration_system/system_runner.py # Chạy pipeline tích hợp
-```
-
-> **Lưu ý thứ tự**: Backend phải chạy trước detection.  
-> Detection cần tích lũy đủ dữ liệu trước khi `/predict-next` có thể trả kết quả hợp lệ.
-
----
-
-> **Ghi chú**: File này phản ánh mã nguồn thực tế của dự án. Cập nhật lần cuối: 28/04/2026.
+> Cập nhật lần cuối: Tháng 05/2026.
