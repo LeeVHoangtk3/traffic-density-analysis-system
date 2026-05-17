@@ -76,41 +76,6 @@ def main():
 
     print(f"[+] Saved trained data: {output_train_csv}")
 
-    # ============================
-    # SECTION 4: GREEN LIGHT LOGIC
-    # ============================
-
-    print("\n--- Section 4 ---")
-
-    df = pd.read_csv(
-        os.path.join(base, 'data/traffic_after_train.csv'),
-        keep_default_na=False
-    )
-
-    avg = df['traffic_volume'].mean()
-    df['time-green-light'] = 45
-
-    print(avg)
-
-    for i in range(len(df)):
-        t = df.iloc[i]['time-green-light']
-
-        delta = ((df.iloc[i]['traffic_volume'] - avg) / avg) * 100
-        t = t + max(((delta // 10) * 5),-15)
-
-        if df.iloc[i]['holiday'] not in ["None", "", None]:
-            t += 10
-
-        df.at[i, 'time-green-light'] = t
-
-    print(df[['traffic_volume', 'holiday', 'time-green-light']].head())
-
-    df.to_csv(
-        os.path.join(base, 'data/traffic_after_train.csv'),
-        index=False,
-        na_rep="None"
-    )
-
 
 if __name__ == "__main__":
     main()
