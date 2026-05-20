@@ -1,6 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+} from "react";
+
 import "./App.css";
+
 import { Line } from "react-chartjs-2";
+
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -25,6 +32,7 @@ ChartJS.register(
 const API = "http://localhost:8000";
 
 export default function App() {
+
   const [stats, setStats] = useState({
     total: 0,
     car: 0,
@@ -36,117 +44,275 @@ export default function App() {
   const [chart, setChart] = useState({
     labels: [],
     historicalData: [],
-    predictedData: [],
   });
 
+  const [allData, setAllData] =
+    useState([]);
+
+  const videoRef = useRef(null);
+
+  // FETCH 1 LẦN
   useEffect(() => {
+
     const fetchData = async () => {
+
       try {
-        const res = await fetch(`${API}/raw-data`);
+
+        const res = await fetch(
+          `${API}/raw-data?limit=5000&offset=0`
+        );
 
         const result = await res.json();
 
-        const data = result.items || [];
-        let counts = {
-          car: 0,
-          motorcycle: 0,
-          truck: 0,
-          bus: 0,
-        };
+        const data =
+          result.items || [];
 
-        data.forEach((e) => {
-          const t = e.vehicle_type.toLowerCase();
-          if (counts[t] !== undefined) counts[t]++;
-        });
+        // SORT TĂNG DẦN
+        data.sort(
+          (a, b) =>
+            new Date(a.timestamp) -
+            new Date(b.timestamp)
+        );
 
-        setStats({
-          total: data.length,
-          ...counts,
-        });
+        setAllData(data);
 
-        const time = {};
-
-        data.forEach((e) => {
-          const d = new Date(e.timestamp);
-
-          const key =
-            d.getHours().toString().padStart(2, "0") +
-            ":" +
-            d.getMinutes().toString().padStart(2, "0");
-
-          time[key] = (time[key] || 0) + 1;
-        });
-
-        const labels = Object.keys(time).sort().slice(-20);
-
-        setChart({
-          labels,
-          historicalData: labels.map((k) => time[k]),
-        });
       } catch (err) {
+
         console.log(err);
+
       }
     };
 
     fetchData();
 
-    const i = setInterval(fetchData, 3000);
-
-    return () => clearInterval(i);
   }, []);
 
+  // ĐỒNG BỘ VỚI VIDEO
+  useEffect(() => {
+
+    if (!allData.length) return;
+
+    const video =
+      videoRef.current;
+
+    if (!video) return;
+
+    const updateDashboard = () => {
+
+      const currentTime =
+        video.currentTime;
+
+      const startTime =
+        new Date(
+          allData[0].timestamp
+        );
+
+      // FILTER DATA
+      const visibleData =
+        allData.filter((e) => {
+
+          const diffSeconds =
+            (
+              new Date(e.timestamp) -
+              startTime
+            ) / 1000;
+
+          return (
+            diffSeconds <=
+            currentTime
+          );
+        });
+
+      console.log({
+        currentTime,
+        visible: visibleData.length,
+      });
+
+      // THỐNG KÊ XE
+      let counts = {
+        car: 0,
+        motorcycle: 0,
+        truck: 0,
+        bus: 0,
+      };
+
+      visibleData.forEach((e) => {
+
+        const t =
+          e.vehicle_type.toLowerCase();
+
+        if (
+          counts[t] !== undefined
+        ) {
+          counts[t]++;
+        }
+      });
+
+      setStats({
+        total:
+          visibleData.length,
+        ...counts,
+      });
+
+      // CHART
+      const time = {};
+
+      visibleData.forEach((e) => {
+
+        const d = new Date(
+          e.timestamp
+        );
+
+        const key =
+          d
+            .getHours()
+            .toString()
+            .padStart(2, "0") +
+          ":" +
+          d
+            .getMinutes()
+            .toString()
+            .padStart(2, "0");
+
+        time[key] =
+          (time[key] || 0) + 1;
+      });
+
+      const labels =
+        Object.keys(time)
+          .sort()
+          .slice(-20);
+
+      setChart({
+        labels,
+        historicalData:
+          labels.map(
+            (k) => time[k]
+          ),
+      });
+    };
+
+    // VIDEO UPDATE
+    video.addEventListener(
+      "timeupdate",
+      updateDashboard
+    );
+
+    return () => {
+
+      video.removeEventListener(
+        "timeupdate",
+        updateDashboard
+      );
+
+    };
+
+  }, [allData]);
+
   return (
+
     <div className="app">
+
       <div className="dashboard">
 
-        <h1 className="title">CITY TRAFFIC MONITOR</h1>
+        <h1 className="title">
+          CITY TRAFFIC MONITOR
+        </h1>
 
         <div className="subtitle">
-          REALTIME TRAFFIC STATISTICS
+          REALTIME TRAFFIC
+          STATISTICS
         </div>
 
         <div className="stats-grid">
 
           <div className="stat-card">
-            <div className="stat-icon">🚘</div>
-            <div>
-              <div className="stat-label">Total Vehicles:</div>
-              <div className="stat-value">{stats.total}</div>
+
+            <div className="stat-icon">
+              🚘
             </div>
+
+            <div>
+
+              <div className="stat-label">
+                Total Vehicles:
+              </div>
+
+              <div className="stat-value">
+                {stats.total}
+              </div>
+
+            </div>
+
           </div>
 
           <div className="stat-card">
+
             <div className="yellow-dot"></div>
+
             <div>
-              <div className="stat-label">Congestion Level:</div>
-              <div className="stat-value">Medium</div>
+
+              <div className="stat-label">
+                Congestion Level:
+              </div>
+
+              <div className="stat-value">
+                Medium
+              </div>
+
             </div>
+
           </div>
 
           <div className="stat-card">
+
             <div>
+
               <div className="stat-label">
                 Vehicle Classification
               </div>
 
               <div className="vehicle-row">
-                <span>🚗 {stats.car}</span>
-                <span>🏍️ {stats.motorcycle}</span>
-                <span>🚚 {stats.truck + stats.bus}</span>
+
+                <span>
+                  🚗 {stats.car}
+                </span>
+
+                <span>
+                  🏍️ {stats.motorcycle}
+                </span>
+
+                <span>
+                  🚚 {
+                    stats.truck +
+                    stats.bus
+                  }
+                </span>
+
               </div>
+
             </div>
+
           </div>
 
           <div className="stat-card">
-            <div className="chart-icon">📈</div>
+
+            <div className="chart-icon">
+              📈
+            </div>
+
             <div>
+
               <div className="stat-label">
                 Traffic Prediction:
               </div>
+
               <div className="stat-value">
                 Increasing 📈
               </div>
+
             </div>
+
           </div>
 
         </div>
@@ -156,60 +322,88 @@ export default function App() {
         </div>
 
         <div className="video-wrapper">
+          
           <video
-            src="/traffictrim.mp4"
+            ref={videoRef}
+            src="http://localhost:8000/video"
             autoPlay
             muted
-            loop
             controls
           />
+
         </div>
 
         <div className="section-title chart-title">
-          TRAFFIC VOLUME TREND (24H)
+          TRAFFIC VOLUME TREND
+          (24H)
         </div>
 
         <div className="chart-container">
+
           <Line
             data={{
-              labels: chart.labels,
+              labels:
+                chart.labels,
+
               datasets: [
                 {
-                  label: "Traffic",
-                  data: chart.historicalData,
-                  borderColor: "#60a5fa",
-                  backgroundColor: "rgba(96,165,250,0.15)",
+                  label:
+                    "Traffic",
+
+                  data:
+                    chart.historicalData,
+
+                  borderColor:
+                    "#60a5fa",
+
+                  backgroundColor:
+                    "rgba(96,165,250,0.15)",
+
                   fill: true,
+
                   tension: 0.4,
+
                   pointRadius: 0,
                 },
               ],
             }}
+
             options={{
               responsive: true,
-              maintainAspectRatio: false,
+
+              maintainAspectRatio:
+                false,
+
               plugins: {
                 legend: {
                   display: false,
                 },
               },
+
               scales: {
+
                 x: {
                   grid: {
                     display: false,
                   },
                 },
+
                 y: {
                   beginAtZero: true,
+
                   grid: {
                     color: "#eee",
                   },
                 },
+
               },
             }}
           />
+
         </div>
+
       </div>
+
     </div>
   );
 }
