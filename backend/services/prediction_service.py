@@ -116,7 +116,7 @@ def _build_prediction_history(
 # ✅ GREEN LIGHT TIME (MỚI THEO YÊU CẦU CỦA BẠN)
 # =========================================================
 def _compute_green_light_time(predicted_density: float, history: pd.DataFrame) -> int:
-    base_time = 45
+    base_time = 30
 
     if history.empty or predicted_density <= 0:
         return base_time
@@ -135,8 +135,8 @@ def _compute_green_light_time(predicted_density: float, history: pd.DataFrame) -
 
     green_time = base_time + delta
 
-    # clamp: không nhỏ hơn 30, không lớn hơn 45
-    green_time = max(30, min(45, green_time))
+    # clamp: không nhỏ hơn 20, không lớn hơn 60
+    green_time = max(20, min(60, green_time))
 
     return int(green_time)
 

@@ -62,11 +62,11 @@ class CongestionClassifier:
     """Phan loai muc tac nghen theo so xe (rule-based, chay local)."""
 
     def classify(self, vehicle_count: int) -> str:
-        if vehicle_count < 15:
+        if vehicle_count < 30:
             return "Low"
-        elif vehicle_count < 30:
+        elif vehicle_count < 100:
             return "Medium"
-        elif vehicle_count < 50:
+        elif vehicle_count < 200:
             return "High"
         else:
             return "Severe"

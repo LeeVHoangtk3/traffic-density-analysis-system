@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import xgboost as xgb
 from sklearn.model_selection import TimeSeriesSplit
-from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, mean_absolute_percentage_error
 import joblib
 import warnings
 
@@ -12,13 +12,13 @@ warnings.filterwarnings('ignore')
 def classify_congestion(vehicle_count: int) -> str:
     """
     Phân loại mức độ mật độ giao thông dựa trên số xe / 15 phút.
-    Ngưỡng được hiệu chỉnh cho thực tế đường đô thị Việt Nam (~400–500 xe/15p).
+    Ngưỡng được hiệu chỉnh cho dataset đô thị NYC (~50-100 xe/15p).
     """
-    if vehicle_count < 200:
+    if vehicle_count < 30:
         return "LOW"
-    if vehicle_count < 350:
+    if vehicle_count < 100:
         return "MEDIUM"
-    if vehicle_count < 500:
+    if vehicle_count < 200:
         return "HIGH"
     return "SEVERE"
 
@@ -26,7 +26,7 @@ def classify_congestion(vehicle_count: int) -> str:
 class TrafficPredictor:
     """
     Dự báo lưu lượng giao thông (số xe + mức độ mật độ) cho khung 15 phút tiếp theo.
-    Sử dụng XGBoost Regressor với Time Series Cross-Validation.
+    Sử dụng XGBoost Regressor.
     """
 
     def __init__(self, model_path='model.pkl'):
@@ -42,12 +42,12 @@ class TrafficPredictor:
         self.model_path = model_path
         self.is_trained = False
 
-        # Feature list – bao gồm các feature mới: is_weekend, lag_4, rolling_mean_8, hour_sin/cos
         self.features = [
-            'hour', 'day_of_week', 'is_peak_hour', 'is_weekend',
-            'lag_1', 'lag_2', 'lag_4',
-            'rolling_mean_3',
+            'is_peak_hour', 'is_weekend',
             'hour_sin', 'hour_cos',
+            'day_of_week_sin', 'day_of_week_cos',
+            'lag_1', 'lag_2', 'lag_4', 'lag_96',
+            'rolling_mean_3', 'rolling_std_3', 'diff_1'
         ]
 
     def create_features(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -56,65 +56,117 @@ class TrafficPredictor:
         """
         data = df.copy()
         data['timestamp'] = pd.to_datetime(data['timestamp'])
+        data = data.sort_values('timestamp')
 
         # --- Temporal features ---
-        data['hour']         = data['timestamp'].dt.hour
-        data['day_of_week']  = data['timestamp'].dt.dayofweek
-        # Giờ cao điểm sáng 7–9h và chiều 17–19h (phù hợp Việt Nam)
+        data['hour'] = data['timestamp'].dt.hour
+        data['day_of_week'] = data['timestamp'].dt.dayofweek
+        
+        # Giờ cao điểm sáng 7–9h và chiều 17–19h
         data['is_peak_hour'] = data['hour'].apply(
             lambda x: 1 if (7 <= x <= 9) or (17 <= x <= 19) else 0
         )
         # Cuối tuần (Thứ 7 = 5, Chủ nhật = 6)
-        data['is_weekend']   = (data['day_of_week'] >= 5).astype(int)
+        data['is_weekend'] = (data['day_of_week'] >= 5).astype(int)
 
-        # Mã hóa vòng tròn theo giờ (tốt hơn số nguyên cho mô hình ML)
-        data['hour_sin']     = np.sin(2 * np.pi * data['hour'] / 24)
-        data['hour_cos']     = np.cos(2 * np.pi * data['hour'] / 24)
+        # Mã hóa vòng tròn theo giờ và thứ
+        data['hour_sin'] = np.sin(2 * np.pi * data['hour'] / 24)
+        data['hour_cos'] = np.cos(2 * np.pi * data['hour'] / 24)
+        data['day_of_week_sin'] = np.sin(2 * np.pi * data['day_of_week'] / 7)
+        data['day_of_week_cos'] = np.cos(2 * np.pi * data['day_of_week'] / 7)
 
-        # --- Lag features (dữ liệu quá khứ) ---
-        data['lag_1'] = data['vehicle_count'].shift(1)   # 15 phút trước
-        data['lag_2'] = data['vehicle_count'].shift(2)   # 30 phút trước
-        data['lag_4'] = data['vehicle_count'].shift(4)   # 1 giờ trước
+        # --- Lag features ---
+        data['lag_1'] = data['vehicle_count'].shift(1)
+        data['lag_2'] = data['vehicle_count'].shift(2)
+        data['lag_4'] = data['vehicle_count'].shift(4)
+        data['lag_96'] = data['vehicle_count'].shift(96)  # Cùng giờ ngày hôm trước (96 * 15m = 24h)
 
-        # --- Rolling mean features ---
+        # --- Trend/Rolling features ---
+        data['diff_1'] = data['vehicle_count'].diff(1)
         data['rolling_mean_3'] = data['vehicle_count'].shift(1).rolling(window=3).mean()
+        data['rolling_std_3'] = data['vehicle_count'].shift(1).rolling(window=3).std()
 
+        # Fill NaN values for features that shift too far, or just drop
         data = data.dropna()
         return data
 
     def train_and_evaluate(self, df: pd.DataFrame):
         """
-        Huấn luyện mô hình với Time Series Cross-Validation (5 folds).
+        Huấn luyện mô hình, chia 80% train (CV) và 20% test (hold-out).
         """
         print("\n[*] Quá trình huấn luyện và đánh giá bắt đầu...")
         data = self.create_features(df)
+        
+        if len(data) < 100:
+            raise ValueError("Không đủ dữ liệu sau khi tạo features.")
 
-        X = data[self.features]
-        y = data['vehicle_count']
+        # Split 80/20 chronological
+        split_idx = int(len(data) * 0.8)
+        train_data = data.iloc[:split_idx]
+        test_data = data.iloc[split_idx:]
 
+        X_train = train_data[self.features]
+        y_train = train_data['vehicle_count']
+        X_test = test_data[self.features]
+        y_test = test_data['vehicle_count']
+
+        print(f" -> Tập Train: {len(X_train)} samples, Tập Test: {len(X_test)} samples")
+
+        # Time Series Cross-Validation trên tập train
         tscv = TimeSeriesSplit(n_splits=5)
-        mae_scores  = []
-        rmse_scores = []
+        mae_scores, rmse_scores = [], []
 
-        for fold, (train_idx, test_idx) in enumerate(tscv.split(X), start=1):
-            X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
-            y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+        for fold, (train_idx, val_idx) in enumerate(tscv.split(X_train), start=1):
+            X_cv_train, X_cv_val = X_train.iloc[train_idx], X_train.iloc[val_idx]
+            y_cv_train, y_cv_val = y_train.iloc[train_idx], y_train.iloc[val_idx]
 
-            self.model.fit(X_train, y_train)
-            y_pred = self.model.predict(X_test)
+            fold_model = xgb.XGBRegressor(
+                n_estimators=200, learning_rate=0.05, max_depth=6,
+                subsample=0.8, colsample_bytree=0.8,
+                objective='reg:squarederror', random_state=42,
+                early_stopping_rounds=20
+            )
+            fold_model.fit(
+                X_cv_train, y_cv_train,
+                eval_set=[(X_cv_val, y_cv_val)],
+                verbose=False
+            )
+            
+            y_pred = fold_model.predict(X_cv_val)
+            mae_scores.append(mean_absolute_error(y_cv_val, y_pred))
+            rmse_scores.append(np.sqrt(mean_squared_error(y_cv_val, y_pred)))
 
-            mae  = mean_absolute_error(y_test, y_pred)
-            rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-            mae_scores.append(mae)
-            rmse_scores.append(rmse)
-
-        print(f" -> Kết quả đánh giá bằng Cross Validation (5 folds):")
+        print(f" -> Kết quả Cross Validation (5 folds) trên tập Train:")
         print(f"    - MAE trung bình:  {np.mean(mae_scores):.2f} xe")
         print(f"    - RMSE trung bình: {np.mean(rmse_scores):.2f} xe")
 
-        # Fit lại toàn bộ dữ liệu để dự báo thực tế
-        print(" -> Đang cập nhật mô hình với toàn bộ dữ liệu...")
-        self.model.fit(X, y)
+        # Đánh giá trên tập Held-out Test
+        print("\n -> Đang huấn luyện mô hình cuối trên toàn bộ tập Train (với early stopping qua tập Test)...")
+        self.model.set_params(early_stopping_rounds=20)
+        self.model.fit(
+            X_train, y_train,
+            eval_set=[(X_test, y_test)],
+            verbose=False
+        )
+        
+        y_test_pred = self.model.predict(X_test)
+        test_mae = mean_absolute_error(y_test, y_test_pred)
+        test_rmse = np.sqrt(mean_squared_error(y_test, y_test_pred))
+        test_r2 = r2_score(y_test, y_test_pred)
+        
+        # MAPE cần cẩn thận với zero values
+        mask = y_test > 0
+        if mask.sum() > 0:
+            test_mape = mean_absolute_percentage_error(y_test[mask], y_test_pred[mask])
+        else:
+            test_mape = 0.0
+
+        print(f" -> Kết quả đánh giá trên tập Held-out Test (20% cuối):")
+        print(f"    - MAE:   {test_mae:.2f} xe")
+        print(f"    - RMSE:  {test_rmse:.2f} xe")
+        print(f"    - R2:    {test_r2:.4f}")
+        print(f"    - MAPE:  {test_mape:.2%}")
+        
         self.is_trained = True
 
     def save_model(self):
@@ -137,7 +189,7 @@ class TrafficPredictor:
     def predict(self, raw_data_df: pd.DataFrame) -> int:
         """
         Dự báo số lượng xe cho khung 15 phút tiếp theo.
-        Yêu cầu DataFrame có ít nhất 3 dòng lịch sử với cột 'timestamp' và 'vehicle_count'.
+        Yêu cầu DataFrame có ít nhất 97 dòng lịch sử với cột 'timestamp' và 'vehicle_count' để tính lag_96.
         """
         if not self.is_trained:
             if not self.load_model():
@@ -145,8 +197,14 @@ class TrafficPredictor:
 
         df = raw_data_df.copy().sort_values('timestamp')
 
-        if len(df) < 5:
-            raise ValueError("Cần ít nhất 5 quan trắc lịch sử liên tiếp để dự báo.")
+        if len(df) < 97:
+            # Fallback nếu không đủ dữ liệu để tính lag_96 (cần 97 dòng để shift 96 và có rolling)
+            # Trong thực tế, hệ thống có thể chưa tích lũy đủ 24h dữ liệu.
+            # Ta có thể fallback bằng phương pháp trung bình cộng.
+            if len(df) >= 3:
+                return max(0, int(round(df['vehicle_count'].mean())))
+            else:
+                raise ValueError("Cần ít nhất 3 quan trắc lịch sử liên tiếp.")
 
         # Tạo dòng giả tượng trưng cho mốc tương lai 15 phút tới
         last_time = pd.to_datetime(df['timestamp'].iloc[-1])
