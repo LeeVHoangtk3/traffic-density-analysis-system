@@ -145,12 +145,8 @@ _light_model = None
 
 
 def _get_light_model():
-    """Lazy-load LightDeltaModel singleton."""
-    global _light_model
-    if _light_model is None:
-        from ml_service.light_delta_model import LightDeltaModel
-        _light_model = LightDeltaModel()
-    return _light_model
+    """LightDeltaModel đã bị xoá — luôn trả về None."""
+    return None
 
 
 def apply(
@@ -164,28 +160,14 @@ def apply(
     """
     Tinh green_time bang cach cong delta du doan vao baseline cua camera.
     Tra ve: green_time (giay, float, >= 0)
+    Hien tai LightDeltaModel da bi go bo, luon tra ve baseline.
     """
     if camera_id not in CAMERA_BASELINE:
         baseline_green = 30
     else:
         baseline_green = CAMERA_BASELINE[camera_id]
 
-    try:
-        feature_dict = {
-            "queue_proxy":      queue_proxy,
-            "inbound_count":    inbound_count,
-            "congestion_level": congestion_level.lower(),
-            "baseline_green":   baseline_green,
-            "hour":             hour,
-            "day_of_week":      dow,
-        }
-        raw_delta: float = _get_light_model().predict_delta(feature_dict)
-        delta: float = max(_DELTA_MIN, min(_DELTA_MAX, raw_delta))
-        green_time: float = max(0.0, baseline_green + delta)
-        return green_time
-    except Exception as e:
-        print(f"    [DeltaApplier] Error: {e}. Using baseline.")
-        return float(baseline_green)
+    return float(baseline_green)
 
 
 # ===========================================================================

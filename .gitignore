@@ -155,3 +155,4 @@ for_test/
 *.db
 *.sqlite
 Automated_Traffic_Volume_Counts_*.csv
+light_status.json
