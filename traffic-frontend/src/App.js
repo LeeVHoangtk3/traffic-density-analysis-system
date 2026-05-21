@@ -49,6 +49,12 @@ export default function App() {
   const [allData, setAllData] =
     useState([]);
 
+  // ---> THÊM STATE ĐỂ LƯU KẾT QUẢ TỪ BACKEND / ML SERVICE
+  const [apiData, setApiData] = useState({
+    congestionLevel: "Loading...",
+    prediction: "Loading...",
+  });
+
   const videoRef = useRef(null);
 
   // FETCH 1 LẦN
@@ -209,6 +215,53 @@ export default function App() {
 
   }, [allData]);
 
+
+  // ---> THÊM VÒNG LẶP GỌI API ĐỊNH KỲ (5 GIÂY/LẦN) ĐỂ LẤY DỮ LIỆU ML
+  useEffect(() => {
+    const fetchApiData = async () => {
+      try {
+        // Lấy mức độ ùn tắc thực tế (Aggregation)
+        const aggRes = await fetch(`${API}/aggregation`);
+        let congestionLevel = "Unknown";
+        if (aggRes.ok) {
+           const aggData = await aggRes.json();
+           congestionLevel = aggData.congestion_level || "Unknown";
+        }
+
+        // Lấy kết quả dự báo từ ML Service (Predict)
+        const predRes = await fetch(`${API}/predict-next`);
+        let prediction = "Waiting Data...";
+        if (predRes.status === 200) {
+           const predData = await predRes.json();
+           if (predData.predicted_congestion_level) {
+              prediction = predData.predicted_congestion_level;
+              // Thêm icon minh họa để giống giao diện cũ
+              if (prediction === "High" || prediction === "Severe") prediction += " 📈";
+              else if (prediction === "Low") prediction += " 📉";
+              else prediction += " ➖";
+           }
+        } else if (predRes.status === 422) {
+           prediction = "Not Enough Data";
+        }
+
+        // Cập nhật State cho UI
+        setApiData({
+          congestionLevel,
+          prediction
+        });
+
+      } catch (err) {
+        console.log("Lỗi lấy dữ liệu API:", err);
+      }
+    };
+
+    fetchApiData(); // Chạy luôn lần đầu tiên
+    const interval = setInterval(fetchApiData, 5000); // Thiết lập chu kỳ lặp lại
+    return () => clearInterval(interval);
+  }, []);
+  // ---> KẾT THÚC ĐOẠN THÊM MỚI
+
+
   return (
 
     <div className="app">
@@ -257,7 +310,8 @@ export default function App() {
               </div>
 
               <div className="stat-value">
-                Medium
+                {/* HIỂN THỊ BIẾN ĐỘNG THAY VÌ FIX CỨNG "Medium" */}
+                {apiData.congestionLevel}
               </div>
 
             </div>
@@ -308,7 +362,8 @@ export default function App() {
               </div>
 
               <div className="stat-value">
-                Increasing 📈
+                {/* HIỂN THỊ BIẾN ĐỘNG TỪ AI THAY VÌ FIX CỨNG */}
+                {apiData.prediction}
               </div>
 
             </div>
