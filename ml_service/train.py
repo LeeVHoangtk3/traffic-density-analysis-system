@@ -1,5 +1,10 @@
 import os
+import sys
 import pandas as pd
+
+# Add parent directory to sys.path to import ml_service modules
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
 from ml_service.traffic_predictor import TrafficPredictor
 
 # Data file path
@@ -47,6 +52,22 @@ def main():
     predictor = TrafficPredictor(os.path.join(base, 'model.pkl'))
     predictor.train_and_evaluate(df)
     predictor.save_model()
+
+    print("\n--- Save data after training (with predictions) ---")
+
+    df_after_train = df.copy()
+
+    feature_cols = predictor.model.feature_names_in_
+    features = df_after_train.reindex(columns=feature_cols, fill_value=0)
+
+    df_after_train['predicted_vehicle_count'] = predictor.model.predict(features)
+
+    output_train_csv = os.path.join(base, 'data/traffic_after_train.csv')
+    os.makedirs(os.path.dirname(output_train_csv), exist_ok=True)
+
+    df_after_train.to_csv(output_train_csv, index=False)
+
+    print(f"[+] Saved trained data: {output_train_csv}")
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ Bien moi truong:
     TRAFFIC_API_BASE    (mac dinh: http://127.0.0.1:8000)
     TRAFFIC_CAMERA_ID   (mac dinh: CAM_01)
     PIPELINE_INTERVAL   (mac dinh: 5 giay)
-    NO_SUBPROCESS       (neu set = 1, khong tu dong khoi dong backend/detection)
+    NO_SUBPROCESS       (neu set = 1, khong tu dong khoi dong backend/detection/frontend)
 """
 
 # ===========================================================================
@@ -257,11 +257,11 @@ class TrafficSystem:
         print("  TRAFFIC DENSITY ANALYSIS SYSTEM — STARTING")
         print("=" * 60)
 
-        # --- Khoi dong Backend & Detection (subprocess) ---
+        # --- Khoi dong Backend & Detection & Frontend (subprocess) ---
         if not NO_SUBPROCESS:
             self._start_subprocess_services()
         else:
-            print("[INFO] NO_SUBPROCESS=1 -> Skip launching backend/detection")
+            print("[INFO] NO_SUBPROCESS=1 -> Skip launching backend/detection/frontend")
 
         # --- Khoi tao cac component noi tuyen ---
         self.classifier = CongestionClassifier()
@@ -279,13 +279,13 @@ class TrafficSystem:
         print("=" * 60)
 
     # ------------------------------------------------------------------
-    # Subprocess: Backend + Detection
+    # Subprocess: Backend + Detection + Frontend
     # ------------------------------------------------------------------
 
     def _start_subprocess_services(self):
         project_root = os.path.abspath(os.path.join(_INTEGRATION_DIR, ".."))
 
-        print("[1/2] Starting Backend (uvicorn)...")
+        print("[1/3] Starting Backend (uvicorn)...")
         backend_cmd = [
             "uvicorn", "backend.main:app",
             "--reload", "--host", "127.0.0.1", "--port", "8000"
@@ -296,13 +296,22 @@ class TrafficSystem:
         time.sleep(5)
         print("      Backend started (PID={})".format(self.backend_process.pid))
 
-        print("[2/2] Starting Detection Engine...")
-        detection_cmd = ["python", "detection/main.py"]
+        print("[2/3] Starting Detection Engine...")
+        detection_cmd = [sys.executable, "-m", "detection.main"]
         self.detection_process = subprocess.Popen(
             detection_cmd, cwd=project_root
         )
         time.sleep(5)
         print("      Detection started (PID={})".format(self.detection_process.pid))
+
+        print("[3/3] Starting Frontend (npm start)...")
+        frontend_dir = os.path.join(project_root, "traffic-frontend")
+        frontend_cmd = ["npm.cmd", "start"] if os.name == 'nt' else ["npm", "start"]
+        self.frontend_process = subprocess.Popen(
+            frontend_cmd, cwd=frontend_dir
+        )
+        time.sleep(5)
+        print("      Frontend started (PID={})".format(self.frontend_process.pid))
 
     # ------------------------------------------------------------------
     # Dung he thong
@@ -310,7 +319,7 @@ class TrafficSystem:
 
     def stop_system(self):
         print("\n[SHUTDOWN] Stopping system...")
-        for attr in ("backend_process", "detection_process"):
+        for attr in ("backend_process", "detection_process", "frontend_process"):
             proc = getattr(self, attr, None)
             if proc is not None:
                 proc.terminate()

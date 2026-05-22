@@ -46,7 +46,7 @@ class TrafficPredictor:
             'is_peak_hour', 'is_weekend',
             'hour_sin', 'hour_cos',
             'day_of_week_sin', 'day_of_week_cos',
-            'lag_1', 'lag_2', 'lag_4', 'lag_96',
+            'lag_1', 'lag_2', 'lag_4',
             'rolling_mean_3', 'rolling_std_3', 'diff_1'
         ]
 
@@ -79,7 +79,6 @@ class TrafficPredictor:
         data['lag_1'] = data['vehicle_count'].shift(1)
         data['lag_2'] = data['vehicle_count'].shift(2)
         data['lag_4'] = data['vehicle_count'].shift(4)
-        data['lag_96'] = data['vehicle_count'].shift(96)  # Cùng giờ ngày hôm trước (96 * 15m = 24h)
 
         # --- Trend/Rolling features ---
         data['diff_1'] = data['vehicle_count'].diff(1)
@@ -189,7 +188,7 @@ class TrafficPredictor:
     def predict(self, raw_data_df: pd.DataFrame) -> int:
         """
         Dự báo số lượng xe cho khung 15 phút tiếp theo.
-        Yêu cầu DataFrame có ít nhất 97 dòng lịch sử với cột 'timestamp' và 'vehicle_count' để tính lag_96.
+        Yêu cầu DataFrame có ít nhất 5 dòng lịch sử với cột 'timestamp' và 'vehicle_count'.
         """
         if not self.is_trained:
             if not self.load_model():
@@ -197,10 +196,8 @@ class TrafficPredictor:
 
         df = raw_data_df.copy().sort_values('timestamp')
 
-        if len(df) < 97:
-            # Fallback nếu không đủ dữ liệu để tính lag_96 (cần 97 dòng để shift 96 và có rolling)
-            # Trong thực tế, hệ thống có thể chưa tích lũy đủ 24h dữ liệu.
-            # Ta có thể fallback bằng phương pháp trung bình cộng.
+        if len(df) < 5:
+            # Fallback nếu không đủ 5 quan trắc lịch sử
             if len(df) >= 3:
                 return max(0, int(round(df['vehicle_count'].mean())))
             else:

@@ -12,6 +12,7 @@ class PredictionResponse(BaseModel):
     horizon_minutes: int
     source: str
     timestamp: datetime
+    time_green_light: Optional[int] = None
 
 
 class PredictionHistoryItem(BaseModel):
@@ -23,6 +24,7 @@ class PredictionHistoryItem(BaseModel):
     horizon_minutes: int
     source: str
     timestamp: datetime
+    time_green_light: Optional[int] = None
 
 
 class PredictionHistoryResponse(BaseModel):

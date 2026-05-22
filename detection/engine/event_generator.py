@@ -36,7 +36,6 @@ class EventGenerator:
             "camera_id":    camera_id,
             "track_id":     track["track_id"],
             "vehicle_type": track["class_name"],
-            "density":      density,
             "event_type":   "zone_entry",
             "direction":    direction,
             "timestamp":    datetime.now(timezone.utc).isoformat(),

@@ -6,7 +6,7 @@ Mở camera (hoặc video file) và hiển thị thời gian đèn xanh (green t
 
 Chạy:
     python detection/camera_display.py              # dùng webcam (index 0)
-    python detection/camera_display.py --video traffictrim.mp4
+    python detection/camera_display.py --video video_data/traffictrim.mp4
     python detection/camera_display.py --cam 0
 
 Phím tắt:
@@ -234,8 +234,8 @@ def parse_args():
     p = argparse.ArgumentParser(description="Camera display với overlay thời gian đèn")
     g = p.add_mutually_exclusive_group()
     g.add_argument("--video", metavar="PATH",
-                   default=os.path.join(ROOT_DIR, "traffictrim.mp4"),
-                   help="Đường dẫn tới file video (mặc định: traffictrim.mp4)")
+                   default=os.path.join(ROOT_DIR, "video_data", "traffic1.mp4"), # Thêm video mặc định
+                   help="Đường dẫn tới file video (mặc định: video_data/traffic1.mp4)")
     g.add_argument("--cam",   metavar="INDEX", type=int,
                    help="Index webcam (0, 1, ...)")
     p.add_argument("--camera-id", default="CAM_01",
