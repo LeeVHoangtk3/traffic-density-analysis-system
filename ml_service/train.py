@@ -1,54 +1,108 @@
 import os
+import sys
 import pandas as pd
 from ml_service.traffic_predictor import TrafficPredictor
 
-# Scale Factor: kéo dữ liệu Metro (Mỹ, ~815 xe/15p) về thực tế Việt Nam (~450 xe/15p)
-SCALE_FACTOR = 450.0 / 815.0   # ≈ 0.55
-
-
 def main():
+    # Cấu hình stdout/stderr sang UTF-8 để hiển thị tiếng Việt trên Windows
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+    if hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8')
+
     base = os.path.dirname(__file__)
-    raw_csv = os.path.join(base, 'data/Metro_Interstate_Traffic_Volume.csv')
+    data_dir = os.path.join(base, 'data')
+    csv_path = os.path.join(data_dir, 'junction_pivot_clean.csv')
 
-    # BƯỚC 1: Đọc và parse datetime
-    print("[1] Đọc dữ liệu từ CSV...")
-    df = pd.read_csv(raw_csv)
-    df['date_time'] = pd.to_datetime(df['date_time'])
-    df = df.set_index('date_time').sort_index()
-    print(f"    Tổng số record gốc (hourly): {len(df)}")
+    print("[*] Bắt đầu quá trình huấn luyện hệ thống 3 mô hình học máy thống nhất đa nút giao...")
+    print(f" -> Nguồn dữ liệu hợp nhất: {csv_path}")
 
-    # BƯỚC 2: Hourly → 15-minute (chia ÷4 + nội suy theo thời gian)
-    print("[2] Chuyển đổi dữ liệu từ 1 giờ → 15 phút (÷4 + interpolate)...")
-    df['traffic_volume_15min'] = df['traffic_volume'] / 4
-    # Loại bỏ timestamp trùng lặp (giữ lại giá trị trung bình)
-    series = (
-        df['traffic_volume_15min']
-        .groupby(df.index)
-        .mean()
-        .resample('15min')
-        .asfreq()
-        .interpolate(method='time')
-    )
-    df_15min = (
-        series
-        .reset_index()
-        .rename(columns={'date_time': 'timestamp', 'traffic_volume_15min': 'vehicle_count'})
-    )
-    print(f"    Tổng số record sau chuyển đổi (15-min): {len(df_15min)}")
+    if not os.path.exists(csv_path):
+        print(f"[!] Lỗi: Không tìm thấy tệp {csv_path}. Hãy chạy preprocess.py trước.")
+        sys.exit(1)
 
-    # BƯỚC 3: Áp dụng Scale Factor về thực tế Việt Nam (~400–500 xe/15p)
-    print(f"[3] Áp dụng Scale Factor ({SCALE_FACTOR:.3f}) về thực tế Việt Nam...")
-    df_15min['vehicle_count'] = (
-        df_15min['vehicle_count'] * SCALE_FACTOR
-    ).round().astype(int).clip(lower=0)
-    print(f"    Trung bình vehicle_count sau scale: {df_15min['vehicle_count'].mean():.1f} xe/15p")
+    # Đọc dữ liệu lớn hợp nhất
+    df_merged = pd.read_csv(csv_path)
+    print(f" -> Đã nạp thành công {len(df_merged):,} dòng dữ liệu từ 3 nút giao.")
 
-    # BƯỚC 4: Huấn luyện Model dự báo số xe
-    print("\n--- Training Model: Vehicle Forecast + Density Level ---")
-    predictor = TrafficPredictor(os.path.join(base, 'model.pkl'))
-    predictor.train_and_evaluate(df_15min)
-    predictor.save_model()
+    # Cấu hình huấn luyện cho 3 mô hình thống nhất
+    models_config = {
+        'straight': {
+            'col': 'vol_straight',
+            'desc': 'Mô hình đi thẳng thống nhất (Straight Model)',
+            'file': 'model_straight.pkl'
+        },
+        'left': {
+            'col': 'vol_left',
+            'desc': 'Mô hình rẽ trái thống nhất (Left Model)',
+            'file': 'model_left.pkl'
+        },
+        'right': {
+            'col': 'vol_right',
+            'desc': 'Mô hình rẽ phải thống nhất (Right Model)',
+            'file': 'model_right.pkl'
+        }
+    }
 
+    all_metrics = {}
 
-if __name__ == "__main__":
+    for direction, config in models_config.items():
+        col = config['col']
+        desc = config['desc']
+        model_file = config['file']
+        model_path = os.path.join(base, 'model', model_file)
+
+        print("\n" + "="*80)
+        print(f" 🚀 ĐANG HUẤN LUYỆN: {desc}")
+        print(f" Cột mục tiêu: {col} | Đường dẫn lưu mô hình: {model_path}")
+        print("="*80)
+
+        # 1. Lọc và chuẩn bị dữ liệu cho mô hình này
+        # Loại bỏ các dòng NaN ở hướng tương ứng (ví dụ: vol_right bị trống ở Segment 72887 và 83624)
+        df_dir = df_merged[['timestamp', 'segment_id', col]].dropna().copy()
+        
+        # Đổi tên cột mục tiêu để tương thích với TrafficPredictor
+        df_dir = df_dir.rename(columns={col: 'vehicle_count'})
+        
+        # Chuyển đổi timestamp và sắp xếp thời gian để chia Train/Test chronological chuẩn xác
+        df_dir['timestamp'] = pd.to_datetime(df_dir['timestamp'])
+        df_dir = df_dir.sort_values('timestamp').reset_index(drop=True)
+
+        print(f"    - Lực lượng dữ liệu thực đo (không NaN): {len(df_dir):,} dòng")
+        print(f"    - Phân bố phân đoạn vật lý (segment_id):")
+        seg_counts = df_dir['segment_id'].value_counts()
+        for s_id, cnt in seg_counts.items():
+            print(f"      * Segment {s_id}: {cnt:,} dòng ({cnt/len(df_dir)*100:.1f}%)")
+        print(f"    - Khoảng thời gian: {df_dir['timestamp'].min()} -> {df_dir['timestamp'].max()}")
+
+        # 2. Khởi tạo TrafficPredictor và chạy huấn luyện 80/20 split
+        # TrafficPredictor tự động áp dụng Grouped Feature Engineering vì df_dir có cột 'segment_id'
+        predictor = TrafficPredictor(model_path=model_path)
+        metrics = predictor.train_and_evaluate_split(df_dir)
+
+        # 3. Lưu trữ trọng số mô hình
+        predictor.save_model()
+        all_metrics[direction] = {
+            'desc': desc,
+            'metrics': metrics
+        }
+
+    # Báo cáo đánh giá khoa học tổng hợp cho 3 mô hình
+    print("\n" + "="*80)
+    print(" BÁO CÁO KHOA HỌC TỔNG HỢP HIỆU NĂNG 3 MÔ HÌNH HỢP NHẤT TRÊN TẬP TEST")
+    print("="*80)
+    print(f"{'Mô hình':<40} | {'MAE':<10} | {'RMSE':<10} | {'MAPE':<10}")
+    print("-"*80)
+    for direction, result in all_metrics.items():
+        desc = result['desc']
+        m = result['metrics']
+        if m:
+            print(f"{desc:<40} | {m['mae']:>8.2f} xe | {m['rmse']:>8.2f} xe | {m['mape']:>8.2f}%")
+        else:
+            print(f"{desc:<40} | Không có kết quả đánh giá.")
+    print("="*80)
+    print("[+] TIẾN TRÌNH HUẤN LUYỆN 3 MÔ HÌNH THỐNG NHẤT ĐÃ HOÀN THÀNH XUẤT SẮC!")
+    print("="*80)
+
+if __name__ == '__main__':
     main()
