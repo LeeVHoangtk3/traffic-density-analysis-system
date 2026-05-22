@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 from typing import Optional
 
+# pyrefly: ignore [missing-import]
 from pymongo import DESCENDING
 
 

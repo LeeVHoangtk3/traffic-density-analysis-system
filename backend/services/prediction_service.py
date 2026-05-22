@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from typing import Optional
 
 import pandas as pd
-from pymongo import DESCENDING
+from pymongo import DESCENDING  # type: ignore
 
 from backend.config import settings
 
@@ -50,7 +50,7 @@ def _load_predictors():
         sys.path.insert(0, str(ml_service_dir))
 
     try:
-        from traffic_predictor import TrafficPredictor
+        from traffic_predictor import TrafficPredictor  # type: ignore
     except Exception:
         return None
 
@@ -185,4 +185,4 @@ def list_predictions(db, camera_id=None, limit=20, offset=0):
         .skip(offset)
         .limit(limit)
     )
-    return total, [to_object(document) for document in documents]
+    return total, [to_object(document) for document in docs]
