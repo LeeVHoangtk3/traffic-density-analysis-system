@@ -59,7 +59,7 @@ HAS_CUDA    = torch.cuda.is_available()
 
 # ── Cấu hình ──────────────────────────────────────────────────────────────────
 API_URL      = os.getenv("TRAFFIC_API_URL",     "http://127.0.0.1:8000/detection")
-VIDEO_SOURCE = os.getenv("TRAFFIC_VIDEO_SOURCE", str(Path(BASE_DIR) / "video_data" / "traffic1.mp4"))
+VIDEO_SOURCE = os.getenv("TRAFFIC_VIDEO_SOURCE", str(Path(BASE_DIR) / "data" / "video" / "traffic1.mp4"))
 MODEL_PATH   = os.getenv("TRAFFIC_MODEL_PATH",   str(Path(BASE_DIR) / "detection" / "pro_models" / "yolov9_img960_ultimate.pt"))
 OUTPUT_VIDEO = os.getenv("TRAFFIC_OUTPUT_VIDEO", "output_v5.mp4")
 ALERT_LOG    = os.getenv("ALERT_LOG", "")
@@ -108,7 +108,7 @@ class AlertLogger:
             self._file   = open(p, "w", newline="", encoding="utf-8")
             self._writer = csv.DictWriter(self._file, fieldnames=self._FIELDS)
             self._writer.writeheader()
-            print(f"[AlertLogger] → {csv_path}")
+            print(f"[AlertLogger] -> {csv_path}")
 
     def log(self, frame_idx: int, video_sec: float, density: str,
             vehicle_count: int, prev_count: int, event_type: str) -> None:
@@ -148,7 +148,7 @@ def _trigger_aggregation(api_url: str, camera_id: str) -> None:
         else:
             print(f"[Aggregation] HTTP {r.status_code}")
     except Exception as e:
-        print(f"[Aggregation] Lỗi: {e}")
+        print(f"[Aggregation] Error: {e}")
 
 
 def _get_output_size(source: str, target_w: int) -> tuple[int, int]:
@@ -230,7 +230,7 @@ def display_in_notebook(video_path: str) -> None:
         # File lớn — dùng đường dẫn tương đối
         # Jupyter VS Code serve file từ workspace root
         src = video_path
-        print(f"[Info] Video lớn ({size_mb:.1f}MB) — dùng file path thay vì base64")
+        print(f"[Info] Large video ({size_mb:.1f}MB) - using file path instead of base64")
 
     ipy_display(HTML(
         f'<video width="960" controls autoplay loop style="max-width:100%">'
@@ -280,21 +280,21 @@ def main() -> None:
 
     # ── Startup log ───────────────────────────────────────────────────────────
     print("=" * 58)
-    print("  Module A — Traffic Detection V5 Fixed")
+    print("  Module A - Traffic Detection V5 Fixed")
     print("=" * 58)
     print(f"  CUDA          : {HAS_CUDA}")
     print(f"  Video FPS     : {fps:.1f}")
     print(f"  SYNC_MODE     : {SYNC_MODE}  "
-          f"{'← block/đếm chính xác' if SYNC_MODE else '← async/video mượt'}")
+          f"{'[Sync] block/dem chinh xac' if SYNC_MODE else '[Async] video muot'}")
     print(f"  NO_DISPLAY    : {NO_DISPLAY}")
     if not SYNC_MODE:
         print(f"  PLAYBACK_SPEED: {PLAYBACK_SPEED}x")
         print(f"  Frame skip    : {FRAME_SKIP_BY_DENSITY}")
     print(f"  DRY_RUN       : {DRY_RUN}")
-    print(f"  ALERT_LOG     : {ALERT_LOG or 'tắt'}")
+    print(f"  ALERT_LOG     : {ALERT_LOG or 'off'}")
     print(f"  OUTPUT        : {OUTPUT_VIDEO}")
     if display_enabled:
-        print("  Phím          : [p] Pause  [q] Thoát")
+        print("  Keys          : [p] Pause  [q] Exit")
     print("=" * 58)
 
     # ── Async detection thread (SYNC_MODE=false) ──────────────────────────────
@@ -512,7 +512,7 @@ def main() -> None:
         print("=" * 58)
 
     if IS_NOTEBOOK or IS_COLAB:
-        print("[Info] Đang load video vào notebook...")
+        print("[Info] Loading video into notebook...")
         display_in_notebook(OUTPUT_VIDEO)
 
 
