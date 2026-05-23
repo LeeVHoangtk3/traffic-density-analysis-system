@@ -44,11 +44,9 @@ class TrafficPredictor:
         self.is_trained = False
 
         self.features = [
-            'is_peak_hour', 'is_weekend',
-            'hour_sin', 'hour_cos',
-            'day_of_week_sin', 'day_of_week_cos',
-            'lag_1', 'lag_2', 'lag_4',
-            'rolling_mean_3', 'rolling_std_3', 'diff_1'
+            'hour', 'day_of_week', 'is_peak_hour', 'is_weekend',
+            'lag_1', 'lag_2', 'lag_4', 'rolling_mean_3',
+            'hour_sin', 'hour_cos'
         ]
 
     def create_features(self, df: pd.DataFrame) -> pd.DataFrame:

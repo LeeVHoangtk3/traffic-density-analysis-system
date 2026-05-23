@@ -1,0 +1,20 @@
+{
+    "straight": {
+        "test_size": 672,
+        "mae": 12.33,
+        "rmse": 15.18,
+        "mape": 5.52
+    },
+    "left": {
+        "test_size": 672,
+        "mae": 8.6,
+        "rmse": 10.47,
+        "mape": 5.85
+    },
+    "right": {
+        "test_size": 672,
+        "mae": 7.23,
+        "rmse": 8.72,
+        "mape": 5.89
+    }
+}
