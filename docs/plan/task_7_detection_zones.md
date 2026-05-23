@@ -4,18 +4,18 @@
 ---
 
 ## 1. Mô Tả Nhiệm Vụ
-Hệ thống Computer Vision hiện tại đang sử dụng cấu hình mặc định đếm xe đi qua một vùng polygon lớn duy nhất chắn ngang nửa dưới của Camera `CAM_01`. Sự kiện đếm xe gửi lên backend vì thế chưa phân định rõ rệt phương tiện đó sẽ rẽ trái, đi thẳng hay rẽ phải.
+Hệ thống Computer Vision hiện tại đang sử dụng cấu hình mặc định đếm xe đi qua một vùng polygon lớn duy nhất chắn ngang nửa dưới của Camera `CAM_01`. Các sự kiện đếm xe gửi lên backend vì thế chưa phân định rõ rệt phương tiện đó sẽ rẽ trái, đi thẳng hay rẽ phải để làm dữ liệu tự động cho ML.
 
 Nhiệm vụ này yêu cầu thiết lập lại cấu trúc hình học đếm xe bằng cách vẽ và định vị **3 đa giác kiểm soát ROI độc lập (Polygon ROI Zones)** đặt chặn tại 3 làn di chuyển tương ứng trên khung hình chuẩn. Tiến trình CV sẽ dựa vào thuật toán bám đuổi (ByteTrack) để xác định quỹ đạo của phương tiện đi qua đa giác nào, từ đó gán nhãn hướng di chuyển chính xác (`direction` bằng `left`, `straight` hoặc `right`) và đẩy sự kiện thật về Backend.
 
 ---
 
 ## 2. Dữ Liệu Đầu Vào (Inputs)
-- **Tệp cấu hình camera mặc định:** `detection/configs_cameras/cam_01.json`
-- **Video mẫu chạy thử:** `video_data/traffic1.mp4`
+- **Tệp cấu hình camera mặc định:** `detection/configs_cameras/cam_01.json`.
+- **Video mẫu chạy thử:** [traffic1.mp4](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/data/video/traffic1.mp4).
 - **Mã nguồn xử lý CV:**
-  - `detection/engine/zone_manager.py` (Quản lý đa giác)
-  - `detection/main.py` (Luồng chạy chính)
+  - `detection/engine/zone_manager.py` (Quản lý đa giác).
+  - `detection/main.py` (Luồng chạy chính).
 - **Thư viện chính:** `supervision` (cung cấp lớp `PolygonZone` và `PolygonZoneAnnotator`).
 
 ---
@@ -51,7 +51,7 @@ flowchart TD
 
 ### Hướng dẫn thiết lập tọa độ đa giác (ROI Coordinates Calibration):
 1. **Thiết lập Đa giác 3 Làn:**
-   Mở video mẫu `traffic1.mp4` bằng OpenCV để lấy kích thước khung hình chuẩn (hệ thống đang cấu hình `TARGET_WIDTH = 960`, do đó kích thước frame chuẩn sẽ là $960 \times 540$ pixel). Xác định các góc đỉnh đa giác của 3 làn đường:
+   Mở video mẫu bằng OpenCV để lấy kích thước khung hình chuẩn (hệ thống đang cấu hình `TARGET_WIDTH = 960`, do đó kích thước frame chuẩn sẽ là $960 \times 540$ pixel). Xác định các góc đỉnh đa giác của 3 làn đường:
    - **Vùng làn Trái (`zone_left`):** Đa giác bo hẹp làn đường rẽ trái phía bên trái màn hình.
    - **Vùng làn Thẳng (`zone_straight`):** Đa giác chắn làn đường rộng ở giữa chạy thẳng lên.
    - **Vùng làn Phải (`zone_right`):** Đa giác chắn lối rẽ nhỏ phía bên tay phải khung hình.
@@ -79,7 +79,7 @@ flowchart TD
    - Nếu một `track_id` lần đầu tiên chạm vào `zone_left`, hệ thống ghi nhận đếm hướng `left`. Tương tự cho `straight` và `right`.
    - Lưu trữ lịch sử `counted_ids` trong RAM để đảm bảo 1 chiếc xe chỉ kích hoạt gửi sự kiện duy nhất 1 lần trên hành trình của mình.
 3. **Gửi sự kiện:**
-   Đóng gói thông tin và gọi module `publisher.py` đẩy dữ liệu sự kiện thời gian thực lên backend FastAPI endpoint `/detection` bằng giao thức HTTP POST.
+   Đóng gói thông tin và đẩy dữ liệu sự kiện thời gian thực lên backend FastAPI endpoint `/detection` bằng giao thức HTTP POST.
 
 ---
 
@@ -96,4 +96,4 @@ flowchart TD
 - **Các bước kiểm duyệt chất lượng trực quan:**
   1. **Kiểm tra giao diện:** Trên màn hình OpenCV hiện ra, bạn phải quan sát thấy 3 khung đa giác (màu sắc khác nhau như xanh lá, đỏ, lam) được vẽ đè lên 3 làn xe rõ rệt.
   2. **Kiểm tra đếm làn:** Khi một chiếc xe đi thẳng vượt vạch, số đếm tích lũy của làn thẳng phải tăng lên, trong khi số đếm làn trái và làn phải không được thay đổi.
-  3. **Kiểm tra nhật ký:** Mở bảng console logs hoặc kiểm tra cơ sở dữ liệu MongoDB collection `vehicle_detections` để xác nhận các bản ghi mới ghi nhận trường `direction` có sự phân bổ đều đặn các giá trị: `straight`, `left`, `right` thay vì chỉ có 1 nhãn duy nhất.
+  3. **Kiểm tra nhật ký:** Mở cơ sở dữ liệu MongoDB collection `vehicle_detections` để xác nhận các bản ghi mới ghi nhận trường `direction` có sự phân bổ đều đặn các giá trị: `straight`, `left`, `right`.

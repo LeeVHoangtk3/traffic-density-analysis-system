@@ -4,14 +4,14 @@
 ---
 
 ## 1. Mô Tả Nhiệm Vụ
-Trong hệ thống giao thông đô thị, mỗi nhánh rẽ có năng lực hạ tầng khác nhau (ví dụ: làn rẽ trái cua hẹp sức chứa thấp hơn làn đi thẳng rất nhiều). Nếu áp dụng một bộ ngưỡng ùn tắc tĩnh bằng số xe cố định cho tất cả các hướng (ví dụ: cứ trên 50 xe là tắc) thì hệ thống sẽ đưa ra đánh giá sai lệch thực tế. 
+Trong hệ thống giao thông đô thị thực tế, mỗi hướng di chuyển tại ngã rẽ có năng lực thông hành hình học khác nhau (ví dụ: làn rẽ trái cua hẹp sức chứa thấp hơn làn đi thẳng rất nhiều). Nếu áp dụng một bộ ngưỡng ùn tắc tĩnh bằng số xe cố định cho tất cả các hướng (ví dụ: cứ trên 50 xe là tắc) thì hệ thống sẽ báo động sai lệch thực tế.
 
-Nhiệm vụ này yêu cầu xây dựng một tiến trình tự động (chạy ngầm định kỳ) kết nối với MongoDB, lấy toàn bộ lịch sử đếm xe của từng hướng rẽ, áp dụng thuật toán học máy không giám sát **K-Means Clustering (với $K=4$)** để tự động tìm ra 4 cụm mật độ tự nhiên đại diện cho 4 trạng thái: `Low` (Thấp), `Medium` (Trung bình), `High` (Cao), và `Heavy` (Ùn tắc nghiêm trọng). Từ đó tính toán các ngưỡng ranh giới động và lưu vào MongoDB.
+Nhiệm vụ này yêu cầu xây dựng tệp `ml_service/density_cluster.py` thực hiện tác vụ chạy ngầm định kỳ kết nối với MongoDB, lấy toàn bộ lịch sử đếm xe của từng hướng rẽ, áp dụng thuật toán học máy không giám sát **K-Means Clustering (với $K=4$)** để tự động tìm ra 4 cụm mật độ tự nhiên đại diện cho 4 trạng thái: `Low` (Thấp), `Medium` (Trung bình), `High` (Cao), và `Heavy` (Ùn tắc nghiêm trọng). Từ đó tính toán các ngưỡng ranh giới động và lưu vào MongoDB collection `directional_thresholds`.
 
 ---
 
 ## 2. Dữ Liệu Đầu Vào (Inputs)
-- **Cơ sở dữ liệu:** MongoDB collection `traffic_aggregation` chứa lịch sử đếm xe thật của camera, hoặc sử dụng tệp [junction_pivot_clean.csv](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/data/junction_pivot_clean.csv) làm tập dữ liệu huấn luyện thay thế nếu DB chưa tích lũy đủ dữ liệu.
+- **Cơ sở dữ liệu:** MongoDB collection `traffic_aggregation` chứa lịch sử đếm xe thật của camera, hoặc sử dụng tệp tin [junction_pivot_clean.csv](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/data/junction_pivot_clean.csv) làm tập dữ liệu huấn luyện thay thế nếu DB chưa tích lũy đủ dữ liệu.
 - **Tham số thuật toán:** Số lượng cụm $K=4$.
 
 ---
@@ -32,7 +32,7 @@ Nhiệm vụ này yêu cầu xây dựng một tiến trình tự động (chạ
     "updated_at": "2026-05-23T02:00:00Z"
   }
   ```
-  *(Có 3 bản ghi riêng biệt cho 3 hướng: `straight`, `left`, `right`)*.
+  *(Hệ thống sẽ ghi 3 bản ghi riêng biệt cho 3 hướng: `straight`, `left`, `right`)*.
 
 ---
 
@@ -74,43 +74,12 @@ flowchart TD
 ---
 
 ## 5. Kiểm Tra & Xác Thực (Verification Plan)
-Hãy viết mã kiểm thử nhanh tại `ml_service/smoke_test_clustering.py` để xác thực cơ sở dữ liệu đã cập nhật các ngưỡng động chính xác:
+Để kiểm tra cơ sở dữ liệu đã cập nhật các ngưỡng động chính xác:
 
-```python
-from pymongo import MongoClient
-import os
-
-def test_db_thresholds():
-    db_url = os.getenv("DB_URL", "mongodb://localhost:27017/")
-    db_name = os.getenv("MONGODB_DB", "traffic_density")
-    
-    client = MongoClient(db_url)
-    db = client[db_name]
-    collection = db["directional_thresholds"]
-    
-    directions = ["straight", "left", "right"]
-    for d in directions:
-        doc = collection.find_one({"camera_id": "CAM_01", "direction": d})
-        assert doc is not None, f"LỖI: Không tìm thấy ngưỡng cấu hình cho hướng '{d}'!"
-        
-        t = doc["thresholds"]
-        assert t["low_to_medium"] < t["medium_to_high"] < t["high_to_heavy"], \
-            f"LỖI: Các ngưỡng của hướng '{d}' không tăng dần hợp lệ!"
-            
-        print(f"Xác thực hướng '{d}' OK. Ngưỡng ùn tắc động: "
-              f"Low->Med: {t['low_to_medium']:.1f} | "
-              f"Med->High: {t['medium_to_high']:.1f} | "
-              f"High->Heavy: {t['high_to_heavy']:.1f}")
-
-if __name__ == "__main__":
-    test_db_thresholds()
-```
-
-- **Lệnh thực thi chạy phân cụm tìm ngưỡng:**
-  ```bash
-  python ml_service/density_cluster.py
+- **Lệnh thực thi chạy script phân cụm:**
+  ```powershell
+  python -m ml_service.density_cluster
   ```
-- **Lệnh thực thi smoke test xác thực:**
-  ```bash
-  python ml_service/smoke_test_clustering.py
-  ```
+- **Tiêu chí kiểm duyệt:**
+  1. **MongoDB Collection:** Tài liệu trong collection `directional_thresholds` phải có đầy đủ 3 tài liệu tương ứng với 3 hướng di chuyển.
+  2. **Logic ngưỡng:** Đảm bảo $T_1 < T_2 < T_3$ tăng dần hợp lệ cho cả 3 hướng. Ví dụ, làn rẽ trái `left` có thể đạt ngưỡng `Heavy` sớm hơn làn `straight` do cấu trúc hình học hẹp của nó.

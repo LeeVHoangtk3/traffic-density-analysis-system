@@ -25,7 +25,8 @@ Tổng chu kỳ đèn (Cycle Time) là **90 giây**, trong đó khóa cứng **1
 ---
 
 ## 3. Dữ Liệu Đầu Ra (Outputs)
-- **Cơ cấu phân bổ giây xanh tối ưu:**
+- **Mã nguồn giải thuật:** `ml_service/phase_optimizer.py` chứa lớp `PhaseLightOptimizer`.
+- **Cơ cấu phân bổ giây xanh tối ưu trả về:**
   - `phase_1_green` (int): Số giây đèn xanh tối ưu cho Pha 1.
   - `phase_2_green` (int): Số giây đèn xanh tối ưu cho Pha 2.
   - `delta_phase_1` (int): Số giây tăng/giảm so với baseline Pha 1 (dao động từ $-25$ đến $+5$ giây).
@@ -74,39 +75,13 @@ flowchart TD
 ---
 
 ## 5. Kiểm Tra & Xác Thực (Verification Plan)
-Hãy viết các kịch bản kiểm thử đơn vị (Unit Test) tại `ml_service/test_phase_optimizer.py` để đảm bảo thuật toán phân bổ chính xác và không bao giờ vi phạm ràng buộc an toàn biên:
+Để kiểm tra thuật toán phân bổ chính xác và không bao giờ vi phạm ràng buộc an toàn biên:
 
-```python
-from ml_service.phase_optimizer import PhaseLightOptimizer
-
-def test_optimizer():
-    optimizer = PhaseLightOptimizer(baseline_p1=50, baseline_p2=30, total_green=80)
-    
-    # Kịch bản 1: Luồng thẳng cực đông, luồng rẽ trái vắng
-    g1, g2, d1, d2 = optimizer.optimize(pred_straight=120, pred_left=10, pred_right=15)
-    assert g1 == 55, "LỖI: Pha 1 phải đạt giới hạn tối đa 55 giây!"
-    assert g2 == 25, "LỖI: Pha 2 phải giữ giới hạn tối thiểu 25 giây!"
-    assert g1 + g2 == 80, "LỖI: Tổng thời gian phân bổ phải bằng 80 giây!"
-    
-    # Kịch bản 2: Luồng rẽ trái cực đông, luồng thẳng vắng
-    g1, g2, d1, d2 = optimizer.optimize(pred_straight=10, pred_left=80, pred_right=5)
-    assert g1 == 25, "LỖI: Pha 1 phải giữ giới hạn tối thiểu 25 giây!"
-    assert g2 == 55, "LỖI: Pha 2 phải đạt giới hạn tối đa 55 giây!"
-    assert g1 + g2 == 80, "LỖI: Tổng thời gian phân bổ phải bằng 80 giây!"
-    
-    # Kịch bản 3: Hai hướng cân bằng
-    g1, g2, d1, d2 = optimizer.optimize(pred_straight=50, pred_left=30, pred_right=20)
-    assert 25 <= g1 <= 55, "LỖI: Giới hạn Pha 1 bị vi phạm!"
-    assert 25 <= g2 <= 55, "LỖI: Giới hạn Pha 2 bị vi phạm!"
-    assert g1 + g2 == 80, "LỖI: Tổng thời gian phân bổ phải bằng 80 giây!"
-    
-    print("XÁC THỰC THÀNH CÔNG: Bộ tối ưu hóa pha đèn hoạt động hoàn hảo và an toàn!")
-
-if __name__ == "__main__":
-    test_optimizer()
-```
-
-- **Lệnh thực thi chạy unit test bộ tối ưu hóa:**
-  ```bash
-  python ml_service/test_phase_optimizer.py
+- **Chạy các kịch bản kiểm thử đơn vị (Unit Test) tại `ml_service/test_phase_optimizer.py`:**
+  ```powershell
+  python -m unittest ml_service/test_phase_optimizer.py
   ```
+- **Các kịch bản kiểm định chất lượng:**
+  1. **Luồng thẳng cực đông, rẽ trái vắng:** Pha 1 đạt giới hạn tối đa 55 giây, Pha 2 giữ giới hạn tối thiểu 25 giây.
+  2. **Luồng rẽ trái cực đông, đi thẳng vắng:** Pha 1 giữ giới hạn tối thiểu 25 giây, Pha 2 đạt giới hạn tối đa 55 giây.
+  3. **Hai hướng cân bằng:** Thời lượng đèn xanh nằm ổn định trong khoảng an toàn $[25, 55]$ giây và tổng luôn bằng 80.

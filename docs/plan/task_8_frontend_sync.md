@@ -4,7 +4,7 @@
 ---
 
 ## 1. Mô Tả Nhiệm Vụ
-Trang quản trị Dashboard React (`traffic-frontend/`) hiện tại đóng vai trò hiển thị trực quan các thông số của hệ thống cho người điều hành. Tuy nhiên, do một số chức năng ở các phiên bản trước chưa hoàn thiện, giao diện vẫn đang sử dụng dữ liệu giả lập (mock/random) để chạy thanh tiến trình đếm ngược đèn tín hiệu và vẽ đồ thị dự báo lưu lượng của các làn rẽ.
+Trang quản trị Dashboard React (`frontend/`) hiện tại đóng vai trò hiển thị trực quan các thông số của hệ thống cho người điều hành. Tuy nhiên, ở các phiên bản trước, giao diện vẫn đang sử dụng dữ liệu giả lập sinh ngẫu nhiên (mock/random) để chạy thanh tiến trình đếm ngược đèn tín hiệu và vẽ đồ thị dự báo lưu lượng của các làn rẽ.
 
 Nhiệm vụ này yêu cầu cập nhật mã nguồn giao diện React JS trong tệp `App.js` để kết nối trực tiếp với các API thật của Backend FastAPI. Dashboard sẽ hiển thị đồng hồ đếm ngược pha đèn tín hiệu đồng bộ từ file `light_status.json` do AI tối ưu hóa, vẽ đồ thị dự báo lưu lượng 3 hướng thực tế và hiển thị màu sắc cảnh báo thông minh dựa trên cấp độ ùn tắc tự thích ứng của từng làn.
 
@@ -12,8 +12,8 @@ Nhiệm vụ này yêu cầu cập nhật mã nguồn giao diện React JS trong
 
 ## 2. Dữ Liệu Đầu Vào (Inputs)
 - **Mã nguồn Frontend:**
-  - [App.js](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/traffic-frontend/src/App.js)
-  - [App.css](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/traffic-frontend/src/App.css)
+  - [App.js](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/frontend/src/App.js).
+  - [App.css](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/frontend/src/App.css).
 - **API Endpoints từ Backend:**
   - `GET /traffic-lights/status` (Trả về nội dung tệp tin `light_status.json`).
   - `GET /predictions/history?limit=10` (Lấy lịch sử dự báo của AI để vẽ biểu đồ).
@@ -40,7 +40,7 @@ flowchart TD
 ```
 
 ### Chi tiết các bước cập nhật mã nguồn React:
-1. **Thiết lập Vòng lặp lấy dữ liệu (Polling & Countdown Sync):**
+1. **Thiết lập Vòng lặp lấy dữ liệu (Polling & Sync):**
    - Sử dụng `useEffect` thiết lập một bộ hẹn giờ `setInterval` chạy chu kỳ 2 giây gửi yêu cầu fetch dữ liệu từ Backend endpoint `/traffic-lights/status`.
    - Lưu trữ phản hồi JSON vào React State: `lightState`.
    - Thiết lập một tiến trình đếm ngược cục bộ chạy mỗi 1 giây (`setInterval` 1000ms):
@@ -70,11 +70,11 @@ flowchart TD
 1. **Khởi động toàn bộ các dịch vụ nền:**
    - Đảm bảo MongoDB, FastAPI Backend, CV Engine (đọc video) và Orchestrator Runner đang chạy ổn định.
 2. **Khởi chạy máy chủ Frontend:**
-   ```bash
-   cd traffic-frontend
+   ```powershell
+   cd frontend
    npm start
    ```
 3. **Các tiêu chí nghiệm thu giao diện (Acceptance Criteria):**
-   - **Tính đồng bộ:** Con số đếm ngược giây đèn xanh hiển thị trên giao diện trình duyệt web phải khớp hoàn toàn với số giây được in ra trong log của `system_runner.py` ở màn hình terminal.
-   - **Tính động:** Khi video chạy qua các phân đoạn đông xe đột ngột, số lượng dự báo 3 hướng trên dashboard phải nhảy số tương ứng. Các thẻ hiển thị làn xe phải tự động chuyển màu linh hoạt (ví dụ: từ xanh sang vàng, hoặc từ cam sang đỏ nhấp nháy khi tắc nghẽn làn rẽ trái) tương ứng với các thay đổi trong file `light_status.json`.
+   - **Tính đồng bộ:** Con số đếm ngược giây đèn xanh hiển thị trên giao diện trình duyệt web phải khớp hoàn toàn với số giây được ghi trong file `light_status.json` do hệ thống runner quản lý.
+   - **Tính động:** Khi video chạy qua các phân đoạn đông xe đột ngột, các thẻ hiển thị làn xe phải tự động chuyển màu linh hoạt tương ứng với các thay đổi mật độ.
    - **Biểu đồ:** Biểu đồ Chart.js vẽ đầy đủ các mốc thời gian lịch sử, không xuất hiện các lỗi trắng trang (crash UI) do thiếu dữ liệu hoặc sai định dạng.
