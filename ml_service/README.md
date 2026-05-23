@@ -1,169 +1,195 @@
-# 🤖 ML Service – Dự báo Lưu lượng & Mật độ Giao thông
+# 🤖 ML Service – Dự Báo Lưu Lượng & Tối Ưu Hóa Pha Đèn Động
+Tài liệu này đặc tả toàn bộ kiến trúc học máy (Machine Learning) cốt lõi của **Hệ Thống Phân Tích Mật Độ Giao Thông & Tự Động Điều Phối Pha Đèn Tín Hiệu Động**. 
 
-Thư mục này chứa toàn bộ logic Machine Learning của hệ thống phân tích mật độ giao thông. Hệ thống sử dụng **một mô hình XGBoost duy nhất** để dự báo số lượng xe cho khung 15 phút tiếp theo, sau đó tự động suy ra **mức độ mật độ** (Low / Medium / High / Severe) dựa trên ngưỡng đã hiệu chỉnh cho thực tế đường phố đô thị.
+Hệ thống kết hợp sức mạnh của **Học máy giám sát (XGBoost Regressor)** để dự báo lưu lượng, **Học máy không giám sát (K-Means Clustering)** để tự thích ứng ngưỡng ùn tắc động và **Lý thuyết luồng giao thông (Flow Ratio Control)** để đưa ra số giây xanh an toàn tuyệt đối.
 
 ---
 
-## 📁 Cấu trúc thư mục
+## 📁 1. Cây Thư Mục Chi Tiết (Directory Tree)
+Cơ cấu thư mục được sắp xếp khoa học, tinh giản tối đa ở thư mục gốc để tránh xung đột đường dẫn import nội bộ:
 
 ```
 ml_service/
 ├── data/
-│   └── Automated_Traffic_Volume_Counts_20260521.csv  # Dataset gốc NYC (đô thị, 15 phút)
-│
-├── traffic_predictor.py   # Model XGBoost: dự báo số xe + phân loại mật độ
-├── train.py               # Script huấn luyện: làm sạch dữ liệu, trích xuất đặc trưng + train + xuất model.pkl
-├── predict.py             # Client CLI: gọi API backend để lấy kết quả dự báo
-│
-├── model.pkl              # File model đã huấn luyện (XGBoost Regressor)
-└── README.md              # Tài liệu này
+│   └── junction_pivot_clean.csv        # [Đầu ra Task 1] Dữ liệu 3 ngã rẽ đã sạch & xoay trục ngang
+├── model/
+│   ├── model.pkl                       # Trọng số mô hình cũ (Single-direction)
+│   ├── model_straight.pkl              # [Đầu ra Task 3] Mô hình XGBoost dự báo đi thẳng
+│   ├── model_left.pkl                  # [Đầu ra Task 3] Mô hình XGBoost dự báo rẽ trái
+│   └── model_right.pkl                 # [Đầu ra Task 3] Mô hình XGBoost dự báo rẽ phải
+├── helpers/                            # Thư mục lưu trữ các tệp thử nghiệm & phụ trợ
+│   ├── predict.py                      # CLI test nhanh gọi API dự báo của backend
+│   ├── synthesize_data.py              # Script sinh dữ liệu giả lập (mock data) đô thị VN
+│   ├── augment_data.py                 # Script tăng cường đặc trưng dữ liệu (data augmentation)
+│   ├── preprocess_multi_junction.py    # Bản sao lưu tiền xử lý cũ
+│   └── data_evaluation.ipynb           # Jupyter Notebook phân tích & đánh giá chất lượng dữ liệu
+├── preprocess.py                       # [Active Task 1] Tiền xử lý volume thô đa ngã rẽ (138, 72887, 83624)
+├── traffic_predictor.py                # [Active Task 2] Định nghĩa lớp đặc trưng & dự báo AI TrafficPredictor
+├── train.py                            # [Active Task 3] Huấn luyện 3 mô hình XGBoost hợp nhất đa nút giao
+├── phase_optimizer.py                  # [Active Task 5] Bộ toán học tối ưu phân bổ giây xanh PhaseLightOptimizer
+├── light_delta_model.py                # [Active Task 6] Lớp cầu nối Bridge tích hợp models với system_runner.py
+├── evaluate.py                         # [Active Task 9] Script đánh giá sai số học thuật (MAE/RMSE/MAPE) & vẽ đồ thị
+└── README.md                           # Tài liệu đặc tả kỹ thuật này
 ```
 
 ---
 
-## 1. Ý tưởng & Bài toán
+## 📝 2. Đặc Tả Chi Tiết Các Tệp Tin (File Specifications)
 
-### 1.1. Mục tiêu
-
-Xây dựng mô hình dự báo **hai đầu ra** cho mỗi khung 15 phút tiếp theo:
-
-| Đầu ra | Kiểu | Ví dụ |
-|---|---|---|
-| **Số lượng xe dự báo** | Số nguyên | `125` xe |
-| **Mức độ mật độ dự báo** | Phân loại | `HIGH` |
-
-### 1.2. Tại sao chỉ dùng 1 model?
-
-Thay vì train 2 model riêng biệt (1 cho số xe, 1 cho mật độ), hệ thống sử dụng **kiến trúc 1 model + tra ngưỡng**:
-
-```
-Lịch sử MongoDB (5 khung 15 phút gần nhất)
-        ↓
-TrafficPredictor.predict()  →  predicted_count = 125
-        ↓
-classify_congestion(125)    →  "HIGH"
-        ↓
-API Response: { predicted_density: 125, predicted_congestion_level: "HIGH" }
-```
-
-### 1.3. Ngưỡng phân loại mật độ (Cập nhật cho NYC Data)
-
-Các ngưỡng dưới đây được hiệu chỉnh dựa trên lưu lượng thực tế trên các tuyến đường đô thị NYC với trung bình ~100 xe/15 phút (median ~58 xe/15p):
-
-| Mức độ | Điều kiện | Ý nghĩa thực tế |
-|---|---|---|
-| **LOW** | < 30 xe | Đường thông thoáng (giờ khuya, nghỉ lễ) |
-| **MEDIUM** | 30 – 99 xe | Lưu thông bình thường (quanh mức trung vị) |
-| **HIGH** | 100 – 199 xe | Bắt đầu đông, có thể chậm (trên Q3) |
-| **SEVERE** | ≥ 200 xe | Tắc nghẽn, giờ cao điểm nặng (top 5%) |
+### 2.1. Nhóm Tiền Xử Lý & Dữ Liệu
+#### 🚀 [preprocess.py](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/preprocess.py)
+* **Chức năng:** Tải tệp dữ liệu thô lớn `Automated_Traffic_Volume_Counts_20260521.csv` (286MB), tiến hành ép kiểu số lượng, làm tròn mốc 15 phút, giải quyết trùng lặp logic, lọc trích xuất 3 mã `SegmentID` điểm (138, 72887, 83624), ánh xạ các hướng di chuyển thô sang làn chuẩn (`vol_straight`, `vol_left`, `vol_right`) và xuất ra bảng ngang hợp nhất.
+* **Đầu vào:** `data/ml/Automated_Traffic_Volume_Counts_20260521.csv`.
+* **Đầu ra:** `ml_service/data/junction_pivot_clean.csv`.
 
 ---
 
-## 2. Cách triển khai
+### 2.2. Nhóm Học Máy Dự Báo (ML Core Predictors)
+#### 🚀 [traffic_predictor.py](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/traffic_predictor.py)
+* **Chức năng:** Định nghĩa lớp `TrafficPredictor` chịu trách nhiệm thiết lập ma trận đặc trưng đầu vào và chạy dự báo. Lớp này hỗ trợ phân tách đặc trưng chuỗi thời gian độc lập cho từng `segment_id` (tránh rò rỉ dữ liệu).
+* **Đầu vào:** DataFrame chứa cột thời gian `timestamp` và `vehicle_count`.
+* **Đầu ra:** DataFrame đã được kỹ nghệ đặc trưng hoàn chỉnh, sẵn sàng truyền vào XGBoost.
 
-### 2.1. Dữ liệu đầu vào – NYC Automated Traffic Volume Counts
-
-**Đặc điểm nổi bật:**
-- **Tổng số bản ghi:** ~1.87 triệu dòng (hơn 39 lần dataset cũ).
-- **Khoảng thời gian:** Khảo sát từ 2000, 2006-2026.
-- **Đơn vị gốc:** 15 phút (`MM` = 0, 15, 30, 45) -> Loại bỏ hoàn toàn sự cần thiết của interpolation (nội suy) gây nhiễu dữ liệu.
-- **Loại đường:** Đường phố đô thị, mật độ cao -> Rất phù hợp và tương tự với các tình huống giao thông đô thị Việt Nam.
-
-Hệ thống lọc tự động SegmentID phổ biến nhất (`72887`) làm tập đại diện để huấn luyện mô hình cơ sở.
-
-### 2.2. Feature Engineering trong `traffic_predictor.py`
-
-Mô hình sử dụng **12 đặc trưng** được chia thành 3 nhóm:
-
-#### Nhóm 1: Đặc trưng thời gian (Temporal Features)
-
-| Feature | Cách tính | Lý do |
-|---|---|---|
-| `is_peak_hour` | 1 nếu 7–9h hoặc 17–19h | Đánh dấu rõ ràng giờ cao điểm |
-| `is_weekend` | 1 nếu Thứ 7 hoặc Chủ nhật | Cuối tuần lưu lượng thấp hơn đáng kể |
-| `hour_sin/cos` | Cyclical encoding cho giờ | Giúp mô hình hiểu giờ 23 gần giờ 0 |
-| `day_of_week_sin/cos` | Cyclical encoding cho thứ | Hiểu chu kỳ tuần liên tục |
-
-#### Nhóm 2: Đặc trưng trễ (Lag Features)
-
-| Feature | Cách tính | Lý do |
-|---|---|---|
-| `lag_1` | Số xe 15 phút trước | Quán tính ngắn hạn: giao thông thay đổi từ từ |
-| `lag_2` | Số xe 30 phút trước | Xu hướng trung hạn: phát hiện tăng/giảm dần |
-| `lag_4` | Số xe 1 giờ trước | Chu kỳ 1 giờ |
-
-#### Nhóm 3: Đặc trưng thống kê trượt (Rolling/Trend Features)
-
-| Feature | Cách tính | Lý do |
-|---|---|---|
-| `diff_1` | `count(t) - count(t-1)` | **Mới:** Nắm bắt xu hướng đang tăng hay giảm |
-| `rolling_mean_3` | Trung bình 3 khung gần nhất | Làm mượt nhiễu (noise) |
-| `rolling_std_3` | Độ lệch chuẩn 3 khung gần nhất | **Mới:** Đo lường sự bất ổn/biến động của dòng xe |
-
-### 2.3. Huấn luyện – Time Series Cross-Validation và Early Stopping
-
-Hệ thống sử dụng **TimeSeriesSplit (5 folds)** kết hợp **Hold-out Test Set (20% cuối cùng)**:
-1. Chia 80% dữ liệu đầu làm tập Train, 20% dữ liệu cuối làm tập Held-out Test.
-2. Trên tập Train, sử dụng 5-Fold TimeSeriesSplit kết hợp với `early_stopping_rounds=20` để tìm mô hình không bị overfitting.
-3. Cuối cùng, huấn luyện lại trên toàn bộ tập 80% (có validation qua tập 20% test) để lưu ra `model.pkl`.
+#### 🚀 [train.py](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/train.py)
+* **Chức năng:** Tiến hành tải dữ liệu xoay trục, lặp qua 3 làn di chuyển (`straight`, `left`, `right`), phân tách tập Train/Test theo mốc thời gian cứng (Chronological Split: 80% thời gian đầu làm Train, 20% thời gian sau làm Test), thực thi huấn luyện song song 3 mô hình XGBoost Regressor độc lập, in báo cáo sai số và đóng gói tệp tin trọng số.
+* **Đầu vào:** `ml_service/data/junction_pivot_clean.csv`.
+* **Đầu ra:** 3 tệp mô hình `model_straight.pkl`, `model_left.pkl`, `model_right.pkl` lưu tại `ml_service/model/`.
 
 ---
 
-## 3. Kết quả đạt được
+### 2.3. Nhóm Tối Ưu Hóa & Tích Hợp (Optimization & Integration)
+#### 🚀 [phase_optimizer.py](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/phase_optimizer.py) *(Thiết kế mới Task 5)*
+* **Chức năng:** Định nghĩa lớp toán học `PhaseLightOptimizer` phân chia thời lượng xanh khả dụng $G_{total} = 80$ giây cho 2 Pha giao thông (P1: thẳng + phải, P2: rẽ trái) dựa trên áp lực dòng xe dự báo, đảm bảo an toàn tuyệt đối qua các ràng buộc biên đô thị.
+* **Đầu vào:** Số xe dự báo thẳng, rẽ trái, rẽ phải trong 15 phút kế tiếp.
+* **Đầu ra:** Số giây xanh tối ưu `phase_1_green`, `phase_2_green` và các độ lệch `delta` so với baseline.
 
-### 3.1. Training Output
-
-```
-[1] Đọc dữ liệu từ CSV (NYC Automated Traffic Volume)...
-    Tổng số record gốc: 1875154
-[2] Lọc SegmentID 72887 và dọn dẹp dữ liệu...
-    Số lượng bản ghi sau khi lọc: 13398
-    Trung bình vehicle_count: 192.3 xe/15p
-
---- Training Model: Vehicle Forecast + Density Level ---
-
-[*] Quá trình huấn luyện và đánh giá bắt đầu...
- -> Tập Train: 10641 samples, Tập Test: 2661 samples
- -> Kết quả Cross Validation (5 folds) trên tập Train:
-    - MAE trung bình:  6.86 xe
-    - RMSE trung bình: 13.51 xe
-
- -> Đang huấn luyện mô hình cuối trên toàn bộ tập Train (với early stopping qua tập Test)...
- -> Kết quả đánh giá trên tập Held-out Test (20% cuối):
-    - MAE:   4.76 xe
-    - RMSE:  8.31 xe
-    - R2:    0.9895
-    - MAPE:  3.89%
-
-[+] ĐÃ LƯU MÔ HÌNH THÀNH CÔNG: ml_service/model.pkl
-```
-
-### 3.2. Chỉ số đánh giá (Metrics)
-
-Với R² = 0.99 và MAPE ~3.5%, mô hình hiện tại đạt độ chính xác **rất cao** nhờ:
-1. Dữ liệu sạch, không bị nội suy nhiễu như dataset cũ.
-2. Bổ sung các đặc trưng trễ (lag) và biến động (rolling), cùng với cyclical encoding.
+#### 🚀 [light_delta_model.py](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/light_delta_model.py) *(Thiết kế mới Task 6)*
+* **Chức năng:** Đóng vai trò là lớp cầu nối (Adapter Pattern) tích hợp khép kín. Lớp này tiếp nhận yêu cầu gọi `predict_delta(feature_dict)` trực tiếp từ orchestrator `system_runner.py` trên RAM, gọi 3 mô hình pkl chạy dự báo, truyền kết quả vào `PhaseLightOptimizer` và trả về độ lệch `delta` giây tối ưu nhất cho Pha tương ứng của camera.
+* **Đầu vào:** `feature_dict` thời gian thực (inbound count, queue, hour, day of week).
+* **Đầu ra:** Giá trị độ lệch đèn xanh `delta` (Float).
 
 ---
 
-## 🚀 Cách chạy
+### 2.4. Nhóm Nghiệm Thu Học Thuật
+#### 🚀 [evaluate.py](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/evaluate.py) *(Thiết kế mới Task 9)*
+* **Chức năng:** Chạy đánh giá khoa học chuyên sâu độc lập trên tập Test (từ ngày 2025-01-01 trở đi), tính toán các chỉ số thống kê MAE, RMSE, MAPE. Đồng thời sử dụng `matplotlib` trích xuất 100 bước thời gian liên tục vẽ đồ thị trực quan so sánh **Thực tế (Actual) vs Dự báo (Predicted)**.
+* **Đầu vào:** `junction_pivot_clean.csv` và 3 tệp mô hình pkl.
+* **Đầu ra:** Tệp chỉ số `training_metrics.json` và 3 hình ảnh biểu đồ chuỗi thời gian `.png` lưu tại `ml_service/data/`.
 
-### 1. Huấn luyện Model
+---
 
-```bash
-# Kích hoạt môi trường ảo
-source .venv/bin/activate
+### 2.5. Nhóm Công Cụ Phụ Trợ & Thử Nghiệm (`ml_service/helpers/`)
+Các tệp tin trong thư mục này phục vụ việc phát sinh dữ liệu thử nghiệm, kiểm thử nhanh các dịch vụ APIs và thực hiện phân tích khám phá dữ liệu (EDA):
 
-# Chạy training (từ thư mục gốc dự án)
-python -m ml_service.train
+#### 🚀 [predict.py](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/helpers/predict.py)
+* **Chức năng:** Tệp tin kịch bản CLI độc lập dùng để kiểm thử nhanh tính hoạt động của REST APIs Backend. Tiến trình sẽ trực tiếp gửi HTTP GET request đến endpoint `/predict-next` của FastAPI kèm tham số `camera_id` và in trực tiếp kết quả mật độ, đèn xanh đèn đỏ dự báo của AI ra màn hình.
+* **Đầu vào:** Biến môi trường cấu hình `TRAFFIC_API_URL` và `TRAFFIC_CAMERA_ID`.
+* **Đầu ra:** Bản ghi thông số trạng thái đèn tín hiệu và lưu lượng in ra console.
+
+#### 🚀 [synthesize_data.py](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/helpers/synthesize_data.py)
+* **Chức năng:** Script tạo dữ liệu lưu lượng giao thông giả lập chất lượng cao cực kỳ sinh động. Thuật toán áp dụng hệ số lưu thông đô thị Việt Nam thực tế theo giờ (đỉnh điểm sáng 7-9h, chiều 17-19h, thấp điểm ban đêm 23-5h), thiết lập công suất đỉnh và tỷ lệ làn đường riêng biệt cho từng ngã ba/ngã tư, đồng thời tích hợp 5% xác suất sự cố giao thông ngẫu nhiên hoặc thời tiết mưa bão làm giảm volume để nâng cao tính đa dạng của dữ liệu.
+* **Đầu vào:** Mốc thời gian bắt đầu và kết thúc cấu hình sinh.
+* **Đầu ra:** Tệp dữ liệu giả lập xoay trục ngang `junction_pivot_clean.csv`.
+
+#### 🚀 [augment_data.py](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/helpers/augment_data.py)
+* **Chức năng:** Thực hiện kỹ thuật Tăng Cường Dữ Liệu (Data Augmentation) cho dữ liệu chuỗi thời gian dạng bảng. Script áp dụng phép thêm nhiễu trắng ngẫu nhiên (Gaussian Noise) và dịch chuyển thời gian để làm đa dạng mẫu huấn luyện, tăng độ bền bỉ (robustness) và hạn chế tối đa hiện tượng Overfitting khi huấn luyện mô hình XGBoost.
+* **Đầu vào:** Bảng dữ liệu giao thông ngang gốc.
+* **Đầu ra:** Tập dữ liệu mở rộng đã được nhân bản và tăng cường đặc trưng nhiễu.
+
+#### 🚀 [preprocess_multi_junction.py](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/helpers/preprocess_multi_junction.py)
+* **Chức năng:** Phiên bản tiền xử lý đa ngã rẽ nâng cấp dự phòng. Cung cấp các giải thuật làm đầy dữ liệu khuyết nâng cao (Bổ khuyết thời gian liên tục dùng `pd.date_range()` và nội suy mượt tuyến tính `interpolate('time')`) để xử lý các phân khúc dữ liệu camera bị mất kết nối hoặc rỗng bản ghi trong quá khứ.
+* **Đầu vào:** Dữ liệu thô `Automated_Traffic_Volume_Counts_20260521.csv`.
+* **Đầu ra:** File dữ liệu xoay trục ngang hoàn chỉnh.
+
+#### 🚀 [data_evaluation.ipynb](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/helpers/data_evaluation.ipynb)
+* **Chức năng:** Tệp tin Jupyter Notebook dùng cho việc Phân tích khám phá dữ liệu chuyên sâu (Exploratory Data Analysis - EDA). Notebook trực quan hóa phân phối phân khúc xe, biểu đồ tương quan thời gian, và kiểm định chất lượng nội suy chia bin dữ liệu của xa lộ Mỹ Interstate 94 trước khi nhân hệ số scale factor Việt Nam đô thị.
+* **Đầu vào:** File dữ liệu gốc hourly Metro Interstate.
+* **Đầu ra:** Biểu đồ xu hướng, biểu đồ hộp (Boxplot) và các thống kê phân phối trực quan.
+
+---
+
+
+## 🧮 3. Các Công Thức Toán Học Nền Tảng (Mathematical Formulation)
+
+### 3.1. Kỹ Nghệ Đặc Trưng Chuỗi Thời Gian
+Để mã hóa mốc thời gian ngày đêm một cách liên tục (tránh khoảng đứt gãy giữa 23:45 của ngày hôm trước và 00:00 của ngày hôm sau), hệ thống áp dụng phép biến đổi lượng giác vòng tròn:
+$$\text{hour\_sin} = \sin\left(\frac{2\pi \times \text{hour}}{24}\right)$$
+$$\text{hour\_cos} = \cos\left(\frac{2\pi \times \text{hour}}{24}\right)$$
+*(Với `hour` là số thực đại diện cho mốc 24 tiếng, ví dụ mốc 14h15 được quy đổi thành 14.25)*.
+
+---
+
+### 3.2. Phân Cụm Ngưỡng Mật Độ Động (K-Means Clustering)
+Áp dụng phân cụm một chiều trên dữ liệu xe lịch sử $V = [v_1, v_2, ..., v_N]^T$ với số cụm $K=4$ để tìm ra 4 tâm cụm (centroids) đại diện cho 4 mức độ:
+$$C_0 < C_1 < C_2 < C_3 \quad (\text{tương ứng với Low, Medium, High, Heavy})$$
+
+Ranh giới quyết định (Decision Boundaries) giữa các mức độ được xác định bằng trung điểm giữa hai tâm cụm liên tiếp:
+* **Ngưỡng từ Thấp lên Trung bình:** $T_1 = \frac{C_0 + C_1}{2}$
+* **Ngưỡng từ Trung bình lên Cao:** $T_2 = \frac{C_1 + C_2}{2}$
+* **Ngưỡng từ Cao lên Ùn tắc nghiêm trọng:** $T_3 = \frac{C_2 + C_3}{2}$
+
+---
+
+### 3.3. Bộ Tối Ưu Hóa Pha Đèn Động (Phase Light Optimizer)
+1. **Tính toán Áp lực dòng xe (Flow Pressure Index):**
+   * **Pha 1 (Tuyến chính - thẳng + phải):**
+     $$P_1 = \text{predicted\_straight} + 0.3 \times \text{predicted\_right}$$
+   * **Pha 2 (Tuyến phụ - rẽ trái):** Nhánh rẽ trái cua hẹp sức chứa kém, nhân hệ số hình học cản trở 1.5 để tăng mức ưu tiên:
+     $$P_2 = 1.5 \times \text{predicted\_left}$$
+
+2. **Phân bổ giây xanh thô (Raw green timing allocation):**
+   Với tổng số giây xanh khả dụng của chu kỳ là $G_{total} = 80$ giây:
+   $$g_1^{raw} = \frac{P_1}{P_1 + P_2} \times G_{total}, \quad g_2^{raw} = \frac{P_2}{P_1 + P_2} \times G_{total}$$
+
+3. **Ràng buộc an toàn đô thị (Hard Safety Constraints):**
+   Thời lượng đèn xanh tối thiểu của mỗi pha không được thấp hơn 15 giây và tối đa không vượt quá 55 giây. Vì $g_1 + g_2 = 80$, ta kẹp chặt Pha 1:
+   $$g_1 = \max(25, \min(55, g_1^{raw}))$$
+   $$g_2 = 80 - g_1$$
+   *(Đảm bảo cả 2 pha luôn thỏa mãn an toàn vượt mức tối thiểu 15s)*.
+
+---
+
+### 3.4. Các Chỉ Số Đánh Giá Sai Số Học Thuật (Evaluation Metrics)
+* **Mean Absolute Error (MAE):** Đo lệch trung bình tuyệt đối số lượng xe vật lý:
+  $$\text{MAE} = \frac{1}{N} \sum_{i=1}^N |y_i - \hat{y}_i|$$
+* **Root Mean Square Error (RMSE):** Phạt nặng các sai số lệch lớn đột biến để đo độ ổn định:
+  $$\text{RMSE} = \sqrt{\frac{1}{N} \sum_{i=1}^N (y_i - \hat{y}_i)^2}$$
+* **Mean Absolute Percentage Error (MAPE):** Sai số phần trăm tương đối (loại bỏ các mốc thực tế $y_i = 0$):
+  $$\text{MAPE} = \frac{100\%}{N} \sum_{i=1}^N \left| \frac{y_i - \hat{y}_i}{y_i} \right|$$
+
+---
+
+## 🛠️ 4. Thư Viện Yêu Cầu & Cài Đặt (Dependencies)
+
+Để chạy trọn vẹn ML service, môi trường Python yêu cầu các thư viện chính sau:
+- **Học máy & Toán học:** `xgboost`, `scikit-learn`, `pandas`, `numpy`, `joblib`
+- **Cơ sở dữ liệu:** `pymongo`
+- **Vẽ đồ thị:** `matplotlib`, `seaborn`
+
+Cài đặt nhanh toàn bộ thư viện bằng pip:
+```powershell
+pip install xgboost scikit-learn pandas numpy joblib pymongo matplotlib seaborn
 ```
 
-### 2. Kiểm tra dự báo (yêu cầu backend đang chạy)
+---
 
-```bash
-# Terminal 1: Khởi động backend
-uvicorn backend.main:app --reload
+## 🚀 5. Quy Trình Vận Hành & Khởi Chạy ML Pipeline
 
-# Terminal 2: Gọi dự báo
-python -m ml_service.predict
-```
+Nhóm phát triển thực thi quy trình theo các bước tuần tự sau:
+
+1. **Bước 1: Tiền xử lý dữ liệu thô và xoay trục đa nút giao:**
+   ```powershell
+   python -m ml_service.preprocess
+   ```
+2. **Bước 2: Huấn luyện hệ thống 3 mô hình XGBoost:**
+   ```powershell
+   python -m ml_service.train
+   ```
+3. **Bước 3: Chạy phân cụm K-Means cập nhật ngưỡng mật độ vào MongoDB:**
+   ```powershell
+   python -m ml_service.density_cluster
+   ```
+4. **Bước 4: Chạy đánh giá học thuật và xuất đồ thị thực nghiệm tốt nghiệp:**
+   ```powershell
+   python -m ml_service.evaluate
+   ```

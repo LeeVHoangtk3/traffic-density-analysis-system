@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pandas as pd
 import xgboost as xgb
@@ -75,15 +76,19 @@ class TrafficPredictor:
         data['day_of_week_sin'] = np.sin(2 * np.pi * data['day_of_week'] / 7)
         data['day_of_week_cos'] = np.cos(2 * np.pi * data['day_of_week'] / 7)
 
-        # --- Lag features ---
-        data['lag_1'] = data['vehicle_count'].shift(1)
-        data['lag_2'] = data['vehicle_count'].shift(2)
-        data['lag_4'] = data['vehicle_count'].shift(4)
-
-        # --- Trend/Rolling features ---
-        data['diff_1'] = data['vehicle_count'].diff(1)
-        data['rolling_mean_3'] = data['vehicle_count'].shift(1).rolling(window=3).mean()
-        data['rolling_std_3'] = data['vehicle_count'].shift(1).rolling(window=3).std()
+        # --- Lag features (dữ liệu quá khứ) ---
+        if 'segment_id' in data.columns:
+            data['lag_1'] = data.groupby('segment_id')['vehicle_count'].shift(1)
+            data['lag_2'] = data.groupby('segment_id')['vehicle_count'].shift(2)
+            data['lag_4'] = data.groupby('segment_id')['vehicle_count'].shift(4)
+            data['rolling_mean_3'] = data.groupby('segment_id')['vehicle_count'].transform(
+                lambda x: x.shift(1).rolling(window=3).mean()
+            )
+        else:
+            data['lag_1'] = data['vehicle_count'].shift(1)
+            data['lag_2'] = data['vehicle_count'].shift(2)
+            data['lag_4'] = data['vehicle_count'].shift(4)
+            data['rolling_mean_3'] = data['vehicle_count'].shift(1).rolling(window=3).mean()
 
         # Fill NaN values for features that shift too far, or just drop
         data = data.dropna()
@@ -168,11 +173,65 @@ class TrafficPredictor:
         
         self.is_trained = True
 
+    def train_and_evaluate_split(self, df: pd.DataFrame) -> dict:
+        """
+        Huấn luyện mô hình với chronological 80% Train / 20% Test split.
+        Tính toán MAE, RMSE, MAPE trên tập Test.
+        Sau đó fit lại toàn bộ dữ liệu.
+        """
+        print(f"\n[*] Bắt đầu huấn luyện & đánh giá (80/20 split) cho: {os.path.basename(self.model_path)}")
+        data = self.create_features(df)
+        
+        if len(data) < 10:
+            print("    [!] Cảnh báo: Quá ít dữ liệu để chia Train/Test!")
+            return {}
+            
+        X = data[self.features]
+        y = data['vehicle_count']
+        
+        split_idx = int(len(data) * 0.8)
+        X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
+        y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
+        
+        # Huấn luyện trên 80% train
+        self.model.fit(X_train, y_train)
+        y_pred = self.model.predict(X_test)
+        
+        # Clip dự đoán âm về 0
+        y_pred = np.clip(y_pred, 0, None)
+        
+        # Tính toán metric
+        mae = mean_absolute_error(y_test, y_pred)
+        rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+        
+        # MAPE robust
+        y_test_arr = np.array(y_test)
+        mask = y_test_arr > 0
+        if np.any(mask):
+            mape = np.mean(np.abs((y_test_arr[mask] - y_pred[mask]) / y_test_arr[mask])) * 100
+        else:
+            mape = 0.0
+            
+        print(f" -> Kết quả đánh giá trên tập Test (20% cuối):")
+        print(f"    - Kích thước tập Train: {len(X_train)} dòng")
+        print(f"    - Kích thước tập Test:  {len(X_test)} dòng")
+        print(f"    - MAE:                  {mae:.2f} xe")
+        print(f"    - RMSE:                 {rmse:.2f} xe")
+        print(f"    - MAPE:                 {mape:.2f}%")
+        
+        # Fit lại toàn bộ dữ liệu
+        print(" -> Đang huấn luyện lại mô hình trên toàn bộ dữ liệu...")
+        self.model.fit(X, y)
+        self.is_trained = True
+        
+        return {"mae": mae, "rmse": rmse, "mape": mape}
+
     def save_model(self):
         """Lưu mô hình ra file .pkl."""
         if not self.is_trained:
             print("Lỗi: Mô hình chưa được huấn luyện.")
             return
+        os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
         joblib.dump(self.model, self.model_path)
         print(f"\n[+] ĐÃ LƯU MÔ HÌNH THÀNH CÔNG: {self.model_path}")
 
@@ -207,6 +266,8 @@ class TrafficPredictor:
         last_time = pd.to_datetime(df['timestamp'].iloc[-1])
         next_time = last_time + pd.Timedelta(minutes=15)
         future_row = pd.DataFrame([{'timestamp': next_time, 'vehicle_count': 0}])
+        if 'segment_id' in df.columns:
+            future_row['segment_id'] = df['segment_id'].iloc[-1]
 
         temp_df = pd.concat([df, future_row], ignore_index=True)
         processed = self.create_features(temp_df)
