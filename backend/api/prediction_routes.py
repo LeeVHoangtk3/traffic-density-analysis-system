@@ -1,3 +1,27 @@
+from fastapi import (
+    APIRouter,
+    Depends,
+    Query,
+    HTTPException,
+)
+
+from backend.services.db_service import get_db
+from backend.config import settings
+
+from backend.services.prediction_service import (
+    predict_next_density,
+    list_predictions,
+    get_recent_aggregations,
+)
+
+from backend.schemas.prediction_schema import (
+    PredictionResponse,
+    PredictionHistoryResponse,
+    PredictionHistoryItem,
+)
+
+router = APIRouter()
+
 @router.get("/predict-next", response_model=PredictionResponse)
 def predict_next(camera_id: str | None = None, db=Depends(get_db)):
     recent_camera_id = camera_id or "CAM_01"
