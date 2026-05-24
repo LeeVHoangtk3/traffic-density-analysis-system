@@ -1,35 +1,28 @@
 import "./App.css";
-
-import StatsGrid from "./components/StatsGrid";
-import VideoPlayer from "./components/VideoPlayer";
+import Header           from "./components/Header";
+import StatsBar         from "./components/StatsBar";
+import TrafficLightPanel from "./components/TrafficLightPanel";
+import LaneStatusGrid   from "./components/LaneStatusGrid";
+import ForecastChart    from "./components/ForecastChart";
+import VideoPlayer      from "./components/VideoPlayer";
 
 export default function App() {
-
   return (
-
     <div className="app">
-
       <div className="dashboard">
 
-        <h1 className="title">
-          CITY TRAFFIC MONITOR
-        </h1>
+        <Header />
+        <StatsBar />
 
-        <div className="subtitle">
-          REALTIME TRAFFIC
-          STATISTICS
+        <div className="row-2">
+          <TrafficLightPanel />
+          <LaneStatusGrid />
         </div>
 
-        <StatsGrid />
-
-        <div className="section-title">
-          LIVE TRAFFIC FEED
-        </div>
-
+        <ForecastChart />
         <VideoPlayer />
 
       </div>
-
     </div>
   );
 }
