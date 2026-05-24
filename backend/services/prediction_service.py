@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from typing import Optional
 
 import pandas as pd
-from pymongo import DESCENDING
+from pymongo import DESCENDING  # type: ignore
 
 from backend.config import settings
 from backend.services.aggregation_service import (
@@ -55,7 +55,7 @@ def _load_single_predictor(model_path: Path):
         sys.path.insert(0, str(ml_service_dir))
 
     try:
-        from traffic_predictor import TrafficPredictor
+        from traffic_predictor import TrafficPredictor  # type: ignore
     except Exception:
         return None
 
@@ -214,7 +214,7 @@ def _build_prediction_history(
 # ✅ GREEN LIGHT TIME (MỚI THEO YÊU CẦU CỦA BẠN)
 # =========================================================
 def _compute_green_light_time(predicted_density: float, history: pd.DataFrame) -> int:
-    base_time = 45
+    base_time = 30
 
     if history.empty or predicted_density <= 0:
         return base_time
@@ -233,8 +233,8 @@ def _compute_green_light_time(predicted_density: float, history: pd.DataFrame) -
 
     green_time = base_time + delta
 
-    # clamp: không nhỏ hơn 30, không lớn hơn 45
-    green_time = max(30, min(45, green_time))
+    # clamp: không nhỏ hơn 20, không lớn hơn 60
+    green_time = max(20, min(60, green_time))
 
     return int(green_time)
 
@@ -331,4 +331,4 @@ def list_predictions(db, camera_id=None, limit=20, offset=0):
         .skip(offset)
         .limit(limit)
     )
-    return total, [to_object(document) for document in documents]
+    return total, [to_object(document) for document in docs]

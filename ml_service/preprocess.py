@@ -12,7 +12,7 @@ def main():
         
     print("[*] Khởi động pipeline tiền xử lý đa nút giao thực tế...")
     
-    base_dir = r"D:\GIT REPO\trafffic-density-analysis-system\traffic-density-analysis-system"
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     raw_csv = os.path.join(base_dir, "data", "ml", "Automated_Traffic_Volume_Counts_20260521.csv")
     out_dir = os.path.join(base_dir, "ml_service", "data")
     
