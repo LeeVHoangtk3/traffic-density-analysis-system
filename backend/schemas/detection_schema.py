@@ -16,6 +16,7 @@ class DensityLevel(str, Enum):
     low = "LOW"
     medium = "MEDIUM"
     high = "HIGH"
+    heavy = "HEAVY"
     severe = "SEVERE"
 
 
@@ -32,7 +33,13 @@ class DetectionCreate(BaseModel):
     track_id: Union[int, str]
     vehicle_type: VehicleType
     density: Optional[DensityLevel] = None
-    event_type: EventType
+    event_type: EventType = EventType.zone_entry
     timestamp: datetime
     confidence: Optional[float] = Field(default=None, ge=0, le=1)
-    direction: Literal["inbound", "outbound"] = "inbound"
+    direction: Literal[
+        "left",
+        "straight",
+        "right",
+        "inbound",
+        "outbound",
+    ] = "straight"

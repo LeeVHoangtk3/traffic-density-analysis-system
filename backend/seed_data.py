@@ -25,7 +25,7 @@ def seed_cameras(database):
                 },
                 "$set": {
                     "baseline_green": 30,
-                    "monitored_direction": "inbound",
+                    "monitored_direction": "straight",
                 },
             },
             upsert=True,
@@ -50,8 +50,14 @@ def seed_aggregations(database, camera_ids):
             {"camera_id": camera_id}
         )
         inbound_count = database.vehicle_detections.count_documents(
-            {"camera_id": camera_id, "direction": "inbound"}
+            {"camera_id": camera_id, "direction": {"$in": ["left", "straight", "right", "inbound"]}}
         )
+        direction_counts = {
+            direction: database.vehicle_detections.count_documents(
+                {"camera_id": camera_id, "direction": direction}
+            )
+            for direction in ("left", "straight", "right")
+        }
 
         latest = database.vehicle_detections.find_one(
             {"camera_id": camera_id},
@@ -66,6 +72,7 @@ def seed_aggregations(database, camera_ids):
                 "inbound_count": inbound_count,
                 "queue_proxy": inbound_count,
                 "congestion_level": compute_congestion(vehicle_count),
+                "direction_counts": direction_counts,
                 "timestamp": latest_timestamp,
             }
         )
