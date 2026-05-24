@@ -12,12 +12,26 @@ from backend.schemas.aggregation_schema import (
 from backend.services.aggregation_service import (
     aggregate_from_detections,
     compute_congestion,
+    classify_direction_counts,
+    empty_direction_counts,
     compute_window_aggregation,
     list_aggregations,
 )
 from backend.services.db_service import get_db
 
 router = APIRouter(tags=["aggregation"])
+
+
+def _direction_counts(item) -> dict:
+    value = getattr(item, "direction_counts", None)
+    return value if value else empty_direction_counts()
+
+
+def _congestion_levels(db, camera_id: str | None, item) -> dict:
+    value = getattr(item, "congestion_levels", None)
+    if value:
+        return value
+    return classify_direction_counts(db, camera_id, _direction_counts(item))
 
 
 @router.get("/aggregation", response_model=AggregationResponse)
@@ -32,12 +46,19 @@ def get_aggregation(
 
     if vehicle_count is not None:
         level = compute_congestion(vehicle_count)
+        direction_counts = empty_direction_counts()
+        direction_counts["straight"] = vehicle_count
+        congestion_levels = classify_direction_counts(
+            db, camera_id, direction_counts
+        )
         return AggregationResponse(
             camera_id=camera_id,
             vehicle_count=vehicle_count,
             inbound_count=vehicle_count,
             queue_proxy=0,
             congestion_level=level,
+            direction_counts=direction_counts,
+            congestion_levels=congestion_levels,
             start_time=start_time,
             end_time=end_time,
             generated_at=generated_at,
@@ -55,6 +76,8 @@ def get_aggregation(
         inbound_count=aggregation.inbound_count or 0,
         queue_proxy=aggregation.queue_proxy or 0,
         congestion_level=aggregation.congestion_level,
+        direction_counts=_direction_counts(aggregation),
+        congestion_levels=_congestion_levels(db, aggregation.camera_id, aggregation),
         start_time=start_time,
         end_time=aggregation.timestamp,
         generated_at=generated_at,
@@ -87,6 +110,8 @@ def get_aggregation_history(
                 inbound_count=item.inbound_count or 0,
                 queue_proxy=item.queue_proxy or 0,
                 congestion_level=item.congestion_level,
+                direction_counts=_direction_counts(item),
+                congestion_levels=_congestion_levels(db, item.camera_id, item),
                 timestamp=item.timestamp,
             )
             for item in items
@@ -114,4 +139,6 @@ def compute_aggregation(
         inbound_count=record.inbound_count or 0,
         queue_proxy=record.queue_proxy or 0,
         congestion_level=record.congestion_level,
+        direction_counts=_direction_counts(record),
+        congestion_levels=_congestion_levels(db, record.camera_id, record),
     )

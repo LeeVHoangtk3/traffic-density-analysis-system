@@ -17,6 +17,7 @@ setuptools==68.2.2
 # ==============================
 pandas
 scikit-learn
+xgboost
 
 # ==============================
 # BACKEND API

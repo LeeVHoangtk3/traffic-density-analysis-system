@@ -24,6 +24,11 @@ def init_mongo_indexes() -> None:
     db.traffic_predictions.create_index(
         [("camera_id", ASCENDING), ("timestamp", DESCENDING)]
     )
+    db.directional_thresholds.create_index(
+        [("camera_id", ASCENDING), ("direction", ASCENDING)],
+        unique=True,
+        sparse=True,
+    )
     db.cameras.create_index([("camera_id", ASCENDING)], unique=True, sparse=True)
 
 
