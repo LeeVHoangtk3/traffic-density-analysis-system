@@ -3,35 +3,37 @@
   "name": "Camera 01 - Main Detection",
   "monitored_direction": "multi",
   "baseline_green": 30,
+  "frame_width": 960,
+  "frame_height": 540,
   "zones": [
     {
       "id": "zone_left",
       "direction": "left",
       "points": [
-        [0, 480],
-        [120, 240],
-        [300, 240],
-        [260, 480]
+        [0, 259],
+        [0, 333],
+        [280, 333],
+        [320, 259]
       ]
     },
     {
       "id": "zone_straight",
       "direction": "straight",
       "points": [
-        [220, 480],
-        [320, 200],
-        [580, 200],
-        [620, 480]
+        [321, 259],
+        [280, 333],
+        [680, 333],
+        [640, 259]
       ]
     },
     {
       "id": "zone_right",
       "direction": "right",
       "points": [
-        [560, 480],
-        [600, 240],
-        [760, 240],
-        [854, 480]
+        [641, 259],
+        [680, 333],
+        [960, 333],
+        [960, 259]
       ]
     }
   ]
