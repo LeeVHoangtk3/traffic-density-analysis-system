@@ -124,6 +124,27 @@ Response co them thong tin 3 huong:
 Neu collection `directional_thresholds` co du lieu, backend dung nguong dong theo huong.
 Neu chua co, backend fallback ve nguong mac dinh.
 
+### Dynamic Thresholds
+
+```text
+GET /thresholds?camera_id=CAM_01
+PUT /thresholds/{direction}?camera_id=CAM_01
+```
+
+`PUT /thresholds/{direction}` dung de cap nhat nguong K-Means dong cho tung huong.
+Payload mau:
+
+```json
+{
+  "thresholds": {
+    "low_to_medium": 32.5,
+    "medium_to_high": 68.0,
+    "high_to_heavy": 105.3
+  },
+  "centroids": [12.0, 53.0, 83.0, 127.6]
+}
+```
+
 ### Prediction
 
 ```text
@@ -180,6 +201,16 @@ o thu muc goc. Response duoc chuan hoa thanh 2 pha:
 - `phase_1`: `straight` + `right`
 - `phase_2`: `left`
 
+### Dataset Export
+
+```text
+GET /dataset/export?camera_id=CAM_01&limit=100
+```
+
+Xuat du lieu aggregation dang phang theo tung huong de phuc vu training/evaluation ML.
+Moi item gom `camera_id`, `timestamp`, `direction`, `vehicle_count`,
+`congestion_level`.
+
 ### Cameras
 
 ```text
@@ -235,10 +266,11 @@ Da hoan thien:
 - Prediction tra du bao 3 huong va `phase_timing`.
 - API `/traffic-lights/status` cho frontend.
 - Index MongoDB cho `directional_thresholds`.
+- API `/thresholds` de quan tri nguong dong.
+- API `/dataset/export` de xuat du lieu huan luyen.
 
 Can tiep tuc neu co thoi gian:
 
 - Them authentication/rate limit cho endpoint ghi du lieu.
 - Viet test tu dong cho detection, aggregation, prediction va light status.
-- Them API export dataset cho training ML.
 - Hoan thien script K-Means cap nhat `directional_thresholds`.
