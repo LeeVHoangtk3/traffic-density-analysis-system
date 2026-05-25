@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from typing import Optional
 
 import pandas as pd
-from pymongo import DESCENDING
+from pymongo import DESCENDING  # type: ignore
 
 from backend.config import settings
 from backend.services.aggregation_service import (
@@ -25,11 +25,7 @@ def to_object(document):
     return SimpleNamespace(**document)
 
 
-def get_recent_aggregations(
-    db,
-    camera_id: str,
-    n: int = 5,
-) -> pd.DataFrame:
+def get_recent_aggregations(db, camera_id: str, n: int = 5) -> pd.DataFrame:
     rows = list(
         db.traffic_aggregation.find({"camera_id": camera_id})
         .sort("timestamp", DESCENDING)
@@ -39,15 +35,14 @@ def get_recent_aggregations(
     if not rows:
         return pd.DataFrame(columns=["timestamp", "vehicle_count"])
 
-    df = pd.DataFrame(
-        [
-            {
-                "timestamp": row["timestamp"],
-                "vehicle_count": int(row.get("vehicle_count", 0)),
-            }
-            for row in rows
-        ]
-    )
+    df = pd.DataFrame([
+        {
+            "timestamp": row["timestamp"],
+            "vehicle_count": int(row.get("vehicle_count", 0)),
+        }
+        for row in rows
+    ])
+
     return df.sort_values("timestamp").reset_index(drop=True)
 
 
@@ -56,18 +51,17 @@ def _load_single_predictor(model_path: Path):
     if not ml_service_dir.exists():
         return None
 
-    ml_service_path = str(ml_service_dir)
-    if ml_service_path not in sys.path:
-        sys.path.insert(0, ml_service_path)
+    if str(ml_service_dir) not in sys.path:
+        sys.path.insert(0, str(ml_service_dir))
 
     try:
-        from traffic_predictor import TrafficPredictor, classify_congestion
+        from traffic_predictor import TrafficPredictor  # type: ignore
     except Exception:
         return None
 
     predictor = TrafficPredictor(model_path=str(model_path))
     if not predictor.load_model():
-        predictor = None
+        return None
 
     return predictor
 
@@ -96,20 +90,22 @@ def _build_history_from_detections(
         .sort("timestamp", DESCENDING)
         .limit(max(periods * 50, 100))
     )
+
     if not rows:
         return pd.DataFrame(columns=["timestamp", "vehicle_count"])
 
     df = pd.DataFrame([{"timestamp": row["timestamp"]} for row in rows])
     df["timestamp"] = pd.to_datetime(df["timestamp"])
+
     history = (
         df.groupby(df["timestamp"].dt.floor("min"))
         .size()
         .reset_index(name="vehicle_count")
-        .rename(columns={"timestamp": "timestamp"})
         .sort_values("timestamp")
         .tail(periods)
         .reset_index(drop=True)
     )
+
     return history
 
 
@@ -207,9 +203,9 @@ def _build_prediction_history(
     periods: int = 8,
 ) -> pd.DataFrame:
     if camera_id:
-        aggregation_history = get_recent_aggregations(db, camera_id=camera_id, n=periods)
-        if len(aggregation_history) >= 3:
-            return aggregation_history
+        agg = get_recent_aggregations(db, camera_id=camera_id, n=periods)
+        if len(agg) >= 3:
+            return agg
 
     return _build_history_from_detections(db, camera_id, periods)
 
@@ -289,21 +285,18 @@ def predict_next_density(
 
     result = db.traffic_predictions.insert_one(document)
     document["_id"] = result.inserted_id
+
     return to_object(document)
 
 
-def list_predictions(
-    db,
-    camera_id: Optional[str] = None,
-    limit: int = 20,
-    offset: int = 0,
-):
+def list_predictions(db, camera_id=None, limit=20, offset=0):
     filters = {}
     if camera_id:
         filters["camera_id"] = camera_id
 
     total = db.traffic_predictions.count_documents(filters)
-    documents = (
+
+    docs = (
         db.traffic_predictions.find(filters)
         .sort("timestamp", DESCENDING)
         .skip(offset)

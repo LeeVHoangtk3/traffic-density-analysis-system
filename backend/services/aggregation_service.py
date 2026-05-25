@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 from typing import Optional
 
+# pyrefly: ignore [missing-import]
 from pymongo import DESCENDING
 
 LANE_DIRECTIONS = ("left", "straight", "right")
@@ -19,13 +20,13 @@ def to_object(document):
 def compute_congestion(vehicle_count: int) -> str:
     """
     Phân loại mức độ mật độ giao thông.
-    Ngưỡng hiệu chỉnh cho thực tế đường đô thị Việt Nam (~400–500 xe/15 phút).
+    Ngưỡng được hiệu chỉnh cho dataset đô thị NYC (~50-100 xe/15p).
     """
-    if vehicle_count < 200:
+    if vehicle_count < 30:
         return "Low"
-    if vehicle_count < 350:
+    if vehicle_count < 100:
         return "Medium"
-    if vehicle_count < 500:
+    if vehicle_count < 200:
         return "High"
     return "Heavy"
 

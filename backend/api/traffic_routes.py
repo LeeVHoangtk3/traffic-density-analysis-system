@@ -260,7 +260,7 @@ def get_raw_data(
     if timestamp_filter:
         filters["timestamp"] = timestamp_filter
 
-    safe_limit = min(limit, settings.max_page_size)
+    safe_limit = limit
     total = db.vehicle_detections.count_documents(filters)
     rows = list(
         db.vehicle_detections.find(filters)
