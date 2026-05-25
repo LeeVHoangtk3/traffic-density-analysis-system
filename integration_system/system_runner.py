@@ -69,21 +69,12 @@ class CongestionClassifier:
     """Phan loai muc tac nghen theo so xe (rule-based, chay local)."""
 
     def classify(self, vehicle_count: int) -> str:
-<<<<<<< HEAD
         if vehicle_count < 15:
             return "low"
         elif vehicle_count < 30:
             return "medium"
         elif vehicle_count < 50:
             return "high"
-=======
-        if vehicle_count < 30:
-            return "Low"
-        elif vehicle_count < 100:
-            return "Medium"
-        elif vehicle_count < 200:
-            return "High"
->>>>>>> origin/cuong
         else:
             return "severe"
 
@@ -216,7 +207,6 @@ def apply(
     controlled_phase = phase_info.get("controlled_phase", "phase_1")
     baseline_green = PHASE_BASELINE.get(controlled_phase, PHASE_BASELINE["phase_1"])
 
-<<<<<<< HEAD
     try:
         feature_dict = {
             "camera_id":        camera_id,
@@ -235,9 +225,6 @@ def apply(
     except Exception as e:
         print(f"    [DeltaApplier] Error: {e}. Using baseline.")
         return float(baseline_green)
-=======
-    return float(baseline_green)
->>>>>>> origin/cuong
 
 
 # ===========================================================================
