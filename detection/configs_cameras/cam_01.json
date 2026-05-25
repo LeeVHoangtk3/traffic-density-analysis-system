@@ -1,30 +1,40 @@
 {
-    "camera_id": "CAM_01",
-    "name": "Camera 01 - Main Detection",
-    "monitored_direction": "inbound",
-    "baseline_green": 30,
-    "zones": [
-        {
-            "id": "main_detection_zone",
-            "direction": "inbound",
-            "points": [
-                [
-                    0,
-                    420
-                ],
-                [
-                    960,
-                    420
-                ],
-                [
-                    960,
-                    640
-                ],
-                [
-                    0,
-                    640
-                ]
-            ]
-        }
-    ]
+  "camera_id": "CAM_01",
+  "name": "Camera 01 - Main Detection",
+  "monitored_direction": "multi",
+  "baseline_green": 30,
+  "frame_width": 960,
+  "frame_height": 540,
+  "zones": [
+    {
+      "id": "zone_left",
+      "direction": "left",
+      "points": [
+        [0, 259],
+        [0, 333],
+        [280, 333],
+        [320, 259]
+      ]
+    },
+    {
+      "id": "zone_straight",
+      "direction": "straight",
+      "points": [
+        [321, 259],
+        [280, 333],
+        [680, 333],
+        [640, 259]
+      ]
+    },
+    {
+      "id": "zone_right",
+      "direction": "right",
+      "points": [
+        [641, 259],
+        [680, 333],
+        [960, 333],
+        [960, 259]
+      ]
+    }
+  ]
 }

@@ -6,15 +6,23 @@ from backend.schemas.prediction_schema import (
     PredictionHistoryResponse,
     PredictionResponse,
 )
+
 from backend.services.db_service import get_db
+from backend.config import settings
+
 from backend.services.prediction_service import (
-    get_recent_aggregations,
-    list_predictions,
     predict_next_density,
+    list_predictions,
+    get_recent_aggregations,
 )
 
-router = APIRouter(tags=["prediction"])
+from backend.schemas.prediction_schema import (
+    PredictionResponse,
+    PredictionHistoryResponse,
+    PredictionHistoryItem,
+)
 
+router = APIRouter()
 
 def _predictions(item) -> dict:
     return getattr(item, "predictions", None) or {

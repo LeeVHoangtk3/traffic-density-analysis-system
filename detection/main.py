@@ -68,7 +68,7 @@ CONF_THRESHOLD = float(os.getenv("CONF_THRESHOLD", "0.40"))
 TARGET_WIDTH   = 960  # cố định — model train imgsz=960
 
 SYNC_MODE      = os.getenv("SYNC_MODE", "true").lower() in ("1", "true", "yes")
-NO_DISPLAY     = os.getenv("NO_DISPLAY", "false").lower() in ("1", "true", "yes")
+NO_DISPLAY     = os.getenv("NO_DISPLAY", "true").lower() in ("1", "true", "yes")
 PLAYBACK_SPEED = float(os.getenv("PLAYBACK_SPEED", "1.0"))
 DRY_RUN        = os.getenv("DRY_RUN", "false").lower() in ("1", "true", "yes")
 
