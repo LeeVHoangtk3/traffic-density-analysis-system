@@ -19,7 +19,7 @@ _INTEGRATION_DIR = os.path.dirname(os.path.abspath(__file__))
 if _INTEGRATION_DIR not in sys.path:
     sys.path.insert(0, _INTEGRATION_DIR)
 
-from delta_applier import apply, CAMERA_BASELINE
+from delta_applier import apply, CAMERA_BASELINE, PHASE_BASELINE
 from direction_router import get_phase
 
 # Hardcoded mapping as fallback (requested by user)
@@ -72,12 +72,14 @@ class TrafficLightOptimizer:
             )
 
             # 3. Tính delta so với baseline để report
-            baseline = CAMERA_BASELINE.get(camera_id, 30)
+            controlled_phase = phase_info.get("controlled_phase", "phase_1")
+            baseline = PHASE_BASELINE.get(controlled_phase, CAMERA_BASELINE.get(camera_id, 50))
             delta = round(green_time - baseline, 2)
 
             return {
                 "camera_id": camera_id,
                 "phase": phase_info["phase"],
+                "controlled_phase": controlled_phase,
                 "direction": phase_info["direction"],
                 "green_time": round(green_time, 2),
                 "baseline": baseline,

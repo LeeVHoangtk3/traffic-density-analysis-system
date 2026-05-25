@@ -14,13 +14,16 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 from ml_service.light_delta_model import LightDeltaModel
+from direction_router import CAMERA_PHASE_MAP, get_phase
 
-# Baseline green times for cameras
+# Baseline green times from the 2-phase optimizer contract.
+PHASE_BASELINE: dict[str, int] = {
+    "phase_1": 50,
+    "phase_2": 30,
+}
 CAMERA_BASELINE: dict[str, int] = {
-    "CAM_01": 30,
-    "CAM_02": 25,
-    "CAM_03": 35,
-    "CAM_04": 40,
+    camera_id: PHASE_BASELINE.get(info.get("controlled_phase", "phase_1"), 50)
+    for camera_id, info in CAMERA_PHASE_MAP.items()
 }
 
 _DELTA_MIN: float = -30.0
@@ -41,6 +44,11 @@ def _get_model() -> LightDeltaModel | None:
             _model_instance = None
     return _model_instance
 
+def _baseline_and_phase(camera_id: str) -> tuple[int, str]:
+    phase_info = get_phase(camera_id)
+    controlled_phase = phase_info.get("controlled_phase", "phase_1")
+    return PHASE_BASELINE.get(controlled_phase, PHASE_BASELINE["phase_1"]), controlled_phase
+
 def apply(
     camera_id: str,
     queue_proxy: float,
@@ -53,11 +61,7 @@ def apply(
     Predicts green_time by applying a delta to the baseline.
     Returns baseline if model is missing or error occurs.
     """
-    if camera_id not in CAMERA_BASELINE:
-        print(f"[DeltaApplier] Warning: Camera {camera_id} not in baseline map. Using 30s.")
-        baseline_green = 30
-    else:
-        baseline_green = CAMERA_BASELINE[camera_id]
+    baseline_green, controlled_phase = _baseline_and_phase(camera_id)
 
     model = _get_model()
     if model is None:
@@ -65,6 +69,8 @@ def apply(
 
     try:
         feature_dict = {
+            "camera_id":        camera_id,
+            "controlled_phase": controlled_phase,
             "queue_proxy":      queue_proxy,
             "inbound_count":    inbound_count,
             "congestion_level": congestion_level.lower(),

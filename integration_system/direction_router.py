@@ -4,27 +4,32 @@ integration_system/direction_router.py
 Ánh xạ camera_id → pha đèn tín hiệu (phase) tương ứng tại giao lộ.
 """
 
-# Config dict: { "CAM_01": { "phase": "north_green", "direction": "inbound" } }
+# Config dict maps each camera to the physical light and the 2-phase optimizer
+# phase it controls.
 CAMERA_PHASE_MAP: dict[str, dict[str, str]] = {
     "CAM_01": {
-        "phase":     "north_green",
-        "direction": "inbound",
-        "junction":  "JCT_A",
+        "phase": "north_green",
+        "controlled_phase": "phase_1",
+        "direction": "straight_right",
+        "junction": "JCT_A",
     },
     "CAM_02": {
-        "phase":     "south_green",
-        "direction": "inbound",
-        "junction":  "JCT_A",
+        "phase": "south_green",
+        "controlled_phase": "phase_1",
+        "direction": "straight_right",
+        "junction": "JCT_A",
     },
     "CAM_03": {
-        "phase":     "east_green",
-        "direction": "inbound",
-        "junction":  "JCT_A",
+        "phase": "east_green",
+        "controlled_phase": "phase_2",
+        "direction": "left",
+        "junction": "JCT_A",
     },
     "CAM_04": {
-        "phase":     "west_green",
-        "direction": "outbound",
-        "junction":  "JCT_A",
+        "phase": "west_green",
+        "controlled_phase": "phase_1",
+        "direction": "straight_right",
+        "junction": "JCT_A",
     },
 }
 
@@ -36,6 +41,7 @@ def get_phase(camera_id: str) -> dict[str, str]:
         # Default fallback
         return {
             "phase": "unknown",
+            "controlled_phase": "phase_1",
             "direction": "unknown",
             "junction": "unknown"
         }
