@@ -1,8 +1,18 @@
+<<<<<<< HEAD
 from fastapi import (
     APIRouter,
     Depends,
     Query,
     HTTPException,
+=======
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from backend.config import settings
+from backend.schemas.prediction_schema import (
+    PredictionHistoryItem,
+    PredictionHistoryResponse,
+    PredictionResponse,
+>>>>>>> origin/cuong
 )
 
 from backend.services.db_service import get_db

@@ -210,35 +210,6 @@ def _build_prediction_history(
     return _build_history_from_detections(db, camera_id, periods)
 
 
-# =========================================================
-# ✅ GREEN LIGHT TIME (MỚI THEO YÊU CẦU CỦA BẠN)
-# =========================================================
-def _compute_green_light_time(predicted_density: float, history: pd.DataFrame) -> int:
-    base_time = 30
-
-    if history.empty or predicted_density <= 0:
-        return base_time
-
-    avg_density = float(history["vehicle_count"].mean())
-
-    if avg_density == 0:
-        return base_time
-
-    # % chênh lệch so với avg
-    diff_ratio = (predicted_density - avg_density) / avg_density
-
-    # mỗi 10% -> 5s
-    steps = int(diff_ratio / 0.1)
-    delta = steps * 5
-
-    green_time = base_time + delta
-
-    # clamp: không nhỏ hơn 20, không lớn hơn 60
-    green_time = max(20, min(60, green_time))
-
-    return int(green_time)
-
-
 def _optimize_phase_timing(predictions: dict[str, int]) -> dict[str, int]:
     p1 = float(predictions.get("straight", 0)) + 0.3 * float(
         predictions.get("right", 0)
@@ -331,4 +302,8 @@ def list_predictions(db, camera_id=None, limit=20, offset=0):
         .skip(offset)
         .limit(limit)
     )
+<<<<<<< HEAD
     return total, [to_object(document) for document in docs]
+=======
+    return total, [to_object(document) for document in documents]
+>>>>>>> origin/cuong
