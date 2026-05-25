@@ -16,13 +16,14 @@ def get_detection_by_event_id(db, event_id: str):
 
 
 def create_detection(db, data: DetectionCreate):
+    direction = (data.direction or "straight").lower()
     document = {
         "event_id": data.event_id,
         "camera_id": data.camera_id,
         "track_id": str(data.track_id),
         "vehicle_type": data.vehicle_type.value,
         "density": data.density.value if data.density else None,
-        "direction": data.direction or "inbound",
+        "direction": direction,
         "event_type": data.event_type.value,
         "confidence": data.confidence,
         "timestamp": data.timestamp,

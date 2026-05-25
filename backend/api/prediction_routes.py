@@ -1,3 +1,46 @@
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from backend.config import settings
+from backend.schemas.prediction_schema import (
+    PredictionHistoryItem,
+    PredictionHistoryResponse,
+    PredictionResponse,
+)
+from backend.services.db_service import get_db
+from backend.services.prediction_service import (
+    get_recent_aggregations,
+    list_predictions,
+    predict_next_density,
+)
+
+router = APIRouter(tags=["prediction"])
+
+
+def _predictions(item) -> dict:
+    return getattr(item, "predictions", None) or {
+        "left": 0,
+        "straight": int(getattr(item, "predicted_density", 0) or 0),
+        "right": 0,
+    }
+
+
+def _congestion_levels(item) -> dict:
+    return getattr(item, "congestion_levels", None) or {
+        "left": None,
+        "straight": getattr(item, "predicted_congestion_level", None),
+        "right": None,
+    }
+
+
+def _phase_timing(item) -> dict:
+    return getattr(item, "phase_timing", None) or {
+        "phase_1_green": getattr(item, "green_light_time", 45),
+        "phase_2_green": 30,
+        "delta_phase_1": getattr(item, "green_light_time", 45) - 50,
+        "delta_phase_2": 0,
+    }
+
+
 @router.get("/predict-next", response_model=PredictionResponse)
 def predict_next(camera_id: str | None = None, db=Depends(get_db)):
     recent_camera_id = camera_id or "CAM_01"
@@ -29,6 +72,9 @@ def predict_next(camera_id: str | None = None, db=Depends(get_db)):
             "green_light_time",
             45
         ),
+        predictions=_predictions(prediction),
+        congestion_levels=_congestion_levels(prediction),
+        phase_timing=_phase_timing(prediction),
         horizon_minutes=prediction.horizon_minutes,
         source=prediction.source,
         timestamp=prediction.timestamp,
@@ -69,6 +115,9 @@ def get_prediction_history(
                     "green_light_time",
                     45
                 ),
+                predictions=_predictions(item),
+                congestion_levels=_congestion_levels(item),
+                phase_timing=_phase_timing(item),
                 horizon_minutes=item.horizon_minutes,
                 source=item.source,
                 timestamp=item.timestamp,

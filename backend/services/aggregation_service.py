@@ -5,6 +5,9 @@ from typing import Optional
 # pyrefly: ignore [missing-import]
 from pymongo import DESCENDING
 
+LANE_DIRECTIONS = ("left", "straight", "right")
+LEGACY_INBOUND_DIRECTIONS = ("inbound", "straight", "left", "right")
+
 
 def to_object(document):
     if not document:
@@ -25,7 +28,86 @@ def compute_congestion(vehicle_count: int) -> str:
         return "Medium"
     if vehicle_count < 200:
         return "High"
-    return "Severe"
+    return "Heavy"
+
+
+def empty_direction_counts() -> dict[str, int]:
+    return {direction: 0 for direction in LANE_DIRECTIONS}
+
+
+def get_direction_thresholds(db, camera_id: Optional[str], direction: str) -> dict | None:
+    filters = {"direction": direction}
+    if camera_id:
+        filters["camera_id"] = camera_id
+
+    document = db.directional_thresholds.find_one(filters)
+    if document:
+        return document.get("thresholds")
+
+    if camera_id:
+        document = db.directional_thresholds.find_one(
+            {"camera_id": None, "direction": direction}
+        )
+        if document:
+            return document.get("thresholds")
+
+    return None
+
+
+def classify_direction_count(
+    db,
+    camera_id: Optional[str],
+    direction: str,
+    vehicle_count: int,
+) -> str:
+    thresholds = get_direction_thresholds(db, camera_id, direction)
+    if thresholds:
+        low_to_medium = float(thresholds.get("low_to_medium", 0))
+        medium_to_high = float(thresholds.get("medium_to_high", 0))
+        high_to_heavy = float(thresholds.get("high_to_heavy", 0))
+        if vehicle_count < low_to_medium:
+            return "Low"
+        if vehicle_count < medium_to_high:
+            return "Medium"
+        if vehicle_count < high_to_heavy:
+            return "High"
+        return "Heavy"
+
+    return compute_congestion(vehicle_count)
+
+
+def classify_direction_counts(
+    db,
+    camera_id: Optional[str],
+    direction_counts: dict[str, int],
+) -> dict[str, str]:
+    return {
+        direction: classify_direction_count(
+            db=db,
+            camera_id=camera_id,
+            direction=direction,
+            vehicle_count=count,
+        )
+        for direction, count in direction_counts.items()
+    }
+
+
+def compute_overall_congestion(congestion_levels: dict[str, str]) -> str:
+    rank = {"Low": 0, "Medium": 1, "High": 2, "Heavy": 3, "Severe": 3}
+    if not congestion_levels:
+        return "Low"
+    return max(congestion_levels.values(), key=lambda level: rank.get(level, 0))
+
+
+def count_distinct_tracks_by_direction(db, filters: dict) -> dict[str, int]:
+    counts = empty_direction_counts()
+    for direction in LANE_DIRECTIONS:
+        direction_filters = dict(filters)
+        direction_filters["direction"] = direction
+        counts[direction] = len(
+            db.vehicle_detections.distinct("track_id", direction_filters)
+        )
+    return counts
 
 
 
@@ -73,11 +155,16 @@ def aggregate_from_detections(
     start_time = start_time or (end_time - timedelta(minutes=15))
 
     filters = _detection_window_filter(camera_id, start_time, end_time)
-    vehicle_count = db.vehicle_detections.count_documents(filters)
+    direction_counts = count_distinct_tracks_by_direction(db, filters)
+    vehicle_count = sum(direction_counts.values())
+    if vehicle_count == 0:
+        vehicle_count = db.vehicle_detections.count_documents(filters)
+        direction_counts["straight"] = vehicle_count
 
     inbound_filters = dict(filters)
-    inbound_filters["direction"] = "inbound"
-    inbound_count = db.vehicle_detections.count_documents(inbound_filters)
+    inbound_filters["direction"] = {"$in": LEGACY_INBOUND_DIRECTIONS}
+    inbound_track_ids = db.vehicle_detections.distinct("track_id", inbound_filters)
+    inbound_count = len(inbound_track_ids)
 
     previous_inbound = get_previous_inbound_count(
         db=db,
@@ -85,7 +172,8 @@ def aggregate_from_detections(
         before_time=end_time,
     )
     queue_proxy = inbound_count - previous_inbound
-    congestion_level = compute_congestion(vehicle_count)
+    congestion_levels = classify_direction_counts(db, camera_id, direction_counts)
+    congestion_level = compute_overall_congestion(congestion_levels)
 
     document = {
         "camera_id": camera_id,
@@ -93,6 +181,8 @@ def aggregate_from_detections(
         "inbound_count": inbound_count,
         "queue_proxy": queue_proxy,
         "congestion_level": congestion_level,
+        "direction_counts": direction_counts,
+        "congestion_levels": congestion_levels,
         "timestamp": end_time,
     }
     result = db.traffic_aggregation.insert_one(document)
@@ -109,11 +199,15 @@ def compute_window_aggregation(
     window_start = now - timedelta(minutes=window_minutes)
 
     filters = _detection_window_filter(camera_id, window_start, now)
-    track_ids = db.vehicle_detections.distinct("track_id", filters)
-    vehicle_count = len(track_ids)
+    direction_counts = count_distinct_tracks_by_direction(db, filters)
+    vehicle_count = sum(direction_counts.values())
+    if vehicle_count == 0:
+        track_ids = db.vehicle_detections.distinct("track_id", filters)
+        vehicle_count = len(track_ids)
+        direction_counts["straight"] = vehicle_count
 
     inbound_filters = dict(filters)
-    inbound_filters["direction"] = "inbound"
+    inbound_filters["direction"] = {"$in": LEGACY_INBOUND_DIRECTIONS}
     inbound_track_ids = db.vehicle_detections.distinct("track_id", inbound_filters)
     inbound_count = len(inbound_track_ids)
 
@@ -124,12 +218,15 @@ def compute_window_aggregation(
     )
     queue_proxy = inbound_count - previous_inbound
 
+    congestion_levels = classify_direction_counts(db, camera_id, direction_counts)
     document = {
         "camera_id": camera_id,
         "vehicle_count": vehicle_count,
         "inbound_count": inbound_count,
         "queue_proxy": queue_proxy,
-        "congestion_level": compute_congestion(vehicle_count),
+        "congestion_level": compute_overall_congestion(congestion_levels),
+        "direction_counts": direction_counts,
+        "congestion_levels": congestion_levels,
         "timestamp": now,
     }
     result = db.traffic_aggregation.insert_one(document)

@@ -1,13 +1,13 @@
-from typing import Optional
+from typing import Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CameraBase(BaseModel):
     name: str
     location: Optional[str] = None
-    baseline_green: int = 30
-    monitored_direction: str = "inbound"
+    baseline_green: int = Field(default=30, ge=15, le=55)
+    monitored_direction: Literal["left", "straight", "right"] = "straight"
 
 
 class CameraCreate(CameraBase):

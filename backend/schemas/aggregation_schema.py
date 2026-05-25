@@ -1,7 +1,19 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class DirectionCounts(BaseModel):
+    left: int = 0
+    straight: int = 0
+    right: int = 0
+
+
+class DirectionCongestionLevels(BaseModel):
+    left: str = "Low"
+    straight: str = "Low"
+    right: str = "Low"
 
 
 class AggregationResponse(BaseModel):
@@ -10,6 +22,10 @@ class AggregationResponse(BaseModel):
     inbound_count: int = 0
     queue_proxy: int = 0
     congestion_level: str
+    direction_counts: DirectionCounts = Field(default_factory=DirectionCounts)
+    congestion_levels: DirectionCongestionLevels = Field(
+        default_factory=DirectionCongestionLevels
+    )
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     generated_at: datetime
@@ -22,6 +38,10 @@ class AggregationHistoryItem(BaseModel):
     inbound_count: int = 0
     queue_proxy: int = 0
     congestion_level: str
+    direction_counts: DirectionCounts = Field(default_factory=DirectionCounts)
+    congestion_levels: DirectionCongestionLevels = Field(
+        default_factory=DirectionCongestionLevels
+    )
     timestamp: datetime
 
 
@@ -41,3 +61,5 @@ class AggregationComputeResponse(BaseModel):
     inbound_count: int
     queue_proxy: int
     congestion_level: str
+    direction_counts: DirectionCounts
+    congestion_levels: DirectionCongestionLevels
