@@ -1,6 +1,6 @@
 // HistoryChart.js
-// Lịch sử số xe theo thời gian — gốc = thời gian bắt đầu video
-// Marker vàng đồng bộ với giây hiện tại của video
+// Tự tính lịch sử số xe từ rawData — nhóm theo mỗi 10 giây
+// Gốc = timestamp nhỏ nhất (videoStartMs), hiện đến giây video hiện tại
 
 import { useMemo, useRef } from 'react';
 import {
@@ -18,11 +18,9 @@ ChartJS.register(
 );
 
 // ── helpers ────────────────────────────────────────────────────────
-function getTs(item) {
-  return new Date(item.timestamp || item.generated_at || item.end_time || 0).getTime();
-}
+const BIN_SECONDS = 10; // nhóm mỗi 10 giây
 
-function fmtLabel(ms) {
+function fmtMs(ms) {
   if (!ms) return '';
   try {
     return new Date(ms).toLocaleTimeString('vi-VN', {
@@ -35,7 +33,7 @@ function fmtSecs(s) {
   const sec = Math.floor(s || 0);
   const m = Math.floor(sec / 60);
   const r = sec % 60;
-  return `${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`;
+  return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
 }
 
 // ── vertical-line plugin ───────────────────────────────────────────
@@ -45,83 +43,106 @@ const videoMarkerPlugin = {
     const { index } = opts;
     if (index == null || index < 0) return;
     const meta = chart.getDatasetMeta(0);
-    const pt   = meta?.data?.[index];
+    const pt = meta?.data?.[index];
     if (!pt) return;
-
-    const { ctx, chartArea: { top, bottom } } = chart;
+    const { ctx, chartArea: { top, bottom, right } } = chart;
     const x = pt.x;
 
-    // Line
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(x, top);
     ctx.lineTo(x, bottom);
-    ctx.lineWidth   = 2;
+    ctx.lineWidth = 2;
     ctx.strokeStyle = '#f59e0b';
     ctx.setLineDash([5, 4]);
     ctx.stroke();
     ctx.restore();
 
-    // Label badge
-    const lbl  = opts.label || '';
+    const lbl = opts.label || '';
     ctx.save();
     ctx.font = 'bold 10px JetBrains Mono, monospace';
     const tw = ctx.measureText(lbl).width;
-    const bx = Math.min(x - tw / 2 - 5, chart.chartArea.right - tw - 14);
+    const bx = Math.min(x - tw / 2 - 5, right - tw - 14);
     ctx.fillStyle = 'rgba(245,158,11,0.92)';
     ctx.beginPath();
-    ctx.roundRect(bx, top - 20, tw + 10, 17, 4);
+    ctx.roundRect(Math.max(bx, chart.chartArea.left), top - 20, tw + 10, 17, 4);
     ctx.fill();
     ctx.fillStyle = '#000';
-    ctx.fillText(lbl, bx + 5, top - 6);
+    ctx.fillText(lbl, Math.max(bx, chart.chartArea.left) + 5, top - 6);
     ctx.restore();
   },
 };
 
 ChartJS.register(videoMarkerPlugin);
 
+// ── Tính bins từ rawData ───────────────────────────────────────────
+function buildBins(sortedRaw, videoStartMs, cutoffMs) {
+  if (!sortedRaw.length || !videoStartMs) return [];
+
+  const endMs = Math.min(
+    cutoffMs,
+    new Date(sortedRaw[sortedRaw.length - 1].timestamp).getTime() + BIN_SECONDS * 1000
+  );
+  const bins = [];
+
+  for (let t = videoStartMs; t < endMs; t += BIN_SECONDS * 1000) {
+    const binEnd = t + BIN_SECONDS * 1000;
+    // Đếm xe có timestamp trong [videoStartMs, binEnd)  — tích lũy từ đầu
+    let total = 0, left = 0, straight = 0, right = 0;
+
+    for (const item of sortedRaw) {
+      const ts = new Date(item.timestamp).getTime();
+      if (ts < videoStartMs) continue;
+      if (ts >= binEnd) break;
+      total++;
+      const dir = (item.direction || '').toLowerCase();
+      if (dir === 'left') left++;
+      else if (dir === 'straight') straight++;
+      else if (dir === 'right') right++;
+    }
+
+    bins.push({
+      time: binEnd,
+      label: fmtMs(binEnd),
+      total,
+      left,
+      straight,
+      right,
+    });
+  }
+
+  return bins;
+}
+
 // ──────────────────────────────────────────────────────────────────
-export default function HistoryChart({ history, videoTime, videoStartMs }) {
+export default function HistoryChart({ sortedRaw, videoStartMs, videoTime }) {
   const chartRef = useRef(null);
 
-  // 1. Sắp xếp history theo thời gian
-  const sorted = useMemo(() =>
-    [...history].sort((a, b) => getTs(a) - getTs(b)),
-    [history]
+  const cutoffMs = videoStartMs ? videoStartMs + videoTime * 1000 : 0;
+
+  // Tính bins từ rawData
+  const allBins = useMemo(
+    () => buildBins(sortedRaw, videoStartMs, new Date(sortedRaw[sortedRaw.length - 1]?.timestamp).getTime() + BIN_SECONDS * 1000),
+    [sortedRaw, videoStartMs]
   );
 
-  // 2. Gốc của chart = videoStartMs
-  //    Chỉ hiển thị records từ videoStartMs đến videoStartMs + videoTime
-  //    → chart "mọc" dần ra phải khi video chạy
-  const visibleItems = useMemo(() => {
-    if (!videoStartMs || !sorted.length) return sorted;
-    const cutoffMs = videoStartMs + videoTime * 1000;
-    return sorted.filter(item => {
-      const ts = getTs(item);
-      return ts >= videoStartMs && ts <= cutoffMs;
-    });
-  }, [sorted, videoStartMs, videoTime]);
+  // Chỉ hiện bins đến giây video hiện tại
+  const visibleBins = useMemo(
+    () => allBins.filter(b => b.time <= cutoffMs + BIN_SECONDS * 1000),
+    [allBins, cutoffMs]
+  );
 
-  // 3. Tìm index marker (điểm gần nhất với videoTime trong visibleItems)
-  const markerIndex = useMemo(() => {
-    if (!visibleItems.length) return null;
-    return visibleItems.length - 1; // luôn là điểm cuối cùng đang thấy
-  }, [visibleItems]);
+  // Marker = bin cuối cùng đang thấy
+  const markerIndex = visibleBins.length > 0 ? visibleBins.length - 1 : null;
+  const markerLabel = markerIndex != null ? visibleBins[markerIndex].label : '';
 
-  const markerLabel = markerIndex != null && visibleItems[markerIndex]
-    ? fmtLabel(getTs(visibleItems[markerIndex]))
-    : '';
-
-  // 4. Nếu chưa có dữ liệu trong khoảng visible, hiển thị thông báo
-  // 5. Chart data
-  const labels = visibleItems.map(item => fmtLabel(getTs(item)));
-
+  // Chart data
   const chartData = {
-    labels,
+    labels: visibleBins.map(b => b.label),
     datasets: [
       {
         label: 'Tổng xe',
-        data: visibleItems.map(i => i.vehicle_count || 0),
+        data: visibleBins.map(b => b.total),
         borderColor: '#60a5fa',
         backgroundColor: 'rgba(96,165,250,0.10)',
         fill: true,
@@ -132,9 +153,8 @@ export default function HistoryChart({ history, videoTime, videoStartMs }) {
       },
       {
         label: '← Trái',
-        data: visibleItems.map(i => i.direction_counts?.left || 0),
+        data: visibleBins.map(b => b.left),
         borderColor: '#10b981',
-        backgroundColor: 'rgba(16,185,129,0.05)',
         tension: 0.4,
         pointRadius: 2,
         pointHoverRadius: 5,
@@ -142,9 +162,8 @@ export default function HistoryChart({ history, videoTime, videoStartMs }) {
       },
       {
         label: '↑ Thẳng',
-        data: visibleItems.map(i => i.direction_counts?.straight || 0),
+        data: visibleBins.map(b => b.straight),
         borderColor: '#f59e0b',
-        backgroundColor: 'rgba(245,158,11,0.05)',
         tension: 0.4,
         pointRadius: 2,
         pointHoverRadius: 5,
@@ -152,9 +171,8 @@ export default function HistoryChart({ history, videoTime, videoStartMs }) {
       },
       {
         label: '→ Phải',
-        data: visibleItems.map(i => i.direction_counts?.right || 0),
+        data: visibleBins.map(b => b.right),
         borderColor: '#ef4444',
-        backgroundColor: 'rgba(239,68,68,0.05)',
         tension: 0.4,
         pointRadius: 2,
         pointHoverRadius: 5,
@@ -166,7 +184,7 @@ export default function HistoryChart({ history, videoTime, videoStartMs }) {
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: { duration: 300 },
+    animation: { duration: 250 },
     interaction: { mode: 'index', intersect: false },
     plugins: {
       legend: {
@@ -186,13 +204,7 @@ export default function HistoryChart({ history, videoTime, videoStartMs }) {
         borderWidth: 1,
         padding: 12,
         titleFont: { size: 12, weight: '700', family: 'JetBrains Mono, monospace' },
-        bodyFont:  { size: 11 },
-        callbacks: {
-          afterBody(items) {
-            const row = visibleItems[items[0]?.dataIndex];
-            return row?.congestion_level ? [`Mật độ: ${row.congestion_level}`] : [];
-          },
-        },
+        bodyFont: { size: 11 },
       },
       videoMarker: {
         index: markerIndex,
@@ -204,20 +216,20 @@ export default function HistoryChart({ history, videoTime, videoStartMs }) {
         ticks: {
           color: '#64748b',
           font: { size: 10, family: 'JetBrains Mono, monospace' },
-          maxTicksLimit: 10,
+          maxTicksLimit: 12,
           maxRotation: 30,
         },
-        grid:   { color: 'rgba(255,255,255,0.04)' },
+        grid: { color: 'rgba(255,255,255,0.04)' },
         border: { color: 'rgba(255,255,255,0.06)' },
       },
       y: {
         beginAtZero: true,
         ticks: { color: '#64748b', font: { size: 11 } },
-        grid:   { color: 'rgba(255,255,255,0.05)' },
+        grid: { color: 'rgba(255,255,255,0.05)' },
         border: { color: 'rgba(255,255,255,0.06)' },
         title: {
           display: true,
-          text: 'Số phương tiện',
+          text: 'Số phương tiện (tích lũy)',
           color: '#475569',
           font: { size: 10 },
         },
@@ -225,11 +237,8 @@ export default function HistoryChart({ history, videoTime, videoStartMs }) {
     },
   };
 
-  // Thông tin ref
-  const startLabel = videoStartMs ? fmtLabel(videoStartMs) : '--:--:--';
-  const currentLabel = videoStartMs
-    ? fmtLabel(videoStartMs + videoTime * 1000)
-    : '--:--:--';
+  const startLabel = videoStartMs ? fmtMs(videoStartMs) : '--:--:--';
+  const currentLabel = cutoffMs ? fmtMs(cutoffMs) : '--:--:--';
 
   return (
     <div className="glass-card chart-card">
@@ -237,11 +246,10 @@ export default function HistoryChart({ history, videoTime, videoStartMs }) {
         <div className="chart-title-block">
           <div className="chart-title">📈 LỊCH SỬ PHƯƠNG TIỆN THEO THỜI GIAN</div>
           <div className="chart-subtitle">
-            {visibleItems.length} điểm dữ liệu · Gốc: {startLabel} · Cập nhật mỗi 10 giây
+            {visibleBins.length} điểm · Gốc: {startLabel} · Mỗi {BIN_SECONDS}s / điểm
           </div>
         </div>
 
-        {/* Video time info */}
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           {videoStartMs && (
             <div style={{
@@ -258,35 +266,21 @@ export default function HistoryChart({ history, videoTime, videoStartMs }) {
               </span>
               <span style={{ opacity: 0.6 }}>→</span>
               <strong style={{ fontFamily: 'JetBrains Mono, monospace' }}>{currentLabel}</strong>
-              {visibleItems.length > 0 && (
-                <>
-                  <span style={{ opacity: 0.6 }}>·</span>
-                  <span>{visibleItems[visibleItems.length - 1]?.vehicle_count ?? 0} xe</span>
-                </>
-              )}
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-2)' }}>
-              <div style={{ width: 20, height: 2, background: '#f59e0b', borderTop: '2px dashed #f59e0b' }} />
-              <span>Vị trí video</span>
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-3)' }}>
+            <div style={{ width: 20, height: 2, background: '#f59e0b', borderTop: '2px dashed #f59e0b' }} />
+            <span>Vị trí video</span>
           </div>
         </div>
       </div>
 
-      {/* Empty state — khi video chưa có data trong khoảng này */}
-      {!visibleItems.length ? (
+      {!visibleBins.length ? (
         <div className="chart-empty">
           <div className="chart-empty-icon">📊</div>
           <div style={{ color: 'var(--text-3)' }}>
-            {!videoStartMs
-              ? 'Đang chờ dữ liệu...'
-              : `Chưa có dữ liệu tổng hợp từ ${startLabel}`}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 4 }}>
-            Dữ liệu sẽ hiện khi video chạy tới mốc có ghi nhận
+            {!videoStartMs ? 'Đang chờ dữ liệu...' : 'Bắt đầu phát video để xem biểu đồ'}
           </div>
         </div>
       ) : (
