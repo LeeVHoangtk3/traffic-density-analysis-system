@@ -1,13 +1,13 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import './App.css';
 
-import Header          from './components/Header';
-import TotalCard       from './components/TotalCard';
-import VehicleTypes    from './components/VehicleTypes';
-import LanePanel       from './components/LanePanel';
-import VideoPanel      from './components/VideoPanel';
-import HistoryChart    from './components/HistoryChart';
-import PredictionPanel from './components/PredictionPanel';
+import Header          from './components/layout/Header';
+import TotalCard       from './components/metrics/TotalCard';
+import VehicleTypes    from './components/metrics/VehicleTypes';
+import LanePanel       from './components/traffic/LanePanel';
+import VideoPanel      from './components/video/VideoPanel';
+import HistoryChart    from './components/charts/HistoryChart';
+import PredictionPanel from './components/metrics/PredictionPanel';
 
 const API = 'http://localhost:8000';
 

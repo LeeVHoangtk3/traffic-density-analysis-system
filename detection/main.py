@@ -179,11 +179,16 @@ def _process_tracks(
     → không bao giờ process lại last_tracks cũ → tránh double counting
     """
     totals = {}
+    if tracks is None:
+        tracks = []
+        
+    active_track_ids = [int(t["track_id"]) for t in tracks]
+    
     for t in tracks:
         x1, y1, x2, y2 = t["bbox"]
         cx       = (x1 + x2) // 2
         cy_bottom = y2  # điểm tiếp đất — chính xác hơn center
-        zone_dir = zone_manager.check_crossing(t["track_id"], cx, cy_bottom)
+        zone_dir = zone_manager.check_crossing(int(t["track_id"]), cx, cy_bottom)
         if zone_dir:
             counter.count(t["class_name"])
             totals = counter.get_totals()
@@ -193,6 +198,9 @@ def _process_tracks(
                 event_counter.increment()  # F3: không dùng list hack
             else:
                 publisher.publish(event)
+                
+    # Dọn dẹp bộ nhớ RAM ở cuối mỗi khung hình cho các xe không còn xuất hiện
+    zone_manager.cleanup_memory(active_track_ids)
     return totals
 
 

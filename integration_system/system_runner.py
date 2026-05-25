@@ -177,8 +177,16 @@ _light_model = None
 
 
 def _get_light_model():
-    """LightDeltaModel đã bị xoá — luôn trả về None."""
-    return None
+    """Import and return the singleton instance of LightDeltaModel."""
+    global _light_model
+    if _light_model is None:
+        try:
+            from ml_service.light_delta_model import LightDeltaModel
+            _light_model = LightDeltaModel()
+        except Exception as e:
+            print(f"[system_runner] Failed to import/initialize LightDeltaModel: {e}")
+            _light_model = None
+    return _light_model
 
 
 def _controlled_phase_for_camera(camera_id: str) -> str:
@@ -368,7 +376,7 @@ class TrafficSystem:
         print("      Detection started (PID={})".format(self.detection_process.pid))
 
         print("[3/3] Starting Frontend (npm start)...")
-        frontend_dir = os.path.join(project_root, "traffic-frontend")
+        frontend_dir = os.path.join(project_root, "frontend")
         frontend_cmd = ["npm.cmd", "start"] if os.name == 'nt' else ["npm", "start"]
         self.frontend_process = subprocess.Popen(
             frontend_cmd, cwd=frontend_dir

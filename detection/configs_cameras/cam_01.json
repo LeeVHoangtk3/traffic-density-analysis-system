@@ -35,6 +35,17 @@
         [960, 333],
         [960, 259]
       ]
+    },
+    {
+      "id": "zone_trigger",
+      "direction": "trigger",
+      "is_trigger": true,
+      "points": [
+        [0, 380],
+        [0, 460],
+        [960, 460],
+        [960, 380]
+      ]
     }
   ]
 }

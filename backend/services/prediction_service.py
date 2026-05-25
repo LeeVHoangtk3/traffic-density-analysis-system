@@ -302,4 +302,4 @@ def list_predictions(db, camera_id=None, limit=20, offset=0):
         .skip(offset)
         .limit(limit)
     )
-    return total, [to_object(document) for document in documents]
+    return total, [to_object(document) for document in docs]
