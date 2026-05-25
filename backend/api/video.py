@@ -6,48 +6,52 @@ from fastapi.responses import StreamingResponse
 router = APIRouter(tags=["video"])
 
 
-# ================== FIND PROJECT ROOT ==================
-def find_project_root(start_path: Path) -> Path:
-    """
-    Tự động tìm thư mục gốc chứa video_data
-    """
-    for parent in [start_path] + list(start_path.parents):
-        if (parent / "video_data").exists():
-            return parent
-    return start_path
+# ================== PROJECT ROOT ==================
+# traffic-density-analysis-system/
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
+# ================== VIDEO FOLDER ==================
+# traffic-density-analysis-system/data/video/
+VIDEO_FOLDER = PROJECT_ROOT / "data" / "video"
 
-PROJECT_ROOT = find_project_root(Path(__file__).resolve())
-
-# project_root/video_data/
-VIDEO_FOLDER = PROJECT_ROOT / "video_data"
-
-# file video mặc định
+# ================== DEFAULT VIDEO ==================
 DEFAULT_VIDEO = "traffic1.mp4"
 
 
-def _iter_file(file_path: Path, start: int, end: int, chunk_size: int = 1024 * 1024):
+def _iter_file(
+    file_path: Path,
+    start: int,
+    end: int,
+    chunk_size: int = 1024 * 1024
+):
     """
-    Stream file theo chunk (hỗ trợ video range)
+    Stream file theo chunk
+    (hỗ trợ video range streaming)
     """
+
     with open(file_path, "rb") as f:
+
         f.seek(start)
 
         remaining = end - start + 1
 
         while remaining > 0:
+
             read_size = min(chunk_size, remaining)
+
             data = f.read(read_size)
 
             if not data:
                 break
 
             yield data
+
             remaining -= len(data)
 
 
 @router.get("/video")
 def get_video(request: Request):
+
     file_path = VIDEO_FOLDER / DEFAULT_VIDEO
 
     # ================= DEBUG =================
@@ -59,45 +63,73 @@ def get_video(request: Request):
     print("CWD:", Path.cwd())
     # =========================================
 
+    # ================= CHECK FILE =================
     if not file_path.exists() or not file_path.is_file():
+
         raise HTTPException(
             status_code=404,
             detail=f"Video '{DEFAULT_VIDEO}' không tồn tại tại {file_path}"
         )
 
     file_size = file_path.stat().st_size
+
     range_header = request.headers.get("range")
 
     # ================= RANGE REQUEST =================
     if range_header:
-        try:
-            range_value = range_header.strip().replace("bytes=", "")
 
+        try:
+
+            range_value = range_header.strip().replace(
+                "bytes=",
+                ""
+            )
+
+            # bytes=-500
             if range_value.startswith("-"):
+
                 suffix_length = int(range_value[1:])
-                start = max(0, file_size - suffix_length)
+
+                start = max(
+                    0,
+                    file_size - suffix_length
+                )
+
                 end = file_size - 1
+
             else:
+
                 parts = range_value.split("-")
 
                 start = int(parts[0])
 
                 if len(parts) > 1 and parts[1]:
+
                     end = int(parts[1])
+
                 else:
                     end = file_size - 1
 
         except (ValueError, AttributeError):
+
             raise HTTPException(
                 status_code=416,
                 detail="Range không hợp lệ"
             )
 
-        if start >= file_size or end >= file_size or start > end:
+        # ================= INVALID RANGE =================
+        if (
+            start >= file_size
+            or end >= file_size
+            or start > end
+        ):
+
             raise HTTPException(
                 status_code=416,
                 detail="Range Not Satisfiable",
-                headers={"Content-Range": f"bytes */{file_size}"},
+                headers={
+                    "Content-Range": f"bytes */{file_size}"
+                },
             )
 
         headers = {
@@ -108,13 +140,17 @@ def get_video(request: Request):
         }
 
         return StreamingResponse(
-            _iter_file(file_path, start, end),
+            _iter_file(
+                file_path,
+                start,
+                end
+            ),
             status_code=206,
             headers=headers,
             media_type="video/mp4",
         )
 
-    # ================= FULL FILE =================
+    # ================= FULL VIDEO =================
     headers = {
         "Accept-Ranges": "bytes",
         "Content-Length": str(file_size),
@@ -122,7 +158,11 @@ def get_video(request: Request):
     }
 
     return StreamingResponse(
-        _iter_file(file_path, 0, file_size - 1),
+        _iter_file(
+            file_path,
+            0,
+            file_size - 1
+        ),
         status_code=200,
         headers=headers,
         media_type="video/mp4",
