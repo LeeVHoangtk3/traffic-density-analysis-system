@@ -32,50 +32,38 @@ def load_data_from_csv() -> pd.DataFrame:
         print(f"Error loading CSV: {e}")
     return pd.DataFrame()
 
-def run_clustering():
-    camera_id = "CAM_01"
-    
-    # Attempt to load from DB
-    df = load_data_from_db(camera_id)
-    
-    # Check if necessary columns exist in DB data
+def process_clustering_for_dataframe(camera_id: str, df: pd.DataFrame):
     directions = ["straight", "left", "right"]
+    
+    # Check if necessary columns exist
     has_data = not df.empty
     if has_data:
-        # Verify columns exist
+        # Rename columns if they lack 'vol_' prefix (mostly for CSV fallback)
+        rename_map = {}
+        for d in directions:
+            if d in df.columns and f"vol_{d}" not in df.columns:
+                rename_map[d] = f"vol_{d}"
+        if rename_map:
+            df = df.rename(columns=rename_map)
+            
         for d in directions:
             if f"vol_{d}" not in df.columns:
-                has_data = False
-                break
-                
-    if not has_data:
-        print("DB data is missing or incomplete for direction volumes. Falling back to CSV...")
-        df = load_data_from_csv()
-        
-        # Rename columns if they lack 'vol_' prefix
-        if not df.empty:
-            rename_map = {}
-            for d in directions:
-                if d in df.columns and f"vol_{d}" not in df.columns:
-                    rename_map[d] = f"vol_{d}"
-            if rename_map:
-                df = df.rename(columns=rename_map)
-        
-    if df.empty:
-        print("No data available to perform clustering. Exiting.")
+                print(f"Warning: Column vol_{d} not found for {camera_id}. Skipping.")
+                continue
+    else:
+        print(f"No data for {camera_id}. Skipping.")
         return
         
     for direction in directions:
         col_name = f"vol_{direction}"
         if col_name not in df.columns:
-            print(f"Warning: Column {col_name} not found in data. Skipping {direction}.")
             continue
             
         # Extract 1D array
         V_D = df[col_name].dropna().values.reshape(-1, 1)
         
         if len(V_D) < 4 or len(np.unique(V_D)) < 4:
-            print(f"Not enough unique data points to cluster {direction}. Need at least 4.")
+            print(f"Not enough unique data points to cluster {direction} for {camera_id}. Need at least 4.")
             continue
             
         # Run KMeans
@@ -123,7 +111,45 @@ def run_clustering():
             print(f"  Centroids: {centroids_list}")
             print(f"  Thresholds: T1={T1}, T2={T2}, T3={T3}")
         except Exception as e:
-            print(f"Error saving to MongoDB for {direction}: {e}")
+            print(f"Error saving to MongoDB for {direction} ({camera_id}): {e}")
+
+def run_clustering():
+    print("[*] Bắt đầu tiến trình phân cụm (Clustering) ngưỡng lưu lượng...")
+    
+    # 1. Attempt to load from DB and find all distinct cameras
+    try:
+        camera_ids = db.traffic_aggregation.distinct("camera_id")
+        if camera_ids:
+            print(f" -> Tìm thấy {len(camera_ids)} camera(s) trong DB: {camera_ids}")
+            for cam_id in camera_ids:
+                print(f"\n--- Đang xử lý phân cụm cho Camera: {cam_id} (Dữ liệu DB) ---")
+                df = load_data_from_db(cam_id)
+                process_clustering_for_dataframe(cam_id, df)
+            return  # Nếu DB có data thì dùng DB, không cần fallback
+    except Exception as e:
+        print(f"Lỗi khi truy vấn danh sách camera từ DB: {e}")
+
+    # 2. Fallback to CSV if DB is empty or failed
+    print("\n[!] Dữ liệu DB trống hoặc thiếu. Đang chuyển sang đọc từ CSV dự phòng...")
+    df_csv = load_data_from_csv()
+    
+    if df_csv.empty:
+        print("Không có dữ liệu CSV để phân cụm. Kết thúc.")
+        return
+        
+    # Check if 'segment_id' exists to group by segments
+    if 'segment_id' in df_csv.columns:
+        segments = df_csv['segment_id'].unique()
+        print(f" -> Tìm thấy {len(segments)} segment_id(s) trong CSV: {segments}")
+        for seg_id in segments:
+            cam_id = str(seg_id)
+            print(f"\n--- Đang xử lý phân cụm cho Segment: {cam_id} (Dữ liệu CSV) ---")
+            df_seg = df_csv[df_csv['segment_id'] == seg_id].copy()
+            process_clustering_for_dataframe(cam_id, df_seg)
+    else:
+        # Fallback if no segment_id
+        print("\n--- Đang xử lý phân cụm cho toàn bộ dữ liệu CSV (Mặc định: CAM_01) ---")
+        process_clustering_for_dataframe("CAM_01", df_csv)
 
 if __name__ == "__main__":
     run_clustering()
