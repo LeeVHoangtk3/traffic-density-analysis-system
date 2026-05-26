@@ -59,64 +59,61 @@ class ZoneManager:
         self.cooldown_blocked = 0
         self.discarded_count = 0
 
-    def check_crossing(
+    def update_active_track(
         self,
         track_id: int,
         cx: float,
         cy: float,
-    ) -> str | None:
+        track_dict: dict,
+    ) -> None:
         """
-        Hàm kiểm tra va chạm (State Machine) bằng Shapely.
-        Luồng logic: Xe bắt buộc phải chạm Trigger Zone trước -> chạm Validator Lane sau mới được đếm.
+        Cập nhật trạng thái của track đang hoạt động trong khung hình.
+        Liên tục theo dõi và ghi nhận phân làn quyết định cuối cùng mà phương tiện đi qua.
         """
         point = Point(float(cx), float(cy))
 
         # Khởi tạo trạng thái mới nếu xe lần đầu xuất hiện
         if track_id not in self.memory_traffic:
             self.memory_traffic[track_id] = {
-                "passed_trigger": False,  # Trạng thái đã đi qua vùng Trigger xuất phát
-                "is_counted": False,       # Trạng thái đã đếm thành công ở Lane quyết định
-                "discarded": False,        # Trạng thái bị loại bỏ vì nhảy vào làn mà không qua Trigger
-                "last_counted": 0.0        # Cooldown timestamp
+                "passed_trigger": False,      # Đã đi qua Trigger Zone xuất phát
+                "last_zone": None,            # Làn quyết định cuối cùng chạm phải
+                "track": track_dict,          # Cache thông tin track để phục vụ đếm khi thoát
+                "is_counted": False,          # Trạng thái đã đếm
+                "discarded": False,           # Trạng thái bị loại bỏ vì đi vào validator không qua Trigger
+                "last_counted": 0.0
             }
 
         state = self.memory_traffic[track_id]
+        
+        # Cập nhật thông tin track mới nhất (tọa độ, confidence...)
+        state["track"] = track_dict
 
-        # Nếu xe đã đếm hoặc đã bị loại bỏ, bỏ qua
+        # Nếu xe đã đếm hoặc đã bị loại bỏ từ trước, bỏ qua
         if state["is_counted"] or state["discarded"]:
-            return None
+            return
 
         # BƯỚC 1: Kiểm tra xe chạm vào Trigger Zone cận cảnh trước
         if not state["passed_trigger"]:
             if self.roi_trigger.contains(point):
                 state["passed_trigger"] = True
                 print(f"[ZoneManager] Track ID {track_id} registered at TRIGGER zone (Start).")
-                return None
+                return
 
         # BƯỚC 2: Kiểm tra khi xe chạm vào các Validator Lanes tiếp theo (Exit/End Zones)
         for validator_poly, lane_name, _ in self.validators:
             if validator_poly.contains(point):
-                now = time.monotonic()
-                
                 # Nếu xe ĐÃ có lịch sử đi qua Trigger hợp lệ
                 if state["passed_trigger"]:
-                    # Áp dụng cooldown an toàn
-                    if now - state["last_counted"] < self.cooldown_seconds:
-                        self.cooldown_blocked += 1
-                        return None
-                    
-                    state["is_counted"] = True
-                    state["last_counted"] = now
-                    print(f"[ZoneManager] Track ID {track_id} COUNTED! Direction: {lane_name} (Trigger -> {lane_name})")
-                    return lane_name
+                    # Liên tục cập nhật làn cuối cùng chạm phải (không chốt ngay lập tức)
+                    if state["last_zone"] != lane_name:
+                        state["last_zone"] = lane_name
+                        print(f"[ZoneManager] Track ID {track_id} updated active lane to: {lane_name}")
                 else:
                     # Xe nhảy thẳng vào Validator Lane mà không có lịch sử qua Trigger -> Loại bỏ!
                     state["discarded"] = True
                     self.discarded_count += 1
                     print(f"[ZoneManager] Track ID {track_id} DISCARDED (Direct entry to lane without passing trigger).")
-                    return None
-
-        return None
+                    return
 
     def draw_zone(self, frame: np.ndarray) -> np.ndarray:
         """Vẽ toàn bộ các validator và trigger zone lên frame hình OpenCV."""
@@ -143,15 +140,28 @@ class ZoneManager:
 
         return frame
 
-    def cleanup_memory(self, active_track_ids: List[int]) -> None:
+    def cleanup_memory(self, active_track_ids: List[int]) -> List[Tuple[int, str, Dict[str, Any]]]:
         """
-        Dọn dẹp bộ nhớ RAM ở cuối mỗi khung hình để tự động xóa dữ liệu
-        của các track_id không còn hiện diện trong tập ByteTrack.
+        Dọn dẹp bộ nhớ RAM và xác định các xe đã đi ra ngoài khung hình (exit).
+        Trả về danh sách các sự kiện đếm xe hợp lệ: (track_id, final_lane_name, cached_track_dict)
         """
+        exited_events: List[Tuple[int, str, Dict[str, Any]]] = []
+        
         expired_ids = [tid for tid in self.memory_traffic if tid not in active_track_ids]
         for tid in expired_ids:
+            state = self.memory_traffic[tid]
+            
+            # Nếu xe qua Trigger hợp lệ và đã chạm ít nhất 1 làn quyết định trước khi thoát
+            if state["passed_trigger"] and state["last_zone"] is not None and not state["is_counted"]:
+                state["is_counted"] = True
+                exited_events.append((tid, state["last_zone"], state["track"]))
+                print(f"[ZoneManager] Track ID {tid} COUNTED ON EXIT! Final direction: {state['last_zone']} (Trigger -> {state['last_zone']})")
+                
+            # Xóa sạch khỏi bộ nhớ RAM để tránh rò rỉ bộ nhớ
             if tid in self.memory_traffic:
                 del self.memory_traffic[tid]
+                
+        return exited_events
 
     def stats(self) -> dict:
         return {

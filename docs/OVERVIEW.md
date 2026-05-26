@@ -133,7 +133,7 @@ traffic-density-analysis-system/
 ├── detection/                      # Computer Vision Engine
 │   ├── main.py                     # Entrypoint xử lý video/camera
 │   ├── camera_engine.py            # Quản lý luồng đọc khung hình OpenCV
-│   ├── camera_display.py           # Hiển thị trực quan đè ROI lên frame
+│   ├── calibrate_zones.py          # Bộ công cụ GUI tương tác hiệu chuẩn vùng ROI bằng chuột
 │   ├── configs_cameras/
 │   │   └── cam_01.json             # Cấu hình vùng ROI và baseline ngã tư
 │   ├── engine/                     # Các module xử lý lõi

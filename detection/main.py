@@ -57,23 +57,50 @@ IS_COLAB    = "COLAB_GPU" in os.environ
 HAS_CUDA    = torch.cuda.is_available()
 
 
-# ── Cấu hình ──────────────────────────────────────────────────────────────────
+# ── CẤU HÌNH HỆ THỐNG (ENVIRONMENT VARIABLES & CONFIGS) ────────────────────────
+# [1] API_URL: Đường dẫn API của Backend để gửi các sự kiện nhận diện (đếm xe qua vạch).
 API_URL      = os.getenv("TRAFFIC_API_URL",     "http://127.0.0.1:8000/detection")
-VIDEO_SOURCE = os.getenv("TRAFFIC_VIDEO_SOURCE", str(Path(BASE_DIR) / "data" / "video" / "traffic1.mp4"))
+
+# [2] VIDEO_SOURCE: Nguồn video đầu vào. Có thể là đường dẫn file MP4 hoặc số nguyên (ví dụ: 0) để chạy webcam.
+VIDEO_SOURCE = os.getenv("TRAFFIC_VIDEO_SOURCE", str(Path(BASE_DIR) / "data" / "video" / "traffic3.mp4"))
+
+# [3] MODEL_PATH: Đường dẫn file trọng số YOLOv9 (.pt).
 MODEL_PATH   = os.getenv("TRAFFIC_MODEL_PATH",   str(Path(BASE_DIR) / "detection" / "pro_models" / "yolov9_img960_ultimate.pt"))
+
+# [4] OUTPUT_VIDEO: Tên video đầu ra được ghi lại sau khi chạy (có vẽ khung và HUD giám sát).
 OUTPUT_VIDEO = os.getenv("TRAFFIC_OUTPUT_VIDEO", "output_v5.mp4")
+
+# [5] ALERT_LOG: File lưu lịch sử cảnh báo mật độ cao hoặc ùn tắc đột biến (CSV). Để trống nếu tắt.
 ALERT_LOG    = os.getenv("ALERT_LOG", "")
 
+# [6] CONF_THRESHOLD: Độ tự tin tối thiểu (từ 0.0 đến 1.0) để YOLO nhận dạng một đối tượng là xe.
 CONF_THRESHOLD = float(os.getenv("CONF_THRESHOLD", "0.40"))
-TARGET_WIDTH   = 960  # cố định — model train imgsz=960
 
+# [7] TARGET_WIDTH: Độ rộng chuẩn hóa ảnh đầu vào trước khi cấp cho mô hình AI (mặc định là 960px).
+TARGET_WIDTH   = 960  # cố định theo cấu hình imgsz=960 của YOLOv9
+
+# [8] SYNC_MODE: Chế độ xử lý đồng bộ.
+#     - True (Mặc định): Xử lý từng khung hình một cách chính xác tuyệt đối, đếm xe chuẩn xác không bỏ sót.
+#     - False: Xử lý bất đồng bộ (chạy ngầm), cho phép bỏ qua khung hình (frame-skip) để video chạy mượt hơn.
 SYNC_MODE      = os.getenv("SYNC_MODE", "true").lower() in ("1", "true", "yes")
+
+# [9] NO_DISPLAY: Chế độ tắt hiển thị trực tiếp.
+#     - True: Chạy ngầm không giao diện (Headless), tối ưu tốc độ và dùng khi chạy trên máy chủ.
+#     - False (Mặc định mới): BẬT cửa sổ hiển thị video OpenCV trực tiếp thời gian thực khi chạy độc lập trên Terminal.
 NO_DISPLAY     = os.getenv("NO_DISPLAY", "true").lower() in ("1", "true", "yes")
+
+# [10] PLAYBACK_SPEED: Tốc độ phát video (chỉ áp dụng khi chạy chế độ bất đồng bộ SYNC_MODE=False).
 PLAYBACK_SPEED = float(os.getenv("PLAYBACK_SPEED", "1.0"))
+
+# [11] DRY_RUN: Chế độ chạy thử nghiệm độc lập (KHÔNG CẦN BACKEND).
+#      - True (Mặc định mới): KHÔNG gửi dữ liệu qua API HTTP về Backend, đếm và hiển thị cục bộ. RẤT HỮU ÍCH KHI CHẠY TEST.
+#      - False: Gửi toàn bộ sự kiện nhận diện thời gian thực về Backend.
 DRY_RUN        = os.getenv("DRY_RUN", "false").lower() in ("1", "true", "yes")
 
+# [12] AGGREGATION_INTERVAL_SEC: Chu kỳ tự động gọi API tính toán tổng hợp mật độ ùn tắc (mặc định 15 phút).
 AGGREGATION_INTERVAL_SEC = 15 * 60
 
+# [13] FRAME_SKIP_BY_DENSITY: Số khung hình bỏ qua dựa theo mật độ xe (chỉ áp dụng cho chế độ bất đồng bộ SYNC_MODE=False).
 FRAME_SKIP_BY_DENSITY: dict[str, int] = {
     "LOW":    5 if HAS_CUDA else 10,
     "MEDIUM": 3 if HAS_CUDA else 6,
@@ -172,11 +199,10 @@ def _process_tracks(
     event_counter: EventCounter,
 ) -> dict:
     """
-    Zone crossing → counter → publish event.
-    Trả về totals mới nếu có crossing, {} nếu không.
-
-    F1 FIX: hàm này CHỈ được gọi khi tracks là MỚI (new_tracks is not None)
-    → không bao giờ process lại last_tracks cũ → tránh double counting
+    Cập nhật quỹ đạo của xe trên từng frame -> Khi xe đi ra ngoài khung hình (exit),
+    chốt làn đường cuối cùng đi qua, tăng bộ đếm và gửi sự kiện đếm xe về backend.
+    
+    Trả về totals mới nếu có xe thoát và được đếm, {} nếu không.
     """
     totals = {}
     if tracks is None:
@@ -184,23 +210,27 @@ def _process_tracks(
         
     active_track_ids = [int(t["track_id"]) for t in tracks]
     
+    # 1. Cập nhật trạng thái và làn đường của tất cả các xe đang hoạt động trong khung hình
     for t in tracks:
         x1, y1, x2, y2 = t["bbox"]
         cx       = (x1 + x2) // 2
-        cy_bottom = y2  # điểm tiếp đất — chính xác hơn center
-        zone_dir = zone_manager.check_crossing(int(t["track_id"]), cx, cy_bottom)
-        if zone_dir:
-            counter.count(t["class_name"])
-            totals = counter.get_totals()
-            event  = event_generator.generate(
-                camera_id=camera_id, track=t, direction=zone_dir)
-            if DRY_RUN:
-                event_counter.increment()  # F3: không dùng list hack
-            else:
-                publisher.publish(event)
+        cy_bottom = y2  # điểm tiếp đất
+        zone_manager.update_active_track(int(t["track_id"]), cx, cy_bottom, t)
                 
-    # Dọn dẹp bộ nhớ RAM ở cuối mỗi khung hình cho các xe không còn xuất hiện
-    zone_manager.cleanup_memory(active_track_ids)
+    # 2. Dọn dẹp RAM và lấy danh sách các xe vừa thoát khỏi khung hình camera
+    exited_vehicles = zone_manager.cleanup_memory(active_track_ids)
+    
+    # 3. Ghi nhận đếm và gửi sự kiện cho các xe vừa thoát
+    for tid, final_lane, cached_track in exited_vehicles:
+        counter.count(cached_track["class_name"])
+        totals = counter.get_totals()
+        event  = event_generator.generate(
+            camera_id=camera_id, track=cached_track, direction=final_lane)
+        if DRY_RUN:
+            event_counter.increment()
+        else:
+            publisher.publish(event)
+            
     return totals
 
 
