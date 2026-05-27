@@ -75,7 +75,7 @@ def _normalize_light_status(raw_status: dict) -> dict:
     }
 
     return {
-        "camera_id": raw_status.get("camera_id", "CAM_01"),
+        "camera_id": raw_status.get("camera_id", "cam01"),
         "active_phase": active_phase,
         "cycle_time": int(raw_status.get("cycle_time", 90)),
         "transition_time": int(raw_status.get("transition_time", 10)),
@@ -146,7 +146,7 @@ def get_directional_thresholds(
 def upsert_directional_threshold(
     direction: Direction,
     payload: DirectionalThresholdUpsert,
-    camera_id: str = "CAM_01",
+    camera_id: str = "cam01",
     db=Depends(get_db),
 ):
     values = payload.thresholds

@@ -16,31 +16,32 @@ export default function App() {
   const [rawData,     setRawData]     = useState([]);
   const [prediction,  setPrediction]  = useState(null);
   const [videoTime,   setVideoTime]   = useState(0); // giây từ đầu video
+  const [activeCamera, setActiveCamera] = useState('cam01');
 
   // ─── fetch helpers ───────────────────────────────────────────────
   const fetchAggregation = useCallback(async () => {
     try {
-      const r = await fetch(`${API}/aggregation`);
+      const r = await fetch(`${API}/aggregation?camera_id=${activeCamera}`);
       if (r.ok) setAggregation(await r.json());
     } catch {}
-  }, []);
+  }, [activeCamera]);
 
   const fetchRaw = useCallback(async () => {
     try {
-      const r = await fetch(`${API}/raw-data?limit=5000`);
+      const r = await fetch(`${API}/raw-data?camera_id=${activeCamera}&limit=5000`);
       if (r.ok) {
         const d = await r.json();
         setRawData(Array.isArray(d?.items) ? d.items : []);
       }
     } catch {}
-  }, []);
+  }, [activeCamera]);
 
   const fetchPrediction = useCallback(async () => {
     try {
-      const r = await fetch(`${API}/predict-next`);
+      const r = await fetch(`${API}/predict-next?camera_id=${activeCamera}`);
       if (r.ok) setPrediction(await r.json());
     } catch {}
-  }, []);
+  }, [activeCamera]);
 
   // ─── initial load + polling ──────────────────────────────────────
   useEffect(() => {
@@ -79,9 +80,15 @@ export default function App() {
     });
   }, [sortedRaw, videoStartMs, videoTime]);
 
+  const handleCameraChange = useCallback((newCam) => {
+    setActiveCamera(newCam);
+    // Reset video time to 0 to restart video playback
+    setVideoTime(0);
+  }, []);
+
   return (
     <div className="app">
-      <Header />
+      <Header activeCamera={activeCamera} onChangeCamera={handleCameraChange} />
 
       <div className="main-grid">
         <div className="area-total">
@@ -97,7 +104,7 @@ export default function App() {
         </div>
 
         <div className="area-video">
-          <VideoPanel onTimeUpdate={setVideoTime} />
+          <VideoPanel onTimeUpdate={setVideoTime} activeCamera={activeCamera} />
         </div>
 
         <div className="area-predict">

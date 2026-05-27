@@ -54,7 +54,7 @@ if _INTEGRATION_DIR not in sys.path:
     sys.path.insert(0, _INTEGRATION_DIR)
 
 API_BASE         = os.getenv("TRAFFIC_API_BASE",  "http://127.0.0.1:8000")
-CAMERA_ID        = os.getenv("TRAFFIC_CAMERA_ID", "CAM_01")
+CAMERA_ID        = os.getenv("TRAFFIC_CAMERA_ID", "cam01")
 PIPELINE_INTERVAL = int(os.getenv("PIPELINE_INTERVAL", "5"))   # giay
 NO_SUBPROCESS    = os.getenv("NO_SUBPROCESS", "0") == "1"
 
@@ -101,13 +101,13 @@ class PerformanceMonitor:
 # Anh xa camera_id -> thong tin pha den va huong luong xe.
 # Chinh bang nay theo so do vat ly cua he thong thuc te.
 CAMERA_PHASE_MAP: dict[str, dict[str, str]] = {
-    "CAM_01": {
+    "cam01": {
         "phase": "north_green",
         "controlled_phase": "phase_1",
         "direction": "straight_right",
         "junction": "JCT_A",
     },
-    "CAM_02": {
+    "cam02": {
         "phase": "south_green",
         "controlled_phase": "phase_1",
         "direction": "straight_right",

@@ -15,7 +15,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 VIDEO_FOLDER = PROJECT_ROOT / "data" / "video"
 
 # ================== DEFAULT VIDEO ==================
-DEFAULT_VIDEO = "traffic1.mp4"
+DEFAULT_VIDEO = "cam01-traffic3.mp4"
 
 
 def _iter_file(
@@ -50,9 +50,23 @@ def _iter_file(
 
 
 @router.get("/video")
-def get_video(request: Request):
+def get_video(
+    request: Request,
+    camera_id: str | None = None,
+    video_name: str | None = None
+):
+    selected_video = DEFAULT_VIDEO
+    if video_name:
+        selected_video = video_name
+    elif camera_id:
+        if camera_id.lower() == "cam01":
+            selected_video = "cam01-traffic3.mp4"
+        elif camera_id.lower() == "cam02":
+            selected_video = "cam02-traffic8.mp4"
+        else:
+            selected_video = f"{camera_id.lower()}-traffic3.mp4"
 
-    file_path = VIDEO_FOLDER / DEFAULT_VIDEO
+    file_path = VIDEO_FOLDER / selected_video
 
     # ================= DEBUG =================
     print("PROJECT_ROOT:", PROJECT_ROOT)
@@ -68,7 +82,7 @@ def get_video(request: Request):
 
         raise HTTPException(
             status_code=404,
-            detail=f"Video '{DEFAULT_VIDEO}' không tồn tại tại {file_path}"
+            detail=f"Video '{selected_video}' không tồn tại tại {file_path}"
         )
 
     file_size = file_path.stat().st_size
