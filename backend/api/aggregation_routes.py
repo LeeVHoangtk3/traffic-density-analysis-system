@@ -121,7 +121,7 @@ def get_aggregation_history(
 
 @router.post("/aggregation/compute", response_model=AggregationComputeResponse)
 def compute_aggregation(
-    camera_id: str = "CAM_01",
+    camera_id: str = "cam01",
     window_minutes: int = Query(default=15, ge=1, le=1440),
     db=Depends(get_db),
 ):

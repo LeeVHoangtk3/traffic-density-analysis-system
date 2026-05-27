@@ -62,7 +62,7 @@ HAS_CUDA    = torch.cuda.is_available()
 API_URL      = os.getenv("TRAFFIC_API_URL",     "http://127.0.0.1:8000/detection")
 
 # [2] VIDEO_SOURCE: Nguồn video đầu vào. Có thể là đường dẫn file MP4 hoặc số nguyên (ví dụ: 0) để chạy webcam.
-VIDEO_SOURCE = os.getenv("TRAFFIC_VIDEO_SOURCE", str(Path(BASE_DIR) / "data" / "video" / "traffic3.mp4"))
+VIDEO_SOURCE = os.getenv("TRAFFIC_VIDEO_SOURCE", str(Path(BASE_DIR) / "data" / "video" / "cam01-traffic3.mp4"))
 
 # [3] MODEL_PATH: Đường dẫn file trọng số YOLOv9 (.pt).
 MODEL_PATH   = os.getenv("TRAFFIC_MODEL_PATH",   str(Path(BASE_DIR) / "detection" / "pro_models" / "yolov9_img960_ultimate.pt"))
@@ -279,7 +279,7 @@ def display_in_notebook(video_path: str) -> None:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main() -> None:
-    camera_id   = "CAM_01"
+    camera_id   = "cam01"
     config_path = os.path.join(BASE_DIR, "detection", "configs_cameras", f"{camera_id.lower()}.json")
 
     for path, label in [(config_path, "Camera config"), (MODEL_PATH, "YOLO model")]:

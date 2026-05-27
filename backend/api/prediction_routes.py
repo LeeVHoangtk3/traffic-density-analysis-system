@@ -51,7 +51,7 @@ def _phase_timing(item) -> dict:
 
 @router.get("/predict-next", response_model=PredictionResponse)
 def predict_next(camera_id: str | None = None, db=Depends(get_db)):
-    recent_camera_id = camera_id or "CAM_01"
+    recent_camera_id = camera_id or "cam01"
     history = get_recent_aggregations(db, camera_id=recent_camera_id, n=5)
 
     if history.empty:

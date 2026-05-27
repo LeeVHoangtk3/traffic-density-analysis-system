@@ -23,9 +23,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(BASE_DIR)
 
 # Configurations
-CAMERA_ID = "CAM_01"
+CAMERA_ID = os.getenv("TRAFFIC_CAMERA_ID", "CAM_02")
 CONFIG_FILE = os.path.join(BASE_DIR, "detection", "configs_cameras", f"{CAMERA_ID.lower()}.json")
-DEFAULT_VIDEO_SOURCE = os.path.join(BASE_DIR, "data", "video", "traffic3.mp4")
+DEFAULT_VIDEO_SOURCE = os.path.join(BASE_DIR, "data", "video", "traffic5.mp4")
 TARGET_WIDTH = 960
 TARGET_HEIGHT = 540
 
@@ -67,6 +67,7 @@ class ZoneCalibrator:
         self.active_zone = "zone_trigger"  # Default active zone
         self.current_points = []           # Points currently being drawn for active zone
         self.show_all_overlays = True
+        self.show_hud = True               # Toggle to show/hide the HUD boxes
         self.mouse_pos = (0, 0)            # Current mouse position tracker
         
         # Load video frame
@@ -268,36 +269,38 @@ class ZoneCalibrator:
             cv2.addWeighted(overlay, 0.35, self.display_frame, 1 - 0.35, 0, self.display_frame)
             
             # ── DRAW HUD INTERFACE ────────────────────────────────────────────────
-            cv2.rectangle(self.display_frame, (10, 10), (520, 110), (15, 15, 15), -1)
-            cv2.rectangle(self.display_frame, (10, 10), (520, 110), (100, 100, 100), 1)
-            
-            cv2.putText(self.display_frame, f"ZONE CALIBRATION TOOL - CAM_01", (20, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
-            
-            # Active zone description
-            cv2.putText(self.display_frame, f"Active Zone: ", (20, 55),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1, cv2.LINE_AA)
-            cv2.putText(self.display_frame, f"{self.active_zone.upper()}", (120, 55),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, active_color, 2, cv2.LINE_AA)
-            cv2.putText(self.display_frame, f"({ZONE_NAMES[self.active_zone]})", (250, 55),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, (150, 150, 150), 1, cv2.LINE_AA)
-            
-            # Hotkeys status
-            pts_count = len(self.current_points)
-            cv2.putText(self.display_frame, f"Points clicked: {pts_count}", (20, 75),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255) if pts_count >= 3 else (100, 100, 255), 1, cv2.LINE_AA)
-            cv2.putText(self.display_frame, "Status: Press [S] to SAVE | [ESC] or [Q] to Save All & EXIT", (20, 95),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1, cv2.LINE_AA)
-            
-            # Render key maps on the right side
-            cv2.rectangle(self.display_frame, (TARGET_WIDTH - 250, 10), (TARGET_WIDTH - 10, 140), (15, 15, 15), -1)
-            cv2.rectangle(self.display_frame, (TARGET_WIDTH - 250, 10), (TARGET_WIDTH - 10, 140), (100, 100, 100), 1)
-            cv2.putText(self.display_frame, "KEYS SELECT:", (TARGET_WIDTH - 240, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1, cv2.LINE_AA)
-            cv2.putText(self.display_frame, "[1] Zone Left (Pink)", (TARGET_WIDTH - 240, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.4, COLORS["zone_left"], 1, cv2.LINE_AA)
-            cv2.putText(self.display_frame, "[2] Zone Straight (Cyan)", (TARGET_WIDTH - 240, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.4, COLORS["zone_straight"], 1, cv2.LINE_AA)
-            cv2.putText(self.display_frame, "[3] Zone Right (Orange)", (TARGET_WIDTH - 240, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.4, COLORS["zone_right"], 1, cv2.LINE_AA)
-            cv2.putText(self.display_frame, "[4] Zone Trigger (Red)", (TARGET_WIDTH - 240, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.4, COLORS["zone_trigger"], 1, cv2.LINE_AA)
-            cv2.putText(self.display_frame, "[C] Clear  [D] Toggle Overlays", (TARGET_WIDTH - 240, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (200, 200, 200), 1, cv2.LINE_AA)
+            if self.show_hud:
+                cv2.rectangle(self.display_frame, (10, 10), (520, 110), (15, 15, 15), -1)
+                cv2.rectangle(self.display_frame, (10, 10), (520, 110), (100, 100, 100), 1)
+                
+                cv2.putText(self.display_frame, f"ZONE CALIBRATION TOOL - {CAMERA_ID}", (20, 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
+                
+                # Active zone description
+                cv2.putText(self.display_frame, f"Active Zone: ", (20, 55),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1, cv2.LINE_AA)
+                cv2.putText(self.display_frame, f"{self.active_zone.upper()}", (120, 55),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, active_color, 2, cv2.LINE_AA)
+                cv2.putText(self.display_frame, f"({ZONE_NAMES[self.active_zone]})", (250, 55),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.45, (150, 150, 150), 1, cv2.LINE_AA)
+                
+                # Hotkeys status
+                pts_count = len(self.current_points)
+                cv2.putText(self.display_frame, f"Points clicked: {pts_count}", (20, 75),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255) if pts_count >= 3 else (100, 100, 255), 1, cv2.LINE_AA)
+                cv2.putText(self.display_frame, "Status: Press [S] to SAVE | [ESC] or [Q] to Save All & EXIT", (20, 95),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1, cv2.LINE_AA)
+                
+                # Render key maps on the right side
+                cv2.rectangle(self.display_frame, (TARGET_WIDTH - 250, 10), (TARGET_WIDTH - 10, 160), (15, 15, 15), -1)
+                cv2.rectangle(self.display_frame, (TARGET_WIDTH - 250, 10), (TARGET_WIDTH - 10, 160), (100, 100, 100), 1)
+                cv2.putText(self.display_frame, "KEYS SELECT:", (TARGET_WIDTH - 240, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1, cv2.LINE_AA)
+                cv2.putText(self.display_frame, "[1] Zone Left (Pink)", (TARGET_WIDTH - 240, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.4, COLORS["zone_left"], 1, cv2.LINE_AA)
+                cv2.putText(self.display_frame, "[2] Zone Straight (Cyan)", (TARGET_WIDTH - 240, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.4, COLORS["zone_straight"], 1, cv2.LINE_AA)
+                cv2.putText(self.display_frame, "[3] Zone Right (Orange)", (TARGET_WIDTH - 240, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.4, COLORS["zone_right"], 1, cv2.LINE_AA)
+                cv2.putText(self.display_frame, "[4] Zone Trigger (Red)", (TARGET_WIDTH - 240, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.4, COLORS["zone_trigger"], 1, cv2.LINE_AA)
+                cv2.putText(self.display_frame, "[C] Clear  [D] Toggle Overlays", (TARGET_WIDTH - 240, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (200, 200, 200), 1, cv2.LINE_AA)
+                cv2.putText(self.display_frame, "[H] Hide/Show HUD Panels", (TARGET_WIDTH - 240, 148), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (100, 255, 100), 1, cv2.LINE_AA)
 
             # Display window
             cv2.imshow("Zone Calibrator", self.display_frame)
@@ -365,6 +368,12 @@ class ZoneCalibrator:
                 print("[Info] Reset configurations successfully back to file content.")
                 
             elif key == ord("h") or key == ord("H"):
+                # Toggle displaying HUD panels
+                self.show_hud = not self.show_hud
+                print(f"[Info] Toggle HUD display: {self.show_hud}")
+                
+            elif key == ord("i") or key == ord("I"):
+                # Print terminal instructions
                 self.print_instructions()
                 
         cv2.destroyAllWindows()

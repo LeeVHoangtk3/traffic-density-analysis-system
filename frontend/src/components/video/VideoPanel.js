@@ -12,7 +12,7 @@ function fmtTime(secs) {
   return `${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`;
 }
 
-export default function VideoPanel({ onTimeUpdate }) {
+export default function VideoPanel({ onTimeUpdate, activeCamera = "cam01" }) {
   const videoRef   = useRef(null);
   const rafRef     = useRef(null);
   const [displayTime, setDisplayTime] = useState(0);
@@ -41,6 +41,8 @@ export default function VideoPanel({ onTimeUpdate }) {
     return () => cancelAnimationFrame(rafRef.current);
   }, [onTimeUpdate]);
 
+  const activeVideoName = activeCamera === "cam01" ? "cam01-traffic3.mp4" : "cam02-traffic8.mp4";
+
   return (
     <div className="glass-card video-wrapper">
       {/* Top bar */}
@@ -51,7 +53,7 @@ export default function VideoPanel({ onTimeUpdate }) {
         justifyContent: 'space-between',
       }}>
         <div className="section-title" style={{ margin: 0 }}>
-          📹 CAMERA FEED · CAM_01
+          📹 CAMERA FEED · {activeCamera.toUpperCase()}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <span style={{
@@ -70,7 +72,7 @@ export default function VideoPanel({ onTimeUpdate }) {
             borderRadius: 20,
             fontSize: 10, fontWeight: 600,
             color: 'var(--text-3)',
-          }}>traffic1.mp4</span>
+          }}>{activeVideoName}</span>
         </div>
       </div>
 
@@ -78,7 +80,8 @@ export default function VideoPanel({ onTimeUpdate }) {
       <div style={{ position: 'relative' }}>
         <video
           ref={videoRef}
-          src="http://localhost:8000/video"
+          src={`http://localhost:8000/video?camera_id=${activeCamera}`}
+          key={activeCamera} // Force video reload when camera changes
           autoPlay
           muted
           loop
