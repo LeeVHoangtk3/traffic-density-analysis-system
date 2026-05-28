@@ -138,23 +138,20 @@
 .main-grid {
   display: grid;
   grid-template-columns: 300px 1fr 1fr;
-  grid-template-rows: auto auto auto auto;
+  grid-template-rows: auto auto auto;
   gap: 16px;
 }
 
-/* Row 1: Total (col 1) + Vehicle types (col 2-3) */
+/* Row 1: Total (col 1) + Video (col 2-3) */
 .area-total         { grid-column: 1;     grid-row: 1; }
-.area-vehicle-types { grid-column: 2 / 4; grid-row: 1; }
+.area-video         { grid-column: 2 / 4; grid-row: 1; }
 
-/* Row 2: 3 Lane cards (full width) */
+/* Row 2: Vehicle Breakdown (full width) */
 .area-lanes         { grid-column: 1 / 4; grid-row: 2; }
 
-/* Row 3: Video (col 1-2) + Prediction (col 3) */
-.area-video         { grid-column: 1 / 3; grid-row: 3; }
-.area-predict       { grid-column: 3;     grid-row: 3; }
-
-/* Row 4: Chart (full width) */
-.area-chart         { grid-column: 1 / 4; grid-row: 4; }
+/* Row 3: Prediction (col 1) + History Chart (col 2-3) */
+.area-predict       { grid-column: 1;     grid-row: 3; }
+.area-chart         { grid-column: 2 / 4; grid-row: 3; }
 
 /* ===================== TOTAL CARD ===================== */
 .total-card {

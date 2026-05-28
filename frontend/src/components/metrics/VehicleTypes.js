@@ -8,12 +8,6 @@ const VEHICLE_DEFS = [
   { type: 'bus',        icon: '🚌', label: 'Xe buýt', color: '#a855f7' },
 ];
 
-const LANE_DEFS = [
-  { dir: 'left',     symbol: '←', color: '#10b981' },
-  { dir: 'straight', symbol: '↑', color: '#f59e0b' },
-  { dir: 'right',    symbol: '→', color: '#ef4444' },
-];
-
 function groupByType(data) {
   const counts = { car: 0, motorcycle: 0, truck: 0, bus: 0 };
   data.forEach(item => {
@@ -29,7 +23,7 @@ export default function VehicleTypes({ rawData = [] }) {
 
   return (
     <div className="glass-card vehicle-types-card">
-      <div className="section-title">📊 Phân loại phương tiện · Tổng 3 làn</div>
+      <div className="section-title">📊 Phân loại phương tiện (ROI Flow)</div>
 
       <div className="vtype-grid">
         {VEHICLE_DEFS.map(({ type, icon, label, color }) => {
@@ -37,16 +31,6 @@ export default function VehicleTypes({ rawData = [] }) {
           const pct   = rawData.length > 0
             ? ((count / total) * 100).toFixed(1)
             : '0.0';
-
-          // per-lane breakdown
-          const laneBreakdown = LANE_DEFS.map(({ dir, symbol, color: lc }) => ({
-            symbol,
-            color: lc,
-            count: rawData.filter(
-              d => (d.vehicle_type  || '').toLowerCase() === type
-                && (d.direction     || '').toLowerCase() === dir
-            ).length,
-          }));
 
           return (
             <div
@@ -86,31 +70,6 @@ export default function VehicleTypes({ rawData = [] }) {
                   borderRadius: 2,
                   transition: 'width 0.5s ease',
                 }} />
-              </div>
-
-              {/* per-lane mini */}
-              <div style={{
-                display: 'flex', gap: 4,
-                marginTop: 10,
-                justifyContent: 'center',
-                padding: '6px 0 2px',
-                borderTop: '1px solid var(--border)',
-              }}>
-                {laneBreakdown.map(({ symbol, color: lc, count: lc2 }) => (
-                  <div key={symbol} style={{
-                    display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', gap: 2, minWidth: 26,
-                  }}>
-                    <span style={{ fontSize: 10, color: lc, fontWeight: 700 }}>{symbol}</span>
-                    <span style={{
-                      fontSize: 12,
-                      color: 'var(--text-2)',
-                      fontFamily: 'JetBrains Mono, monospace',
-                      fontWeight: 600,
-                      transition: 'all 0.3s ease',
-                    }}>{lc2}</span>
-                  </div>
-                ))}
               </div>
             </div>
           );

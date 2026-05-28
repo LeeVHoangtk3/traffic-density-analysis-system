@@ -1,6 +1,5 @@
 // HistoryChart.js
-// Tự tính lịch sử số xe từ rawData — nhóm theo mỗi 10 giây
-// Gốc = timestamp nhỏ nhất (videoStartMs), hiện đến giây video hiện tại
+// Vẽ lịch sử số xe tổng cộng vượt ROI theo chuỗi thời gian
 
 import { useMemo, useRef } from 'react';
 import {
@@ -17,7 +16,6 @@ ChartJS.register(
   Tooltip, Legend, Filler,
 );
 
-// ── helpers ────────────────────────────────────────────────────────
 const BIN_SECONDS = 10; // nhóm mỗi 10 giây
 
 function fmtMs(ms) {
@@ -36,7 +34,6 @@ function fmtSecs(s) {
   return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
 }
 
-// ── vertical-line plugin ───────────────────────────────────────────
 const videoMarkerPlugin = {
   id: 'videoMarker',
   afterDraw(chart, _, opts) {
@@ -75,7 +72,6 @@ const videoMarkerPlugin = {
 
 ChartJS.register(videoMarkerPlugin);
 
-// ── Tính bins từ rawData ───────────────────────────────────────────
 function buildBins(sortedRaw, videoStartMs, cutoffMs) {
   if (!sortedRaw.length || !videoStartMs) return [];
 
@@ -87,97 +83,56 @@ function buildBins(sortedRaw, videoStartMs, cutoffMs) {
 
   for (let t = videoStartMs; t < endMs; t += BIN_SECONDS * 1000) {
     const binEnd = t + BIN_SECONDS * 1000;
-    // Đếm xe có timestamp trong [videoStartMs, binEnd)  — tích lũy từ đầu
-    let total = 0, left = 0, straight = 0, right = 0;
+    let total = 0;
 
     for (const item of sortedRaw) {
       const ts = new Date(item.timestamp).getTime();
       if (ts < videoStartMs) continue;
       if (ts >= binEnd) break;
       total++;
-      const dir = (item.direction || '').toLowerCase();
-      if (dir === 'left') left++;
-      else if (dir === 'straight') straight++;
-      else if (dir === 'right') right++;
     }
 
     bins.push({
       time: binEnd,
       label: fmtMs(binEnd),
       total,
-      left,
-      straight,
-      right,
     });
   }
 
   return bins;
 }
 
-// ──────────────────────────────────────────────────────────────────
 export default function HistoryChart({ sortedRaw, videoStartMs, videoTime }) {
   const chartRef = useRef(null);
-
   const cutoffMs = videoStartMs ? videoStartMs + videoTime * 1000 : 0;
 
-  // Tính bins từ rawData
   const allBins = useMemo(
     () => buildBins(sortedRaw, videoStartMs, new Date(sortedRaw[sortedRaw.length - 1]?.timestamp).getTime() + BIN_SECONDS * 1000),
     [sortedRaw, videoStartMs]
   );
 
-  // Chỉ hiện bins đến giây video hiện tại
   const visibleBins = useMemo(
     () => allBins.filter(b => b.time <= cutoffMs + BIN_SECONDS * 1000),
     [allBins, cutoffMs]
   );
 
-  // Marker = bin cuối cùng đang thấy
   const markerIndex = visibleBins.length > 0 ? visibleBins.length - 1 : null;
   const markerLabel = markerIndex != null ? visibleBins[markerIndex].label : '';
 
-  // Chart data
   const chartData = {
     labels: visibleBins.map(b => b.label),
     datasets: [
       {
-        label: 'Tổng xe',
+        label: 'Tổng số xe vượt ROI',
         data: visibleBins.map(b => b.total),
-        borderColor: '#60a5fa',
-        backgroundColor: 'rgba(96,165,250,0.10)',
+        borderColor: '#3B82F6',
+        backgroundColor: 'rgba(59,130,246,0.06)',
         fill: true,
         tension: 0.4,
         pointRadius: 3,
         pointHoverRadius: 6,
-        borderWidth: 2,
-      },
-      {
-        label: '← Trái',
-        data: visibleBins.map(b => b.left),
-        borderColor: '#10b981',
-        tension: 0.4,
-        pointRadius: 2,
-        pointHoverRadius: 5,
-        borderWidth: 1.5,
-      },
-      {
-        label: '↑ Thẳng',
-        data: visibleBins.map(b => b.straight),
-        borderColor: '#f59e0b',
-        tension: 0.4,
-        pointRadius: 2,
-        pointHoverRadius: 5,
-        borderWidth: 1.5,
-      },
-      {
-        label: '→ Phải',
-        data: visibleBins.map(b => b.right),
-        borderColor: '#ef4444',
-        tension: 0.4,
-        pointRadius: 2,
-        pointHoverRadius: 5,
-        borderWidth: 1.5,
-      },
+        borderWidth: 2.5,
+      }
     ],
   };
 
@@ -193,7 +148,6 @@ export default function HistoryChart({ sortedRaw, videoStartMs, videoTime }) {
           font: { size: 11, family: 'Inter, sans-serif' },
           usePointStyle: true,
           pointStyleWidth: 8,
-          padding: 16,
         },
       },
       tooltip: {
@@ -219,17 +173,17 @@ export default function HistoryChart({ sortedRaw, videoStartMs, videoTime }) {
           maxTicksLimit: 12,
           maxRotation: 30,
         },
-        grid: { color: 'rgba(255,255,255,0.04)' },
-        border: { color: 'rgba(255,255,255,0.06)' },
+        grid: { color: 'rgba(255,255,255,0.03)' },
+        border: { color: 'rgba(255,255,255,0.05)' },
       },
       y: {
         beginAtZero: true,
         ticks: { color: '#64748b', font: { size: 11 } },
-        grid: { color: 'rgba(255,255,255,0.05)' },
-        border: { color: 'rgba(255,255,255,0.06)' },
+        grid: { color: 'rgba(255,255,255,0.04)' },
+        border: { color: 'rgba(255,255,255,0.05)' },
         title: {
           display: true,
-          text: 'Số phương tiện (tích lũy)',
+          text: 'Số lượng xe (lũy kế)',
           color: '#475569',
           font: { size: 10 },
         },
@@ -244,9 +198,9 @@ export default function HistoryChart({ sortedRaw, videoStartMs, videoTime }) {
     <div className="glass-card chart-card">
       <div className="chart-header-row">
         <div className="chart-title-block">
-          <div className="chart-title">📈 LỊCH SỬ PHƯƠNG TIỆN THEO THỜI GIAN</div>
+          <div className="chart-title">📈 LỊCH SỬ LƯU LƯỢNG XE TỔNG HỢP</div>
           <div className="chart-subtitle">
-            {visibleBins.length} điểm · Gốc: {startLabel} · Mỗi {BIN_SECONDS}s / điểm
+            {visibleBins.length} điểm · Gốc: {startLabel} · Chu kỳ {BIN_SECONDS}s / điểm
           </div>
         </div>
 
@@ -284,7 +238,7 @@ export default function HistoryChart({ sortedRaw, videoStartMs, videoTime }) {
           </div>
         </div>
       ) : (
-        <div className="chart-box">
+        <div className="chart-box" style={{ height: '240px' }}>
           <Line ref={chartRef} data={chartData} options={options} />
         </div>
       )}
