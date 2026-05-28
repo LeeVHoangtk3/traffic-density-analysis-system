@@ -1,0 +1,387 @@
+import json
+import os
+
+def create_notebook():
+    notebook = {
+        "cells": [
+            {
+                "cell_type": "markdown",
+                "metadata": {},
+                "source": [
+                    "# 🚦 GOOGLE COLAB PIPELINE - TRAFFIC DENSITY ANALYSIS SYSTEM\n",
+                    "Notebook này chứa toàn bộ quy trình từ thiết lập môi trường, chép các video đã đổi tên sẵn từ Google Drive, khởi chạy Backend + Detection ngầm, cho tới việc dịch chuyển thời gian dữ liệu lịch sử và seed dữ liệu lên MongoDB Atlas."
+                ]
+            },
+            {
+                "cell_type": "markdown",
+                "metadata": {},
+                "source": [
+                    "## 📂 Bước 1: Kết nối Google Drive & Tải mã nguồn từ GitHub"
+                ]
+            },
+            {
+                "cell_type": "code",
+                "execution_count": None,
+                "metadata": {},
+                "outputs": [],
+                "source": [
+                    "# 1. Kết nối Google Drive để lát chép video nguồn\n",
+                    "from google.colab import drive\n",
+                    "drive.mount('/content/drive')"
+                ]
+            },
+            {
+                "cell_type": "code",
+                "execution_count": None,
+                "metadata": {},
+                "outputs": [],
+                "source": [
+                    "# 2. Clone mã nguồn từ Github và di chuyển vào thư mục dự án bằng đường dẫn tuyệt đối\n",
+                    "!git clone https://github.com/LeeVHoangtk3/traffic-density-analysis-system.git /content/traffic-density-analysis-system\n",
+                    "%cd /content/traffic-density-analysis-system\n",
+                    "!git checkout hoang\n",
+                    "!git status"
+                ]
+            },
+            {
+                "cell_type": "markdown",
+                "metadata": {},
+                "source": [
+                    "## 🔑 Bước 2: Thiết lập thông tin kết nối MongoDB Atlas (Không dùng file .env)"
+                ]
+            },
+            {
+                "cell_type": "code",
+                "execution_count": None,
+                "metadata": {},
+                "outputs": [],
+                "source": [
+                    "# Điền link kết nối MongoDB Atlas thực tế của bạn vào đây (thay password và host tương ứng)\n",
+                    "MONGODB_URI = \"mongodb+srv://nguyenthanhhoa599_db_user:YOUR_PASSWORD@cluster0.your_host.mongodb.net/traffic_density?retryWrites=true&w=majority\"\n",
+                    "\n",
+                    "import os\n",
+                    "os.environ[\"DB_URL\"] = MONGODB_URI\n",
+                    "os.environ[\"MONGODB_URI\"] = MONGODB_URI\n",
+                    "os.environ[\"MONGODB_DB\"] = \"traffic_density\"\n",
+                    "os.environ[\"TRAFFIC_API_URL\"] = \"http://127.0.0.1:8000/detection\"\n",
+                    "\n",
+                    "print(\"✅ Đã thiết lập các biến môi trường thành công! Không cần tạo file .env nữa.\")"
+                ]
+            },
+            {
+                "cell_type": "markdown",
+                "metadata": {},
+                "source": [
+                    "## 🛠️ Bước 3: Cài đặt các thư viện dependencies (Bản sửa lỗi không cài đè setuptools)"
+                ]
+            },
+            {
+                "cell_type": "code",
+                "execution_count": None,
+                "metadata": {},
+                "outputs": [],
+                "source": [
+                    "# Đảm bảo luôn đứng ở thư mục dự án tuyệt đối\n",
+                    "%cd /content/traffic-density-analysis-system\n",
+                    "\n",
+                    "# 1. Loại bỏ dòng setuptools trong requirements.txt để tránh lỗi xung đột hệ thống trên Python 3.12\n",
+                    "!grep -v \"setuptools\" requirements.txt > colab_requirements.txt\n",
+                    "\n",
+                    "# 2. Cài đặt các thư viện cần thiết và driver MongoDB Atlas\n",
+                    "!pip install -r colab_requirements.txt\n",
+                    "!pip install pymongo dnspython\n",
+                    "\n",
+                    "# 3. Kiểm tra hỗ trợ GPU CUDA để YOLO chạy nhanh nhất\n",
+                    "import torch\n",
+                    "print(\"====================================================\")\n",
+                    "print(\"GPU CUDA Availability:\", torch.cuda.is_available())\n",
+                    "if torch.cuda.is_available():\n",
+                    "    print(\"Device Name:\", torch.cuda.get_device_name(0))\n",
+                    "print(\"====================================================\")"
+                ]
+            },
+            {
+                "cell_type": "markdown",
+                "metadata": {},
+                "source": [
+                    "## 📹 Bước 4: Sao chép Video và Tệp trọng số YOLOv9 từ Google Drive"
+                ]
+            },
+            {
+                "cell_type": "code",
+                "execution_count": None,
+                "metadata": {},
+                "outputs": [],
+                "source": [
+                    "import os\n",
+                    "import shutil\n",
+                    "\n",
+                    "# Đảm bảo đứng ở thư mục dự án\n",
+                    "%cd /content/traffic-density-analysis-system\n",
+                    "\n",
+                    "# ──────────────────────────────────────────────────────────\n",
+                    "# 1. SAO CHÉP CÁC VIDEO ĐÃ ĐỔI TÊN TỪ GOOGLE DRIVE\n",
+                    "# ──────────────────────────────────────────────────────────\n",
+                    "drive_source = \"/content/drive/MyDrive/yolov9-cus/test_data/vid+cam\"\n",
+                    "local_dest = \"data/video\"\n",
+                    "os.makedirs(local_dest, exist_ok=True)\n",
+                    "\n",
+                    "# Danh sách các video đã đổi tên sẵn\n",
+                    "video_files = [\n",
+                    "    \"cam01-traffic3.mp4\",\n",
+                    "    \"cam02-traffic4.mp4\",\n",
+                    "    \"cam02-traffic5.mp4\",\n",
+                    "    \"cam02-traffic6.mp4\",\n",
+                    "    \"cam02-traffic7.mp4\",\n",
+                    "    \"cam02-traffic8.mp4\"\n",
+                    "]\n",
+                    "\n",
+                    "print(\"🔄 Đang chép các video đã đổi tên từ Google Drive...\")\n",
+                    "copied_count = 0\n",
+                    "for filename in video_files:\n",
+                    "    src_path = os.path.join(drive_source, filename)\n",
+                    "    dest_path = os.path.join(local_dest, filename)\n",
+                    "    \n",
+                    "    if os.path.exists(src_path):\n",
+                    "        shutil.copy(src_path, dest_path)\n",
+                    "        print(f\"   [OK] Đã chép: {filename} -> {dest_path}\")\n",
+                    "        copied_count += 1\n",
+                    "    else:\n",
+                    "        print(f\"   [❌ Lỗi] Không tìm thấy tệp {filename} tại {drive_source}\")\n",
+                    "\n",
+                    "print(f\"Hoàn tất! Đã sao chép thành công {copied_count}/{len(video_files)} video.\\n\")\n",
+                    "\n",
+                    "# ──────────────────────────────────────────────────────────\n",
+                    "# 2. SAO CHÉP TỆP TRỌNG SỐ YOLOV9 (.PT) TỪ GOOGLE DRIVE\n",
+                    "# ──────────────────────────────────────────────────────────\n",
+                    "print(\"🔄 Đang chép tệp trọng số yolov9_img960_ultimate.pt từ Google Drive...\")\n",
+                    "model_source = \"/content/drive/MyDrive/yolov9-cus/model/yolov9_img960_ultimate.pt\"\n",
+                    "target_dest = \"detection/pro_models/yolov9_img960_ultimate.pt\"\n",
+                    "os.makedirs(os.path.dirname(target_dest), exist_ok=True)\n",
+                    "\n",
+                    "if os.path.exists(model_source):\n",
+                    "    shutil.copy(model_source, target_dest)\n",
+                    "    print(f\"   [OK] Đã chép tệp trọng số: {model_source} -> {target_dest}\")\n",
+                    "else:\n",
+                    "    print(f\"   [❌ Lỗi] Không tìm thấy tệp trọng số tại {model_source}!\")\n",
+                    "    print(\"   Vui lòng đảm bảo tệp weights đã nằm đúng thư mục yolov9-cus/model trên Drive.\")"
+                ]
+            },
+            {
+                "cell_type": "markdown",
+                "metadata": {},
+                "source": [
+                    "## 🚀 Bước 5: Khởi động Backend FastAPI chạy ngầm"
+                ]
+            },
+            {
+                "cell_type": "code",
+                "execution_count": None,
+                "metadata": {},
+                "outputs": [],
+                "source": [
+                    "%cd /content/traffic-density-analysis-system\n",
+                    "import time\n",
+                    "import subprocess\n",
+                    "\n",
+                    "print(\"🚀 Đang khởi động Backend ngầm...\")\n",
+                    "backend_log = open(\"backend_colab.log\", \"w\", encoding=\"utf-8\")\n",
+                    "\n",
+                    "# Khởi chạy uvicorn kế thừa trực tiếp biến môi trường MONGODB_URI\n",
+                    "proc = subprocess.Popen(\n",
+                    "    [\"uvicorn\", \"backend.main:app\", \"--host\", \"127.0.0.1\", \"--port\", \"8000\"],\n",
+                    "    stdout=backend_log,\n",
+                    "    stderr=subprocess.STDOUT\n",
+                    ")\n",
+                    "\n",
+                    "time.sleep(5)  # Đợi 5 giây cho server khởi động ổn định\n",
+                    "if proc.poll() is None:\n",
+                    "    print(f\"✅ Backend đang chạy ngầm thành công với PID: {proc.pid}\")\n",
+                    "else:\n",
+                    "    print(\"❌ Backend khởi động thất bại! Hãy xem nội dung file backend_colab.log bên dưới:\")\n",
+                    "    with open(\"backend_colab.log\", \"r\") as f:\n",
+                    "        print(f.read())"
+                ]
+            },
+            {
+                "cell_type": "markdown",
+                "metadata": {},
+                "source": [
+                    "## 🤖 Bước 6: Khởi chạy nhận diện YOLOv9 + DeepSORT cho CAM01"
+                ]
+            },
+            {
+                "cell_type": "code",
+                "execution_count": None,
+                "metadata": {},
+                "outputs": [],
+                "source": [
+                    "%cd /content/traffic-density-analysis-system\n",
+                    "print(\"🤖 Bắt đầu nhận diện CAM01...\")\n",
+                    "!NO_DISPLAY=true DRY_RUN=false TRAFFIC_CAMERA_ID=cam01 TRAFFIC_VIDEO_SOURCE=data/video/cam01-traffic3.mp4 python -m detection.main"
+                ]
+            },
+            {
+                "cell_type": "markdown",
+                "metadata": {},
+                "source": [
+                    "## 🤖 Bước 7: Khởi chạy nhận diện YOLOv9 + DeepSORT cho CAM02"
+                ]
+            },
+            {
+                "cell_type": "code",
+                "execution_count": None,
+                "metadata": {},
+                "outputs": [],
+                "source": [
+                    "%cd /content/traffic-density-analysis-system\n",
+                    "print(\"🤖 Bắt đầu nhận diện CAM02 (Video 4)...\")\n",
+                    "!NO_DISPLAY=true DRY_RUN=false TRAFFIC_CAMERA_ID=cam02 TRAFFIC_VIDEO_SOURCE=data/video/cam02-traffic4.mp4 python -m detection.main\n",
+                    "\n",
+                    "print(\"🤖 Bắt đầu nhận diện CAM02 (Video 5)...\")\n",
+                    "!NO_DISPLAY=true DRY_RUN=false TRAFFIC_CAMERA_ID=cam02 TRAFFIC_VIDEO_SOURCE=data/video/cam02-traffic5.mp4 python -m detection.main\n",
+                    "\n",
+                    "print(\"🤖 Bắt đầu nhận diện CAM02 (Video 6)...\")\n",
+                    "!NO_DISPLAY=true DRY_RUN=false TRAFFIC_CAMERA_ID=cam02 TRAFFIC_VIDEO_SOURCE=data/video/cam02-traffic6.mp4 python -m detection.main\n",
+                    "\n",
+                    "print(\"🤖 Bắt đầu nhận diện CAM02 (Video 7)...\")\n",
+                    "!NO_DISPLAY=true DRY_RUN=false TRAFFIC_CAMERA_ID=cam02 TRAFFIC_VIDEO_SOURCE=data/video/cam02-traffic7.mp4 python -m detection.main\n",
+                    "\n",
+                    "print(\"🤖 Bắt đầu nhận diện CAM02 (Video 8)...\")\n",
+                    "!NO_DISPLAY=true DRY_RUN=false TRAFFIC_CAMERA_ID=cam02 TRAFFIC_VIDEO_SOURCE=data/video/cam02-traffic8.mp4 python -m detection.main"
+                ]
+            },
+            {
+                "cell_type": "markdown",
+                "metadata": {},
+                "source": [
+                    "## ⏰ Bước 8: Dịch chuyển thời gian rải đều 3 tiếng về quá khứ (Time-Shifting)"
+                ]
+            },
+            {
+                "cell_type": "code",
+                "execution_count": None,
+                "metadata": {},
+                "outputs": [],
+                "source": [
+                    "%cd /content/traffic-density-analysis-system\n",
+                    "# Tạo file mô phỏng lịch sử động\n",
+                    "script_content = \"\"\"\n",
+                    "import os\n",
+                    "from datetime import datetime, timedelta, timezone\n",
+                    "from pymongo import MongoClient\n",
+                    "\n",
+                    "db_url = os.getenv(\"DB_URL\") or os.getenv(\"MONGODB_URI\")\n",
+                    "db_name = os.getenv(\"MONGODB_DB\", \"traffic_density\")\n",
+                    "\n",
+                    "if not db_url:\n",
+                    "    print(\"❌ Không tìm thấy DB_URL trong biến môi trường!\")\n",
+                    "    exit(1)\n",
+                    "\n",
+                    "client = MongoClient(db_url)\n",
+                    "db = client[db_name]\n",
+                    "\n",
+                    "# 1. Dịch chuyển và rải đều dữ liệu cho CAM01\n",
+                    "print(\"🔄 Đang dịch chuyển thời gian cho cam01...\")\n",
+                    "det_01 = list(db.vehicle_detections.find({\"camera_id\": \"cam01\"}).sort(\"timestamp\", 1))\n",
+                    "total_01 = len(det_01)\n",
+                    "if total_01 > 0:\n",
+                    "    start_time = datetime.now(timezone.utc) - timedelta(minutes=180)\n",
+                    "    end_time = datetime.now(timezone.utc)\n",
+                    "    step = (end_time - start_time).total_seconds() / total_01\n",
+                    "    for idx, doc in enumerate(det_01):\n",
+                    "        simulated_time = start_time + timedelta(seconds=idx * step)\n",
+                    "        db.vehicle_detections.update_one({\"_id\": doc[\"_id\"]}, {\"$set\": {\"timestamp\": simulated_time}})\n",
+                    "    print(f\"   [OK] Đã rải đều {total_01} bản ghi cam01 thành công!\")\n",
+                    "\n",
+                    "# 2. Dịch chuyển và rải đều dữ liệu cho CAM02\n",
+                    "print(\"🔄 Đang dịch chuyển thời gian cho cam02...\")\n",
+                    "det_02 = list(db.vehicle_detections.find({\"camera_id\": \"cam02\"}).sort(\"timestamp\", 1))\n",
+                    "total_02 = len(det_02)\n",
+                    "if total_02 > 0:\n",
+                    "    start_time = datetime.now(timezone.utc) - timedelta(minutes=180)\n",
+                    "    end_time = datetime.now(timezone.utc)\n",
+                    "    step = (end_time - start_time).total_seconds() / total_02\n",
+                    "    for idx, doc in enumerate(det_02):\n",
+                    "        simulated_time = start_time + timedelta(seconds=idx * step)\n",
+                    "        db.vehicle_detections.update_one({\"_id\": doc[\"_id\"]}, {\"$set\": {\"timestamp\": simulated_time}})\n",
+                    "    print(f\"   [OK] Đã rải đều {total_02} bản ghi cam02 thành công!\")\n",
+                    "\n",
+                    "print(\"✅ Hoàn tất quá trình dịch chuyển thời gian!\")\n",
+                    "\"\"\"\n",
+                    "\n",
+                    "with open(\"simulate_history_colab.py\", \"w\", encoding=\"utf-8\") as f:\n",
+                    "    f.write(script_content.strip())\n",
+                    "\n",
+                    "# Chạy file để dịch chuyển thời gian thực tế\n",
+                    "!python simulate_history_colab.py"
+                ]
+            },
+            {
+                "cell_type": "markdown",
+                "metadata": {},
+                "source": [
+                    "## 📈 Bước 9: Seed dữ liệu, tính toán Aggregation & Predictions"
+                ]
+            },
+            {
+                "cell_type": "code",
+                "execution_count": None,
+                "metadata": {},
+                "outputs": [],
+                "source": [
+                    "%cd /content/traffic-density-analysis-system\n",
+                    "# Chạy seed dữ liệu để tự động hóa tính toán bảng camera, aggregation và predictions\n",
+                    "!python -m backend.seed_data"
+                ]
+            },
+            {
+                "cell_type": "markdown",
+                "metadata": {},
+                "source": [
+                    "## 🛑 Bước 10: Dừng Backend ngầm an toàn để giải phóng tài nguyên"
+                ]
+            },
+            {
+                "cell_type": "code",
+                "execution_count": None,
+                "metadata": {},
+                "outputs": [],
+                "source": [
+                    "# Dừng uvicorn và kết thúc phiên nạp dữ liệu sạch sẽ\n",
+                    "proc.terminate()\n",
+                    "proc.wait()\n",
+                    "print(\"🛑 Đã dừng Backend ngầm trên Colab an toàn. Quá trình nạp dữ liệu hoàn tất 100%!\")"
+                ]
+            }
+        ],
+        "metadata": {
+            "kernelspec": {
+                "display_name": "Python 3",
+                "language": "python",
+                "name": "python3"
+            },
+            "language_info": {
+                "codemirror_mode": {
+                    "name": "ipython",
+                    "version": 3
+                },
+                "file_extension": ".py",
+                "mimetype": "text/x-python",
+                "name": "python",
+                "nbconvert_exporter": "python",
+                "pygments_lexer": "ipython3",
+                "version": "3.12.0"
+            }
+        },
+        "nbformat": 4,
+        "nbformat_minor": 2
+    }
+    
+    output_path = os.path.join(os.getcwd(), "colab_run.ipynb")
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(notebook, f, ensure_ascii=False, indent=1)
+    print(f"Successfully wrote clean notebook to {output_path}!")
+
+if __name__ == "__main__":
+    create_notebook()
