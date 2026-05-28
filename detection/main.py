@@ -279,12 +279,66 @@ def display_in_notebook(video_path: str) -> None:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main() -> None:
-    camera_id   = "cam01"
+    import argparse
+    parser = argparse.ArgumentParser(description="Module A - Traffic Detection & Tracking")
+    parser.add_argument("--camera", type=str, default=os.getenv("TRAFFIC_CAMERA_ID", "cam01"), help="Camera ID (e.g. cam01, cam02)")
+    parser.add_argument("--source", type=str, default=os.getenv("TRAFFIC_VIDEO_SOURCE"), help="Video source path")
+    parser.add_argument("--model", type=str, default=os.getenv("TRAFFIC_MODEL_PATH"), help="YOLOv9 model path")
+    parser.add_argument("--no-display", type=str, default=os.getenv("NO_DISPLAY"), help="Disable GUI window (true/false)")
+    parser.add_argument("--dry-run", type=str, default=os.getenv("DRY_RUN"), help="Run without sending events to Backend (true/false)")
+    
+    args, _ = parser.parse_known_args()
+    
+    global VIDEO_SOURCE, MODEL_PATH, NO_DISPLAY, DRY_RUN
+    
+    # 1. Phân giải nguồn Video trước
+    if args.source:
+        VIDEO_SOURCE = args.source
+    elif os.getenv("TRAFFIC_VIDEO_SOURCE"):
+        VIDEO_SOURCE = os.getenv("TRAFFIC_VIDEO_SOURCE")
+    else:
+        VIDEO_SOURCE = None
+
+    # 2. Xác định Camera ID (Có tự động nhận diện từ tên file video)
+    # Kiểm tra xem người dùng có chỉ định rõ camera không (không phải mặc định hoặc có biến môi trường)
+    explicit_camera = (args.camera != "cam01" or os.getenv("TRAFFIC_CAMERA_ID") is not None)
+    
+    if explicit_camera:
+        camera_id = args.camera
+    else:
+        camera_id = "cam01"  # Mặc định ban đầu
+        
+    # Tự động nhận diện camera_id từ tên tệp video nếu không ép buộc camera
+    if not explicit_camera and VIDEO_SOURCE:
+        filename = Path(VIDEO_SOURCE).name.lower()
+        if "cam02" in filename:
+            camera_id = "cam02"
+            print(f"[Trí Tuệ Nhân Tạo 🤖] Đã tự động nhận diện camera là 'cam02' từ tên video: '{filename}'")
+        elif "cam01" in filename:
+            camera_id = "cam01"
+            print(f"[Trí Tuệ Nhân Tạo 🤖] Đã tự động nhận diện camera là 'cam01' từ tên video: '{filename}'")
+
+    # 3. Nếu video source chưa được chỉ định, gán video mặc định theo camera_id tương ứng
+    if not VIDEO_SOURCE:
+        if camera_id.lower() == "cam02":
+            VIDEO_SOURCE = str(Path(BASE_DIR) / "data" / "video" / "cam02-traffic4.mp4")
+        else:
+            VIDEO_SOURCE = str(Path(BASE_DIR) / "data" / "video" / "cam01-traffic3.mp4")
+            
+    if args.model:
+        MODEL_PATH = args.model
+        
+    if args.no_display is not None:
+        NO_DISPLAY = args.no_display.lower() in ("1", "true", "yes")
+        
+    if args.dry_run is not None:
+        DRY_RUN = args.dry_run.lower() in ("1", "true", "yes")
+
     config_path = os.path.join(BASE_DIR, "detection", "configs_cameras", f"{camera_id.lower()}.json")
 
     for path, label in [(config_path, "Camera config"), (MODEL_PATH, "YOLO model")]:
         if not os.path.exists(path):
-            raise FileNotFoundError(f"{label} not found: {path}")
+            raise FileNotFoundError(f"{path} not found: {path}")
     if (isinstance(VIDEO_SOURCE, str) and not VIDEO_SOURCE.isdigit()
             and not os.path.exists(VIDEO_SOURCE)):
         raise FileNotFoundError(f"Video source not found: {VIDEO_SOURCE}")
