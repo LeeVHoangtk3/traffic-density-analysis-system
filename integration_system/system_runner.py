@@ -1,48 +1,50 @@
 """
 integration_system/system_runner.py
 =====================================
-Entry point duy nhat — chay file nay la chay toan bo he thong:
+Entry point duy nhat — chay file nay la khoi dong + dieu phoi TOAN BO he thong:
     python integration_system/system_runner.py
 
-Cac buoc trong mot chu ky pipeline:
-    [1] Goi /raw-data          -> lay ban ghi tho tu Backend
-    [2] Goi /aggregation       -> lay vehicle_count + congestion_level
-    [3] Phan loai tac nghen    -> CongestionClassifier (rule-based, local)
-    [4] Toi uu den tin hieu    -> TrafficLightOptimizer (ML hoac rule-based)
-    [4a] DeltaApplier     -> predict delta tu LightDeltaModel
-    [4b] DirectionRouter  -> anh xa camera_id -> pha den
-    [5] Giam sat hieu nang     -> PerformanceMonitor (CPU / RAM)
+He thong gom 4 subprocess:
+    [A] Backend   — FastAPI (uvicorn), port 8000
+    [B] Detection — YOLO + Tracker, gui event ve Backend
+    [C] Frontend  — React (npm start), port 3000
+    [D] Pipeline  — Chu ky 5s: aggregation → classify → optimize → monitor
 
-Bien moi truong:
+Bien moi truong (tuy chinh):
     TRAFFIC_API_BASE    (mac dinh: http://127.0.0.1:8000)
-    TRAFFIC_CAMERA_ID   (mac dinh: CAM_01)
+    TRAFFIC_CAMERA_ID   (mac dinh: cam01)
     PIPELINE_INTERVAL   (mac dinh: 5 giay)
     NO_SUBPROCESS       (neu set = 1, khong tu dong khoi dong backend/detection/frontend)
+    SKIP_DETECTION      (neu set = 1, khong khoi dong detection — khi da co du lieu trong DB)
+    SKIP_FRONTEND       (neu set = 1, khong khoi dong frontend)
 """
 
 # ===========================================================================
-# 0. IMPORTS CHUAN
+# 0. IMPORTS
 # ===========================================================================
 
 import os
 import sys
 import time
+import json
 import signal
 import subprocess
 import datetime
+import threading
+import traceback
 
 try:
-    import psutil        # performance monitor
+    import psutil
 except ModuleNotFoundError:
     psutil = None
 
 try:
-    import requests      # goi Backend API
+    import requests
 except ModuleNotFoundError:
     requests = None
 
 # ===========================================================================
-# 1. CAU HINH TOAN CUC
+# 1. CAU HINH
 # ===========================================================================
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -53,20 +55,24 @@ _INTEGRATION_DIR = os.path.dirname(os.path.abspath(__file__))
 if _INTEGRATION_DIR not in sys.path:
     sys.path.insert(0, _INTEGRATION_DIR)
 
-API_BASE         = os.getenv("TRAFFIC_API_BASE",  "http://127.0.0.1:8000")
-CAMERA_ID        = os.getenv("TRAFFIC_CAMERA_ID", "cam01")
-PIPELINE_INTERVAL = int(os.getenv("PIPELINE_INTERVAL", "5"))   # giay
-NO_SUBPROCESS    = os.getenv("NO_SUBPROCESS", "0") == "1"
+API_BASE          = os.getenv("TRAFFIC_API_BASE",  "http://127.0.0.1:8000")
+CAMERA_ID         = os.getenv("TRAFFIC_CAMERA_ID", "cam01")
+PIPELINE_INTERVAL = int(os.getenv("PIPELINE_INTERVAL", "5"))
+NO_SUBPROCESS     = os.getenv("NO_SUBPROCESS", "0") == "1"
+SKIP_DETECTION    = os.getenv("SKIP_DETECTION", "0") == "1"
+SKIP_FRONTEND     = os.getenv("SKIP_FRONTEND", "0") == "1"
 
-BACKEND_AGG_URL  = f"{API_BASE}/aggregation"
-BACKEND_RAW_URL  = f"{API_BASE}/raw-data"
+BACKEND_AGG_URL = f"{API_BASE}/aggregation"
+BACKEND_RAW_URL = f"{API_BASE}/raw-data"
+BACKEND_HEALTH  = f"{API_BASE}/health"
+
 
 # ===========================================================================
-# 2. CONGESTION CLASSIFIER  (noi tuyen tu congestion_classifier.py)
+# 2. CONGESTION CLASSIFIER (rule-based, local)
 # ===========================================================================
 
 class CongestionClassifier:
-    """Phan loai muc tac nghen theo so xe (rule-based, chay local)."""
+    """Phan loai muc tac nghen theo so xe."""
 
     def classify(self, vehicle_count: int) -> str:
         if vehicle_count < 15:
@@ -80,28 +86,32 @@ class CongestionClassifier:
 
 
 # ===========================================================================
-# 3. PERFORMANCE MONITOR  (noi tuyen tu performance_monitor.py)
+# 3. PERFORMANCE MONITOR
 # ===========================================================================
 
 class PerformanceMonitor:
-    """Giam sat tai nguyen he thong (CPU + RAM)."""
+    """Giam sat CPU + RAM."""
 
     def monitor(self) -> dict:
         if psutil is None:
             return {"cpu_usage": 0.0, "memory_usage": 0.0, "source": "psutil_unavailable"}
-        cpu    = psutil.cpu_percent(interval=1)
+        cpu    = psutil.cpu_percent(interval=0.5)
         memory = psutil.virtual_memory().percent
         return {"cpu_usage": cpu, "memory_usage": memory}
 
 
 # ===========================================================================
-# 4. DIRECTION ROUTER  (noi tuyen tu direction_router.py)
+# 4. DIRECTION ROUTER
 # ===========================================================================
 
-# Anh xa camera_id -> thong tin pha den va huong luong xe.
-# Chinh bang nay theo so do vat ly cua he thong thuc te.
 CAMERA_PHASE_MAP: dict[str, dict[str, str]] = {
     "cam01": {
+        "phase": "north_green",
+        "controlled_phase": "phase_1",
+        "direction": "straight_right",
+        "junction": "JCT_A",
+    },
+    "CAM_01": {
         "phase": "north_green",
         "controlled_phase": "phase_1",
         "direction": "straight_right",
@@ -129,7 +139,6 @@ CAMERA_PHASE_MAP: dict[str, dict[str, str]] = {
 
 
 def get_phase(camera_id: str) -> dict[str, str]:
-    """Tra ve thong tin pha den cua camera_id."""
     if camera_id not in CAMERA_PHASE_MAP:
         raise KeyError(
             f"[DirectionRouter] Camera '{camera_id}' not configured. "
@@ -139,31 +148,13 @@ def get_phase(camera_id: str) -> dict[str, str]:
 
 
 def get_phase_name(camera_id: str) -> str:
-    """Tra ve ten pha den (vd: 'north_green')."""
     return get_phase(camera_id)["phase"]
 
 
-def register_camera(camera_id: str, phase: str,
-                    direction: str = "straight_right",
-                    junction: str = "JCT_DEFAULT",
-                    controlled_phase: str = "phase_1") -> None:
-    """Dang ky camera moi tai runtime."""
-    CAMERA_PHASE_MAP[camera_id] = {
-        "phase": phase,
-        "controlled_phase": controlled_phase,
-        "direction": direction,
-        "junction": junction,
-    }
-    print(f"[DirectionRouter] Registered: {camera_id} -> phase='{phase}', "
-          f"controlled_phase='{controlled_phase}', direction='{direction}', "
-          f"junction='{junction}'")
-
-
 # ===========================================================================
-# 5. DELTA APPLIER  (noi tuyen tu delta_applier.py)
+# 5. DELTA APPLIER
 # ===========================================================================
 
-# Thoi gian den xanh baseline (giay) theo 2 pha trong PhaseLightOptimizer.
 PHASE_BASELINE: dict[str, int] = {
     "phase_1": 50,
     "phase_2": 30,
@@ -172,19 +163,17 @@ PHASE_BASELINE: dict[str, int] = {
 _DELTA_MIN: float = -30.0
 _DELTA_MAX: float = +45.0
 
-# Singleton LightDeltaModel — chi load pkl mot lan
 _light_model = None
 
 
 def _get_light_model():
-    """Import and return the singleton instance of LightDeltaModel."""
     global _light_model
     if _light_model is None:
         try:
             from ml_service.light_delta_model import LightDeltaModel
             _light_model = LightDeltaModel()
         except Exception as e:
-            print(f"[system_runner] Failed to import/initialize LightDeltaModel: {e}")
+            print(f"    [DeltaApplier] Cannot load LightDeltaModel: {e}")
             _light_model = None
     return _light_model
 
@@ -206,14 +195,13 @@ def apply(
     hour: int,
     dow: int,
 ) -> float:
-    """
-    Tinh green_time bang cach cong delta du doan vao baseline cua camera.
-    Tra ve: green_time (giay, float, >= 0)
-    Hien tai LightDeltaModel da bi go bo, luon tra ve baseline.
-    """
     phase_info = get_phase(camera_id)
     controlled_phase = phase_info.get("controlled_phase", "phase_1")
     baseline_green = PHASE_BASELINE.get(controlled_phase, PHASE_BASELINE["phase_1"])
+
+    model = _get_light_model()
+    if model is None:
+        return float(baseline_green)
 
     try:
         feature_dict = {
@@ -226,7 +214,7 @@ def apply(
             "hour":             hour,
             "day_of_week":      dow,
         }
-        raw_delta: float = _get_light_model().predict_delta(feature_dict)
+        raw_delta: float = model.predict_delta(feature_dict)
         delta: float = max(_DELTA_MIN, min(_DELTA_MAX, raw_delta))
         green_time: float = max(0.0, baseline_green + delta)
         return green_time
@@ -236,7 +224,7 @@ def apply(
 
 
 # ===========================================================================
-# 6. TRAFFIC LIGHT OPTIMIZER  (noi tuyen tu traffic_light_logic.py)
+# 6. TRAFFIC LIGHT OPTIMIZER
 # ===========================================================================
 
 _RULE_MAP: dict[str, int] = {
@@ -248,11 +236,6 @@ _RULE_MAP: dict[str, int] = {
 
 
 class TrafficLightOptimizer:
-    """
-    Dieu phoi thoi gian den xanh.
-    - optimize()          : rule-based fallback
-    - optimize_with_ml()  : ML delta + direction router
-    """
 
     def optimize(self, congestion_level: str) -> dict:
         """Rule-based fallback."""
@@ -269,9 +252,6 @@ class TrafficLightOptimizer:
         hour: int,
         dow: int,
     ) -> dict:
-        """
-        Tinh green_time bang ML delta model ket hop direction router.
-        """
         try:
             phase_info = get_phase(camera_id)
             baseline = _baseline_for_camera(camera_id)
@@ -295,10 +275,11 @@ class TrafficLightOptimizer:
                 "green_time": round(green_time, 2),
                 "baseline":   baseline,
                 "delta":      delta,
-                "mode":       "ml",
-                "prediction_source": model.prediction_source(),
+                "mode":       "ml" if model else "rule_fallback",
             }
-            if model.fallback_reason:
+            if model and hasattr(model, 'prediction_source'):
+                result["prediction_source"] = model.prediction_source()
+            if model and hasattr(model, 'fallback_reason') and model.fallback_reason:
                 result["fallback_reason"] = model.fallback_reason
             return result
 
@@ -324,161 +305,295 @@ class TrafficSystem:
     """He thong quan ly giao thong toan dien."""
 
     def __init__(self):
-        print("=" * 60)
-        print("  TRAFFIC DENSITY ANALYSIS SYSTEM — STARTING")
-        print("=" * 60)
+        self.processes: dict[str, subprocess.Popen] = {}
+        self._stopping = False
+        self._cycle = 0
 
-        # --- Khoi dong Backend & Detection & Frontend (subprocess) ---
+        self._banner()
+
+        # --- Khoi dong subprocess ---
         if not NO_SUBPROCESS:
-            self._start_subprocess_services()
+            self._start_all_services()
         else:
-            print("[INFO] NO_SUBPROCESS=1 -> Skip launching backend/detection/frontend")
+            print("[INFO] NO_SUBPROCESS=1 → Khong khoi dong subprocess")
 
-        # --- Khoi tao cac component noi tuyen ---
+        # --- Component noi tuyen ---
         self.classifier = CongestionClassifier()
-        print("[OK] CongestionClassifier ready")
+        self.optimizer  = TrafficLightOptimizer()
+        self.monitor    = PerformanceMonitor()
 
-        self.optimizer = TrafficLightOptimizer()
-        print("[OK] TrafficLightOptimizer ready (ML + rule fallback)")
-
-        self.monitor = PerformanceMonitor()
-        print("[OK] PerformanceMonitor ready")
-
-        print(f"[OK] DirectionRouter ready | cameras: {list(CAMERA_PHASE_MAP.keys())}")
-        print(f"[OK] DeltaApplier ready    | phase baselines: {PHASE_BASELINE}")
-        print(f"[OK] API base: {API_BASE} | Camera: {CAMERA_ID}")
-        print("=" * 60)
+        print()
+        self._log("OK", "CongestionClassifier ready")
+        self._log("OK", "TrafficLightOptimizer ready (ML + rule fallback)")
+        self._log("OK", "PerformanceMonitor ready")
+        self._log("OK", f"DirectionRouter ready | cameras: {list(CAMERA_PHASE_MAP.keys())}")
+        self._log("OK", f"DeltaApplier ready    | phase baselines: {PHASE_BASELINE}")
+        self._log("OK", f"API base: {API_BASE} | Camera: {CAMERA_ID}")
+        print("=" * 64)
+        print()
 
     # ------------------------------------------------------------------
-    # Subprocess: Backend + Detection + Frontend
+    # Helpers
     # ------------------------------------------------------------------
 
-    def _start_subprocess_services(self):
-        project_root = os.path.abspath(os.path.join(_INTEGRATION_DIR, ".."))
+    @staticmethod
+    def _banner():
+        print()
+        print("╔" + "═" * 62 + "╗")
+        print("║" + "TRAFFIC DENSITY ANALYSIS SYSTEM".center(62) + "║")
+        print("║" + "All-in-One Launcher".center(62) + "║")
+        print("╚" + "═" * 62 + "╝")
+        print()
 
-        print("[1/3] Starting Backend (uvicorn)...")
+    @staticmethod
+    def _log(level: str, msg: str):
+        ts = datetime.datetime.now().strftime("%H:%M:%S")
+        prefix = {
+            "OK":    "✅",
+            "INFO":  "ℹ️ ",
+            "WARN":  "⚠️ ",
+            "ERROR": "❌",
+            "STEP":  "🔹",
+        }.get(level, "  ")
+        print(f"  {prefix} [{ts}] {msg}")
+
+    # ------------------------------------------------------------------
+    # SUBPROCESS MANAGEMENT
+    # ------------------------------------------------------------------
+
+    def _wait_for_backend(self, timeout: int = 30) -> bool:
+        """Doi backend san sang (health check OK)."""
+        self._log("INFO", f"Doi Backend san sang (max {timeout}s)...")
+        start = time.time()
+        while time.time() - start < timeout:
+            try:
+                if requests:
+                    r = requests.get(BACKEND_HEALTH, timeout=2)
+                    if r.status_code == 200:
+                        d = r.json()
+                        if d.get("status") == "ok":
+                            self._log("OK", f"Backend san sang! (database: {d.get('database', '?')})")
+                            return True
+            except Exception:
+                pass
+            time.sleep(1)
+        self._log("WARN", "Backend chua san sang sau timeout — tiep tuc...")
+        return False
+
+    def _start_all_services(self):
+        """Khoi dong Backend → doi san sang → Detection → Frontend."""
+        project_root = _ROOT
+
+        # ──────────────── [A] BACKEND ────────────────
+        self._log("INFO", "[1/3] Khoi dong Backend (uvicorn)...")
         backend_cmd = [
-            "uvicorn", "backend.main:app",
-            "--reload", "--host", "127.0.0.1", "--port", "8000"
+            sys.executable, "-m", "uvicorn",
+            "backend.main:app",
+            "--host", "127.0.0.1",
+            "--port", "8000",
+            "--reload",
         ]
-        self.backend_process = subprocess.Popen(
-            backend_cmd, cwd=project_root
+        self.processes["backend"] = subprocess.Popen(
+            backend_cmd,
+            cwd=project_root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
         )
-        time.sleep(5)
-        print("      Backend started (PID={})".format(self.backend_process.pid))
+        self._log("OK", f"Backend PID={self.processes['backend'].pid}")
 
-        print("[2/3] Starting Detection Engine...")
-        detection_cmd = [sys.executable, "-m", "detection.main"]
-        self.detection_process = subprocess.Popen(
-            detection_cmd, cwd=project_root
-        )
-        time.sleep(5)
-        print("      Detection started (PID={})".format(self.detection_process.pid))
+        # Doi backend san sang truoc khi khoi dong detection
+        self._wait_for_backend(timeout=30)
 
-        print("[3/3] Starting Frontend (npm start)...")
-        frontend_dir = os.path.join(project_root, "frontend")
-        frontend_cmd = ["npm.cmd", "start"] if os.name == 'nt' else ["npm", "start"]
-        self.frontend_process = subprocess.Popen(
-            frontend_cmd, cwd=frontend_dir
-        )
-        time.sleep(5)
-        print("      Frontend started (PID={})".format(self.frontend_process.pid))
+        # ──────────────── [B] DETECTION ────────────────
+        if not SKIP_DETECTION:
+            self._log("INFO", "[2/3] Khoi dong Detection Engine...")
+            detection_env = os.environ.copy()
+            # Detection gui event ve backend, KHONG chay dry-run
+            detection_env["DRY_RUN"]          = "false"
+            detection_env["NO_DISPLAY"]       = "true"
+            detection_env["SYNC_MODE"]        = "true"
+            detection_env["TRAFFIC_API_URL"]  = f"{API_BASE}/detection"
+
+            detection_cmd = [sys.executable, "-m", "detection.main"]
+            self.processes["detection"] = subprocess.Popen(
+                detection_cmd,
+                cwd=project_root,
+                env=detection_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+            self._log("OK", f"Detection PID={self.processes['detection'].pid}")
+        else:
+            self._log("INFO", "[2/3] SKIP_DETECTION=1 → Bo qua detection")
+
+        # ──────────────── [C] FRONTEND ────────────────
+        if not SKIP_FRONTEND:
+            self._log("INFO", "[3/3] Khoi dong Frontend (React)...")
+            frontend_dir = os.path.join(project_root, "frontend")
+            npm_cmd = "npm.cmd" if os.name == "nt" else "npm"
+
+            frontend_env = os.environ.copy()
+            frontend_env["BROWSER"] = "none"  # Khong tu dong mo browser
+
+            self.processes["frontend"] = subprocess.Popen(
+                [npm_cmd, "start"],
+                cwd=frontend_dir,
+                env=frontend_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+            self._log("OK", f"Frontend PID={self.processes['frontend'].pid}")
+        else:
+            self._log("INFO", "[3/3] SKIP_FRONTEND=1 → Bo qua frontend")
+
+        # ──────────────── LOG STREAM ────────────────
+        # Chay thread doc stdout cua cac subprocess (tranh block)
+        for name, proc in self.processes.items():
+            if proc.stdout:
+                t = threading.Thread(
+                    target=self._stream_output,
+                    args=(name, proc),
+                    daemon=True,
+                )
+                t.start()
+
+        time.sleep(2)
+        print()
+        self._log("OK", "=== TAT CA SERVICES DA KHOI DONG ===")
+        print()
+
+    def _stream_output(self, name: str, proc: subprocess.Popen):
+        """Doc stdout cua subprocess va in ra voi prefix."""
+        tag = f"[{name.upper():>9s}]"
+        try:
+            for line in proc.stdout:
+                line = line.rstrip()
+                if line:
+                    print(f"  {tag} {line}")
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
-    # Dung he thong
+    # DUNG HE THONG
     # ------------------------------------------------------------------
 
     def stop_system(self):
-        print("\n[SHUTDOWN] Stopping system...")
-        for attr in ("backend_process", "detection_process", "frontend_process"):
-            proc = getattr(self, attr, None)
-            if proc is not None:
-                proc.terminate()
-                proc.wait()
-        print("[SHUTDOWN] System stopped.")
+        if self._stopping:
+            return
+        self._stopping = True
+
+        print()
+        print("=" * 64)
+        print("  🛑 DANG TAT HE THONG...")
+        print("=" * 64)
+
+        for name in ("frontend", "detection", "backend"):
+            proc = self.processes.get(name)
+            if proc is None:
+                continue
+
+            try:
+                if proc.poll() is None:
+                    self._log("INFO", f"Dung {name} (PID={proc.pid})...")
+                    if os.name == "nt":
+                        # Windows: kill process tree
+                        subprocess.run(
+                            ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                            capture_output=True,
+                        )
+                    else:
+                        proc.terminate()
+                        try:
+                            proc.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            proc.kill()
+                    self._log("OK", f"{name} da dung")
+                else:
+                    self._log("INFO", f"{name} da thoat (code={proc.returncode})")
+            except Exception as e:
+                self._log("WARN", f"Loi khi dung {name}: {e}")
+
+        print()
+        print("  ✅ HE THONG DA TAT HOAN TOAN")
+        print("=" * 64)
 
     # ------------------------------------------------------------------
-    # Pipeline chinh
+    # PIPELINE CHINH
     # ------------------------------------------------------------------
 
     def run_pipeline(self):
+        self._cycle += 1
         ts = datetime.datetime.now().strftime("%H:%M:%S")
-        print(f"\n{'='*60}")
-        print(f"  PIPELINE @ {ts}")
-        print(f"{'='*60}")
+
+        print()
+        print(f"  ┌{'─' * 56}┐")
+        print(f"  │  PIPELINE #{self._cycle:04d}  @  {ts}{'':>30s}│")
+        print(f"  └{'─' * 56}┘")
 
         try:
             if requests is None:
-                print("[ERROR] requests package is not installed")
+                self._log("ERROR", "'requests' package chua cai dat!")
                 return
 
-            # -------------------------------------------------------
-            # BUOC 1: Lay ban ghi tho
-            # -------------------------------------------------------
-            print("[1] GET /raw-data ...")
+            # ── BUOC 1: Kiem tra backend con song ────────────────────
+            self._log("STEP", "[1/5] Kiem tra Backend health...")
+            try:
+                health = requests.get(BACKEND_HEALTH, timeout=3).json()
+                db_status = health.get("database", "?")
+                self._log("OK", f"Backend OK | database={db_status}")
+            except Exception as e:
+                self._log("ERROR", f"Backend khong phan hoi: {e}")
+                return
+
+            # ── BUOC 2: Lay raw-data ─────────────────────────────────
+            self._log("STEP", "[2/5] GET /raw-data ...")
             raw_res = requests.get(
                 BACKEND_RAW_URL,
-                params={"camera_id": CAMERA_ID, "limit": 20, "offset": 0},
-                timeout=3,
+                params={"limit": 20, "offset": 0},
+                timeout=5,
             )
-            print(f"    Status : {raw_res.status_code}")
             if raw_res.status_code != 200:
-                print(f"    ERROR  : {raw_res.text}")
+                self._log("ERROR", f"raw-data HTTP {raw_res.status_code}")
                 return
 
             raw_json = raw_res.json()
-            items    = raw_json.get("items", []) if isinstance(raw_json, dict) else []
-            total    = raw_json.get("total",  len(items)) if isinstance(raw_json, dict) else 0
-            print(f"    Records: {total} total / {len(items)} returned")
+            items = raw_json.get("items", []) if isinstance(raw_json, dict) else []
+            total = raw_json.get("total", len(items)) if isinstance(raw_json, dict) else 0
+            self._log("OK", f"Records: {total} total / {len(items)} returned")
 
-            # -------------------------------------------------------
-            # BUOC 2: Lay aggregation
-            # -------------------------------------------------------
-            print("\n[2] GET /aggregation ...")
-            agg_res = requests.get(
-                BACKEND_AGG_URL,
-                params={"camera_id": CAMERA_ID},
-                timeout=3,
-            )
-            print(f"    Status : {agg_res.status_code}")
+            # ── BUOC 3: Lay aggregation ──────────────────────────────
+            self._log("STEP", "[3/5] GET /aggregation ...")
+            agg_res = requests.get(BACKEND_AGG_URL, timeout=5)
             if agg_res.status_code != 200:
-                print(f"    ERROR  : {agg_res.text}")
+                self._log("ERROR", f"aggregation HTTP {agg_res.status_code}")
                 return
 
             data = agg_res.json()
-            if "congestion_level" not in data or "vehicle_count" not in data:
-                print(f"    ERROR  : Missing required fields | Response: {data}")
-                return
+            vehicle_count = data.get("vehicle_count", 0)
+            backend_level = data.get("congestion_level", "low")
+            self._log("OK", f"vehicle_count={vehicle_count} | congestion={backend_level}")
 
-            vehicle_count = data["vehicle_count"]
-            backend_level = data["congestion_level"]
-            print(f"    Vehicle count    : {vehicle_count}")
-            print(f"    Congestion (API) : {backend_level}")
-
-            # -------------------------------------------------------
-            # BUOC 3: Phan loai local
-            # -------------------------------------------------------
-            print("\n[3] Local congestion classification ...")
+            # Phan loai local
             local_level = self.classifier.classify(vehicle_count)
-            print(f"    Local result     : {local_level}")
+            if local_level != backend_level.lower():
+                self._log("INFO", f"Local classify: {local_level} (API: {backend_level})")
 
-            # -------------------------------------------------------
-            # BUOC 4: Toi uu den tin hieu (ML > rule fallback)
-            # -------------------------------------------------------
-            print("\n[4] Traffic light optimization ...")
+            # ── BUOC 4: Toi uu den tin hieu ──────────────────────────
+            self._log("STEP", "[4/5] Traffic light optimization ...")
 
-            # Lay them cac truong ML neu API tra ve
             queue_proxy   = float(data.get("queue_proxy",   0.0))
             inbound_count = int(data.get("inbound_count",   vehicle_count))
             now           = datetime.datetime.now()
             hour          = int(data.get("hour",            now.hour))
             dow           = int(data.get("day_of_week",     now.weekday()))
 
-            ml_fields_available = all(
-                k in data for k in ("queue_proxy", "inbound_count", "hour", "day_of_week")
-            )
-
-            if ml_fields_available:
+            try:
                 light = self.optimizer.optimize_with_ml(
                     camera_id=CAMERA_ID,
                     queue_proxy=queue_proxy,
@@ -487,69 +602,40 @@ class TrafficSystem:
                     hour=hour,
                     dow=dow,
                 )
-            else:
-                # Fallback rule-based (API khong du truong ML)
-                print("    (ML fields not in API response -> using rule-based fallback)")
-                # Van co the su dung local classification + apply_delta
-                try:
-                    light = self.optimizer.optimize_with_ml(
-                        camera_id=CAMERA_ID,
-                        queue_proxy=queue_proxy,
-                        inbound_count=vehicle_count,
-                        congestion_level=local_level,
-                        hour=now.hour,
-                        dow=now.weekday(),
-                    )
-                except Exception:
-                    light = self.optimizer.optimize(local_level)
+            except Exception:
+                light = self.optimizer.optimize(local_level)
 
-            # Hien thi ket qua den tin hieu
-            try:
-                phase_info = get_phase(CAMERA_ID)
-                print(f"    Phase applied    : {phase_info['phase']} "
-                      f"({phase_info['direction']}, {phase_info['junction']})")
-            except KeyError:
-                pass
-
-            if "green_time" in light:
-                print(f"    GREEN TIME       : {light['green_time']}s")
-            if "delta" in light:
-                print(f"    Delta applied    : {light.get('delta', 0):+.2f}s")
-            if "baseline" in light:
-                print(f"    Baseline         : {light.get('baseline')}s")
-            print(f"    Mode             : {light.get('mode', '?')}")
-            if "prediction_source" in light:
-                print(f"    Prediction source: {light.get('prediction_source')}")
-            if "fallback_reason" in light:
-                print(f"    Fallback reason  : {light.get('fallback_reason')}")
-            print(f"    Full config      : {light}")
+            gt = light.get("green_time", "?")
+            mode = light.get("mode", "?")
+            delta = light.get("delta", 0)
+            self._log("OK", f"green_time={gt}s | delta={delta:+.1f}s | mode={mode}")
 
             # Ghi trang thai den ra file cho detection/main.py doc
-            import json
             light_file = os.path.join(_ROOT, "light_status.json")
             try:
                 with open(light_file, "w") as f:
                     json.dump(light, f)
-            except Exception as e:
+            except Exception:
                 pass
 
-            # -------------------------------------------------------
-            # BUOC 5: Giam sat hieu nang
-            # -------------------------------------------------------
-            print("\n[5] Performance monitoring ...")
+            # ── BUOC 5: Hieu nang he thong ───────────────────────────
+            self._log("STEP", "[5/5] Performance monitoring ...")
             perf = self.monitor.monitor()
-            print(f"    CPU usage    : {perf['cpu_usage']}%")
-            print(f"    Memory usage : {perf['memory_usage']}%")
+            self._log("OK", f"CPU={perf['cpu_usage']:.1f}% | RAM={perf['memory_usage']:.1f}%")
 
-            print(f"\n[OK] PIPELINE COMPLETE @ {ts}")
+            # Kiem tra subprocess con song
+            for name, proc in self.processes.items():
+                if proc.poll() is not None:
+                    self._log("WARN", f"⚠ {name} da thoat (code={proc.returncode})")
+
+            self._log("OK", f"Pipeline #{self._cycle} hoan thanh")
 
         except requests.exceptions.ConnectionError:
-            print("[ERROR] Cannot connect to Backend — is it running?")
+            self._log("ERROR", "Khong the ket noi Backend — chua chay?")
         except requests.exceptions.Timeout:
-            print("[ERROR] Request timeout")
+            self._log("ERROR", "Request timeout")
         except Exception as exc:
-            import traceback
-            print(f"[ERROR] Unexpected: {exc}")
+            self._log("ERROR", f"Unexpected: {exc}")
             traceback.print_exc()
 
 
@@ -557,7 +643,7 @@ class TrafficSystem:
 # 8. ENTRY POINT
 # ===========================================================================
 
-if __name__ == "__main__":
+def main():
     system = TrafficSystem()
 
     def _signal_handler(sig, frame):
@@ -567,7 +653,13 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT,  _signal_handler)
     signal.signal(signal.SIGTERM, _signal_handler)
 
-    print(f"\n[INFO] Running pipeline every {PIPELINE_INTERVAL}s. Press Ctrl+C to stop.\n")
+    print()
+    system._log("INFO", f"Pipeline chay moi {PIPELINE_INTERVAL}s. Nhan Ctrl+C de dung.")
+    print()
+    system._log("INFO", f"Frontend:  http://localhost:3000")
+    system._log("INFO", f"Backend:   {API_BASE}")
+    system._log("INFO", f"API Docs:  {API_BASE}/docs")
+    print()
 
     try:
         while True:
@@ -575,3 +667,7 @@ if __name__ == "__main__":
             time.sleep(PIPELINE_INTERVAL)
     except KeyboardInterrupt:
         system.stop_system()
+
+
+if __name__ == "__main__":
+    main()
