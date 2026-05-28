@@ -92,15 +92,15 @@ export default function App() {
 
       <div className="main-grid">
         <div className="area-total">
-          <TotalCard rawData={filteredRaw} aggregation={aggregation} />
+          <TotalCard rawData={rawData} aggregation={aggregation} />
         </div>
 
         <div className="area-vehicle-types">
-          <VehicleTypes rawData={filteredRaw} />
+          <VehicleTypes rawData={rawData} />
         </div>
 
         <div className="area-lanes">
-          <LanePanel rawData={filteredRaw} aggregation={aggregation} />
+          <LanePanel rawData={rawData} aggregation={aggregation} />
         </div>
 
         <div className="area-video">
