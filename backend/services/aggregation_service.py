@@ -185,8 +185,8 @@ def aggregate_from_detections(
         "congestion_levels": congestion_levels,
         "timestamp": end_time,
     }
-    result = db.traffic_aggregation.insert_one(document)
-    document["_id"] = result.inserted_id
+    # Do NOT insert into DB for realtime API queries
+    document["_id"] = "realtime_compute"
     return to_object(document)
 
 
