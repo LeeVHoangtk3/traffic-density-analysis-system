@@ -1,96 +1,30 @@
 {
   "camera_id": "cam01",
   "name": "Camera CAM01",
-  "monitored_direction": "multi",
+  "monitored_direction": "single_roi",
   "baseline_green": 30,
   "frame_width": 960,
   "frame_height": 540,
   "zones": [
     {
-      "id": "zone_left",
-      "direction": "left",
-      "points": [
-        [
-          258,
-          308
-        ],
-        [
-          343,
-          247
-        ],
-        [
-          295,
-          245
-        ],
-        [
-          203,
-          305
-        ]
-      ]
-    },
-    {
-      "id": "zone_straight",
-      "direction": "straight",
-      "points": [
-        [
-          361,
-          239
-        ],
-        [
-          626,
-          247
-        ],
-        [
-          574,
-          208
-        ],
-        [
-          400,
-          209
-        ]
-      ]
-    },
-    {
-      "id": "zone_right",
-      "direction": "right",
-      "points": [
-        [
-          783,
-          266
-        ],
-        [
-          868,
-          316
-        ],
-        [
-          750,
-          331
-        ],
-        [
-          670,
-          262
-        ]
-      ]
-    },
-    {
       "id": "zone_trigger",
       "direction": "trigger",
       "points": [
         [
-          56,
-          440
+          3,
+          372
         ],
         [
-          864,
-          445
+          959,
+          364
         ],
         [
-          744,
-          347
+          958,
+          214
         ],
         [
-          207,
-          340
+          3,
+          209
         ]
       ],
       "is_trigger": true

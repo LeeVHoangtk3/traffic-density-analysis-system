@@ -1,10 +1,19 @@
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 
-# Load .env from the backend directory
-load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+def load_environment(backend_dir: str | os.PathLike[str] | None = None) -> None:
+    backend_path = Path(backend_dir) if backend_dir else Path(__file__).resolve().parent
+    project_root = backend_path.parent
+
+    # Preserve backend-specific configuration, then fill missing values from root.
+    load_dotenv(backend_path / ".env")
+    load_dotenv(project_root / ".env")
+
+
+load_environment()
 
 
 class Settings:

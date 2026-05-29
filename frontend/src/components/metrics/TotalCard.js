@@ -1,6 +1,5 @@
 // TotalCard.js
-// Tổng số xe — tính từ rawData (filteredRaw) để tăng dần theo video
-// Congestion level vẫn lấy từ aggregation (BE tính)
+// Hiển thị tổng lượng xe đếm đơn ROI hợp nhất tích lũy thời gian thực
 
 function levelClass(level = '') {
   return 'level-' + (level || 'low').toLowerCase();
@@ -14,62 +13,59 @@ function levelIcon(level = '') {
   return '🟢';
 }
 
-export default function TotalCard({ rawData = [], aggregation }) {
-  // ── Tính từ rawData đã filter theo videoTime ──────────────────────
-  const total    = rawData.length;
-  const left     = rawData.filter(d => (d.direction || '').toLowerCase() === 'left').length;
-  const straight = rawData.filter(d => (d.direction || '').toLowerCase() === 'straight').length;
-  const right    = rawData.filter(d => (d.direction || '').toLowerCase() === 'right').length;
-  const inbound  = rawData.filter(d => (d.direction || '').toLowerCase() === 'inbound').length;
+function levelTranslation(level = '') {
+  const l = (level || '').toUpperCase();
+  if (l === 'HEAVY' || l === 'SEVERE') return 'ÙN TẮC NGHIÊM TRỌNG';
+  if (l === 'HIGH') return 'BẮT ĐẦU ĐÔNG XE';
+  if (l === 'MEDIUM') return 'THÔNG THOÁNG';
+  return 'ĐƯỜNG VẮNG';
+}
 
-  // Congestion & queue từ aggregation endpoint
-  const level      = aggregation?.congestion_level ?? '';
-  const queueProxy = aggregation?.queue_proxy ?? 0;
+export default function TotalCard({ rawData = [], aggregation }) {
+  // Lấy tổng số xe đã đếm qua ROI tổng
+  const total = rawData.length;
+
+  // Trạng thái mật độ tổng thể từ K-Means thích ứng
+  const level = aggregation?.congestion_level ?? 'LOW';
 
   return (
-    <div className="glass-card total-card">
-      <div className="total-label">🚗 TỔNG SỐ PHƯƠNG TIỆN</div>
+    <div className="glass-card total-card" style={{ position: 'relative', overflow: 'hidden' }}>
+      {/* Hiệu ứng nền nhẹ tinh tế */}
+      <div style={{
+        position: 'absolute', top: -50, right: -50, width: 120, height: 120,
+        background: 'radial-gradient(circle, rgba(96,165,250,0.1) 0%, transparent 70%)',
+        pointerEvents: 'none'
+      }} />
 
-      {/* Big number */}
-      <div className="total-number">{total.toLocaleString()}</div>
-
-      {/* Direction breakdown */}
-      <div className="total-sub">
-        <div className="total-sub-item">
-          <span className="total-sub-dot" style={{ background: '#10b981' }} />
-          Trái: <strong style={{ color: '#f1f5f9', marginLeft: 4 }}>{left}</strong>
-        </div>
-        <div className="total-sub-item">
-          <span className="total-sub-dot" style={{ background: '#f59e0b' }} />
-          Thẳng: <strong style={{ color: '#f1f5f9', marginLeft: 4 }}>{straight}</strong>
-        </div>
-        <div className="total-sub-item">
-          <span className="total-sub-dot" style={{ background: '#ef4444' }} />
-          Phải: <strong style={{ color: '#f1f5f9', marginLeft: 4 }}>{right}</strong>
-        </div>
+      <div className="total-label" style={{ letterSpacing: '0.08em', fontWeight: 700 }}>
+        🟢 ROI ĐẾM TỔNG HỢP NHẤT
       </div>
 
-      {/* Inbound & Queue */}
-      <div style={{ display: 'flex', gap: 12, marginTop: 2 }}>
-        <div style={{ fontSize: 11, color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 4 }}>
-          📥 Inbound: <strong style={{ color: 'var(--text-2)', marginLeft: 4 }}>{inbound}</strong>
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 4 }}>
-          🔢 Queue: <strong style={{ color: 'var(--text-2)', marginLeft: 4 }}>{queueProxy}</strong>
-        </div>
+      {/* Số xe hiển thị cực đại */}
+      <div className="total-number" style={{ fontSize: 56, letterSpacing: '-0.02em', margin: '10px 0' }}>
+        {total.toLocaleString()}
+        <span style={{ fontSize: 16, color: 'var(--text-3)', marginLeft: 8, fontWeight: 400 }}>phương tiện</span>
       </div>
 
-      {/* Congestion badge */}
-      {level && (
-        <span className={`congestion-badge ${levelClass(level)}`}>
-          {levelIcon(level)} {level}
+      {/* Trạng thái mật độ động từ K-Means thích ứng */}
+      <div style={{ marginTop: 8 }}>
+        <div style={{ fontSize: 10, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+          Mật độ thời gian thực (K-Means)
+        </div>
+        <span 
+          className={`congestion-badge ${levelClass(level)}`}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '4px 14px', borderRadius: 20, fontSize: 12, fontWeight: 800
+          }}
+        >
+          {levelIcon(level)} {levelTranslation(level)} ({level.toUpperCase()})
         </span>
-      )}
+      </div>
 
-      {/* Fallback nếu chưa có data */}
       {total === 0 && (
-        <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 4 }}>
-          ⏳ Đang chờ dữ liệu từ camera...
+        <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 8 }}>
+          ⏳ Đang kết nối camera AI, vui lòng phát video...
         </div>
       )}
     </div>

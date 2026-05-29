@@ -225,7 +225,7 @@ def _process_tracks(
         counter.count(cached_track["class_name"])
         totals = counter.get_totals()
         event  = event_generator.generate(
-            camera_id=camera_id, track=cached_track, direction=final_lane)
+            camera_id=camera_id, track=cached_track)
         if DRY_RUN:
             event_counter.increment()
         else:

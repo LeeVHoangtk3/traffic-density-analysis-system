@@ -3,7 +3,6 @@ import './App.css';
 
 import Header          from './components/layout/Header';
 import TotalCard       from './components/metrics/TotalCard';
-import VehicleTypes    from './components/metrics/VehicleTypes';
 import LanePanel       from './components/traffic/LanePanel';
 import VideoPanel      from './components/video/VideoPanel';
 import HistoryChart    from './components/charts/HistoryChart';
@@ -38,7 +37,7 @@ export default function App() {
 
   const fetchPrediction = useCallback(async () => {
     try {
-      const r = await fetch(`${API}/predict-next?camera_id=${activeCamera}`);
+      const r = await fetch(`${API}/api/v1/predict-next?camera_id=${activeCamera}`);
       if (r.ok) setPrediction(await r.json());
     } catch {}
   }, [activeCamera]);
@@ -93,10 +92,6 @@ export default function App() {
       <div className="main-grid">
         <div className="area-total">
           <TotalCard rawData={filteredRaw} aggregation={aggregation} />
-        </div>
-
-        <div className="area-vehicle-types">
-          <VehicleTypes rawData={filteredRaw} />
         </div>
 
         <div className="area-lanes">
