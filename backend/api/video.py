@@ -10,9 +10,11 @@ router = APIRouter(tags=["video"])
 # traffic-density-analysis-system/
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-# ================== VIDEO FOLDER ==================
+# ================== VIDEO FOLDERS ==================
 # traffic-density-analysis-system/data/video/
 VIDEO_FOLDER = PROJECT_ROOT / "data" / "video"
+# traffic-density-analysis-system/data/output/
+OUTPUT_FOLDER = PROJECT_ROOT / "data" / "output"
 
 # ================== DEFAULT VIDEO ==================
 DEFAULT_VIDEO = "cam01-traffic3.mp4"
@@ -49,57 +51,61 @@ def _iter_file(
             remaining -= len(data)
 
 
+@router.get("/videos/outputs")
+def list_output_videos():
+    """
+    List all videos inside the data/output directory
+    """
+    if not OUTPUT_FOLDER.exists():
+        return []
+    
+    # Return names of all .mp4 files in data/output
+    videos = [f.name for f in OUTPUT_FOLDER.glob("*.mp4") if f.is_file()]
+    videos.sort()
+    return videos
+
+
 @router.get("/video")
 def get_video(
     request: Request,
     camera_id: str | None = None,
     video_name: str | None = None
 ):
-    selected_video = DEFAULT_VIDEO
+    selected_video = "cam01-traffic3_output.mp4"
     if video_name:
         selected_video = video_name
     elif camera_id:
         if camera_id.lower() == "cam01":
-            selected_video = "cam01-traffic3.mp4"
+            selected_video = "cam01-traffic3_output.mp4"
         elif camera_id.lower() == "cam02":
-            selected_video = "cam02-traffic8.mp4"
+            selected_video = "cam02-traffic8_output.mp4"
         elif camera_id.lower() == "cam03":
-            selected_video = "cam03-traffic1.mp4"
+            selected_video = "cam03-traffic1_output.mp4"
         else:
-            selected_video = f"{camera_id.lower()}-traffic3.mp4"
+            selected_video = f"{camera_id.lower()}-traffic3_output.mp4"
 
-    # ================= SMART VIDEO SELECTION =================
-    # Tự động phát hiện và ưu tiên phát tệp video kết quả đã qua xử lý AI (_output.mp4)
-    file_path = VIDEO_FOLDER / selected_video
-    
+    # Đảm bảo video kết thúc bằng _output.mp4 (Bắt buộc phải là video kết quả)
     if selected_video.endswith(".mp4") and not selected_video.endswith("_output.mp4"):
-        output_name = selected_video.replace(".mp4", "_output.mp4")
-        output_path_local = VIDEO_FOLDER / output_name
-        output_path_root = PROJECT_ROOT / output_name
-        output_path_test_data = PROJECT_ROOT / "test_data" / "output" / output_name
-        
-        if output_path_local.exists() and output_path_local.is_file():
-            file_path = output_path_local
-            print(f"[Smart-Stream] Phát hiện video đã xử lý AI (VIDEO_FOLDER): {output_name}")
-        elif output_path_test_data.exists() and output_path_test_data.is_file():
-            file_path = output_path_test_data
-            print(f"[Smart-Stream] Phát hiện video đã xử lý AI (test_data/output): {output_name}")
-        elif output_path_root.exists() and output_path_root.is_file():
-            file_path = output_path_root
-            print(f"[Smart-Stream] Phát hiện video đã xử lý AI (PROJECT_ROOT): {output_name}")
+        selected_video = selected_video.replace(".mp4", "_output.mp4")
 
-    # Fallback kiểm tra nếu file_path không tồn tại ở data/video
+    # BẮT BUỘC CHỈ LẤY TRONG THƯ MỤC data/output
+    file_path = OUTPUT_FOLDER / selected_video
+    
+    # Nếu file yêu cầu cụ thể không tồn tại, thử lấy file đầu tiên trong data/output
     if not (file_path.exists() and file_path.is_file()):
-        project_root_raw = PROJECT_ROOT / selected_video
-        if project_root_raw.exists() and project_root_raw.is_file():
-            file_path = project_root_raw
+        all_outputs = list(OUTPUT_FOLDER.glob("*.mp4"))
+        if all_outputs:
+            file_path = all_outputs[0]
+            print(f"[Strict-Output] Không thấy file {selected_video}, dùng file đầu tiên trong data/output: {file_path}")
         else:
-            # Fallback cứng về video mặc định để tránh lỗi 404
-            file_path = VIDEO_FOLDER / DEFAULT_VIDEO
+            raise HTTPException(
+                status_code=404,
+                detail=f"Bắt buộc phải phát video từ data/output nhưng không tìm thấy tệp .mp4 nào tại {OUTPUT_FOLDER}"
+            )
 
     # ================= DEBUG =================
     print("PROJECT_ROOT:", PROJECT_ROOT)
-    print("VIDEO_FOLDER:", VIDEO_FOLDER)
+    print("OUTPUT_FOLDER:", OUTPUT_FOLDER)
     print("FILE_PATH PREFERRED:", file_path)
     print("EXISTS:", file_path.exists())
     print("CWD:", Path.cwd())

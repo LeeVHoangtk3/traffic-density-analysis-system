@@ -12,7 +12,11 @@ function fmtTime(secs) {
   return `${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`;
 }
 
-export default function VideoPanel({ onTimeUpdate, activeCamera = "cam01" }) {
+export default function VideoPanel({
+  onTimeUpdate,
+  activeCamera = "cam01",
+  activeVideo = "cam01-traffic3_output.mp4"
+}) {
   const videoRef   = useRef(null);
   const rafRef     = useRef(null);
   const [displayTime, setDisplayTime] = useState(0);
@@ -41,8 +45,6 @@ export default function VideoPanel({ onTimeUpdate, activeCamera = "cam01" }) {
     return () => cancelAnimationFrame(rafRef.current);
   }, [onTimeUpdate]);
 
-  const activeVideoName = activeCamera === "cam01" ? "cam01-traffic3_output.mp4" : "cam02-traffic8_output.mp4";
-
   return (
     <div className="glass-card video-wrapper">
       {/* Top bar */}
@@ -53,9 +55,9 @@ export default function VideoPanel({ onTimeUpdate, activeCamera = "cam01" }) {
         justifyContent: 'space-between',
       }}>
         <div className="section-title" style={{ margin: 0 }}>
-          📹 CAMERA FEED · {activeCamera.toUpperCase()}
+          🛣️ ROADWAY SEGMENT · {activeCamera === 'cam01' ? '01' : activeCamera === 'cam02' ? '02' : '03'}
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span style={{
             padding: '3px 10px',
             background: 'rgba(59,130,246,0.12)',
@@ -72,7 +74,7 @@ export default function VideoPanel({ onTimeUpdate, activeCamera = "cam01" }) {
             borderRadius: 20,
             fontSize: 10, fontWeight: 600,
             color: 'var(--text-3)',
-          }}>{activeVideoName}</span>
+          }}>{activeVideo.replace('_output.mp4', '')}</span>
         </div>
       </div>
 
@@ -80,8 +82,8 @@ export default function VideoPanel({ onTimeUpdate, activeCamera = "cam01" }) {
       <div style={{ position: 'relative' }}>
         <video
           ref={videoRef}
-          src={`http://localhost:8000/video?camera_id=${activeCamera}`}
-          key={activeCamera} // Force video reload when camera changes
+          src={`http://127.0.0.1:8000/video?video_name=${activeVideo}`}
+          key={activeVideo} // Force video reload when video changes
           autoPlay
           muted
           loop

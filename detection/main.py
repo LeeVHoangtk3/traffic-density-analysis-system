@@ -365,7 +365,7 @@ def main() -> None:
     frame_delay = 1.0 / (fps * PLAYBACK_SPEED)
 
     out_w, out_h = _get_output_size(VIDEO_SOURCE, TARGET_WIDTH)
-    out = cv2.VideoWriter(OUTPUT_VIDEO, cv2.VideoWriter_fourcc(*"mp4v"),
+    out = cv2.VideoWriter(OUTPUT_VIDEO, cv2.VideoWriter_fourcc(*"avc1"),
                           fps, (out_w, out_h))
 
     display_enabled = not (NO_DISPLAY or IS_NOTEBOOK or IS_COLAB)

@@ -826,3 +826,43 @@ tr:hover td { background: rgba(255,255,255,0.025); }
   .vtype-grid         { grid-template-columns: repeat(2, 1fr); }
   .lanes-container    { grid-template-columns: 1fr; }
 }
+
+/* ===================== SELECT BUTTONS ===================== */
+.glass-select-btn {
+  appearance: none;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  color: #f1f5f9;
+  padding: 6px 16px 6px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+  font-family: inherit;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.glass-select-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.25);
+  transform: translateY(-1px);
+}
+
+.glass-select-btn:active {
+  transform: translateY(0);
+}
+
+.glass-select-btn option {
+  background: #0c1525;
+  color: #f1f5f9;
+  padding: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
