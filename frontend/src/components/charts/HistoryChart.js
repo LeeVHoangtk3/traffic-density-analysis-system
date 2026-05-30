@@ -1,5 +1,6 @@
 // HistoryChart.js
-// Vẽ lịch sử số xe tổng cộng vượt ROI theo chuỗi thời gian
+// Vẽ toàn bộ lịch sử lượng xe tổng hợp thực tế tích lũy từ database (Giới hạn 12 tiếng gần nhất)
+// Ghim vị trí phát video bằng thước đo dọc màu cam chuyển động đồng bộ.
 
 import { useMemo, useRef } from 'react';
 import {
@@ -15,24 +16,6 @@ ChartJS.register(
   PointElement, LineElement,
   Tooltip, Legend, Filler,
 );
-
-const BIN_SECONDS = 10; // nhóm mỗi 10 giây
-
-function fmtMs(ms) {
-  if (!ms) return '';
-  try {
-    return new Date(ms).toLocaleTimeString('vi-VN', {
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
-    });
-  } catch { return ''; }
-}
-
-function fmtSecs(s) {
-  const sec = Math.floor(s || 0);
-  const m = Math.floor(sec / 60);
-  const r = sec % 60;
-  return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
-}
 
 const videoMarkerPlugin = {
   id: 'videoMarker',
@@ -55,6 +38,24 @@ const videoMarkerPlugin = {
     ctx.stroke();
     ctx.restore();
 
+    // Vẽ điểm tròn phát sáng (Glow Dot) tại giao điểm đồ thị (x, y) để nhận diện rõ điểm hiện tại
+    const y = pt.y;
+    ctx.save();
+    // Halo phát sáng bên ngoài
+    ctx.beginPath();
+    ctx.arc(x, y, 12, 0, 2 * Math.PI);
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.35)';
+    ctx.fill();
+    // Điểm tròn cam chính giữa
+    ctx.beginPath();
+    ctx.arc(x, y, 6, 0, 2 * Math.PI);
+    ctx.fillStyle = '#f59e0b';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
     const lbl = opts.label || '';
     ctx.save();
     ctx.font = 'bold 10px JetBrains Mono, monospace';
@@ -72,65 +73,91 @@ const videoMarkerPlugin = {
 
 ChartJS.register(videoMarkerPlugin);
 
-function buildBins(sortedRaw, videoStartMs, cutoffMs) {
-  if (!sortedRaw.length || !videoStartMs) return [];
-
-  const endMs = Math.min(
-    cutoffMs,
-    new Date(sortedRaw[sortedRaw.length - 1].timestamp).getTime() + BIN_SECONDS * 1000
-  );
-  const bins = [];
-
-  for (let t = videoStartMs; t < endMs; t += BIN_SECONDS * 1000) {
-    const binEnd = t + BIN_SECONDS * 1000;
-    let total = 0;
-
-    for (const item of sortedRaw) {
-      const ts = new Date(item.timestamp).getTime();
-      if (ts < videoStartMs) continue;
-      if (ts >= binEnd) break;
-      total++;
-    }
-
-    bins.push({
-      time: binEnd,
-      label: fmtMs(binEnd),
-      total,
+function fmtMs(ms) {
+  if (!ms) return '';
+  try {
+    return new Date(ms).toLocaleTimeString('vi-VN', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
     });
-  }
-
-  return bins;
+  } catch { return ''; }
 }
 
-export default function HistoryChart({ sortedRaw, videoStartMs, videoTime }) {
+function fmtSecs(s) {
+  const sec = Math.floor(s || 0);
+  const m = Math.floor(sec / 60);
+  const r = sec % 60;
+  return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+}
+
+export default function HistoryChart({ historyData = [], videoStartMs, videoTime, videoDuration }) {
   const chartRef = useRef(null);
-  const cutoffMs = videoStartMs ? videoStartMs + videoTime * 1000 : 0;
 
-  const allBins = useMemo(
-    () => buildBins(sortedRaw, videoStartMs, new Date(sortedRaw[sortedRaw.length - 1]?.timestamp).getTime() + BIN_SECONDS * 1000),
-    [sortedRaw, videoStartMs]
-  );
+  // 1. Sắp xếp và Lọc dữ liệu: Nếu dữ liệu kéo dài hơn 12 tiếng, chỉ hiển thị 12 tiếng gần nhất
+  const processedHistory = useMemo(() => {
+    if (!historyData || !historyData.length) return [];
 
-  const visibleBins = useMemo(
-    () => allBins.filter(b => b.time <= cutoffMs + BIN_SECONDS * 1000),
-    [allBins, cutoffMs]
-  );
+    const sorted = [...historyData].sort((a, b) =>
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
 
-  const markerIndex = visibleBins.length > 0 ? visibleBins.length - 1 : null;
-  const markerLabel = markerIndex != null ? visibleBins[markerIndex].label : '';
+    const latestMs = new Date(sorted[sorted.length - 1].timestamp).getTime();
+    const cutoffMs = latestMs - 12 * 60 * 60 * 1000; // Cửa sổ trượt 12 tiếng gần nhất
+
+    return sorted.filter(item => new Date(item.timestamp).getTime() >= cutoffMs);
+  }, [historyData]);
+
+  // 2. Tìm index của mốc thời gian phát video hiện tại trên đồ thị
+  const markerIndex = useMemo(() => {
+    if (!processedHistory.length || !videoStartMs || !videoDuration) return null;
+
+    // Tìm virtual duration dựa trên mốc dữ liệu
+    const firstDetMs = videoStartMs;
+    const lastDetMs = new Date(processedHistory[processedHistory.length - 1].timestamp).getTime();
+    const virtualDurationMs = Math.max(0, lastDetMs - firstDetMs);
+
+    let scale = 1.0;
+    if (videoDuration > 0 && virtualDurationMs > 0) {
+      scale = (virtualDurationMs / 1000) / videoDuration;
+    }
+
+    const indicatorMs = firstDetMs + videoTime * scale * 1000;
+
+    // Tìm điểm gần nhất trong processedHistory
+    let closestIndex = 0;
+    let minDiff = Infinity;
+
+    processedHistory.forEach((item, idx) => {
+      const ts = new Date(item.timestamp).getTime();
+      const diff = Math.abs(ts - indicatorMs);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIndex = idx;
+      }
+    });
+
+    return closestIndex;
+  }, [processedHistory, videoStartMs, videoTime, videoDuration]);
+
+  const markerLabel = useMemo(() => {
+    if (markerIndex == null || !processedHistory[markerIndex]) return '';
+    return fmtMs(new Date(processedHistory[markerIndex].timestamp).getTime());
+  }, [processedHistory, markerIndex]);
 
   const chartData = {
-    labels: visibleBins.map(b => b.label),
+    labels: processedHistory.map(item => {
+      const t = new Date(item.timestamp);
+      return t.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    }),
     datasets: [
       {
-        label: 'Tổng số xe vượt ROI',
-        data: visibleBins.map(b => b.total),
+        label: 'Lưu lượng thực tế (15p/chu kỳ)',
+        data: processedHistory.map(item => item.vehicle_count),
         borderColor: '#3B82F6',
         backgroundColor: 'rgba(59,130,246,0.06)',
         fill: true,
         tension: 0.4,
-        pointRadius: 3,
-        pointHoverRadius: 6,
+        pointRadius: 4,
+        pointHoverRadius: 7,
         borderWidth: 2.5,
       }
     ],
@@ -139,7 +166,7 @@ export default function HistoryChart({ sortedRaw, videoStartMs, videoTime }) {
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: { duration: 250 },
+    animation: { duration: 200 },
     interaction: { mode: 'index', intersect: false },
     plugins: {
       legend: {
@@ -162,7 +189,7 @@ export default function HistoryChart({ sortedRaw, videoStartMs, videoTime }) {
       },
       videoMarker: {
         index: markerIndex,
-        label: markerLabel,
+        label: `🎬 Video đang chạy: ${markerLabel}`,
       },
     },
     scales: {
@@ -183,7 +210,7 @@ export default function HistoryChart({ sortedRaw, videoStartMs, videoTime }) {
         border: { color: 'rgba(255,255,255,0.05)' },
         title: {
           display: true,
-          text: 'Số lượng xe (lũy kế)',
+          text: 'Lượng phương tiện / 15 phút',
           color: '#475569',
           font: { size: 10 },
         },
@@ -191,21 +218,21 @@ export default function HistoryChart({ sortedRaw, videoStartMs, videoTime }) {
     },
   };
 
-  const startLabel = videoStartMs ? fmtMs(videoStartMs) : '--:--:--';
-  const currentLabel = cutoffMs ? fmtMs(cutoffMs) : '--:--:--';
+  const startLabel = processedHistory.length > 0 ? fmtMs(new Date(processedHistory[0].timestamp).getTime()) : '--:--:--';
+  const endLabel = processedHistory.length > 0 ? fmtMs(new Date(processedHistory[processedHistory.length - 1].timestamp).getTime()) : '--:--:--';
 
   return (
     <div className="glass-card chart-card">
       <div className="chart-header-row">
         <div className="chart-title-block">
-          <div className="chart-title">📈 LỊCH SỬ LƯU LƯỢNG XE TỔNG HỢP</div>
+          <div className="chart-title">📈 LỊCH SỬ MẬT ĐỘ TÍCH LŨY HỆ THỐNG</div>
           <div className="chart-subtitle">
-            {visibleBins.length} điểm · Gốc: {startLabel} · Chu kỳ {BIN_SECONDS}s / điểm
+            {processedHistory.length} điểm dữ liệu · Khung: {startLabel} - {endLabel} (12h gần nhất)
           </div>
         </div>
 
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          {videoStartMs && (
+          {videoStartMs && markerLabel && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 8,
               padding: '6px 14px',
@@ -219,22 +246,22 @@ export default function HistoryChart({ sortedRaw, videoStartMs, videoTime }) {
                 Video {fmtSecs(videoTime)}
               </span>
               <span style={{ opacity: 0.6 }}>→</span>
-              <strong style={{ fontFamily: 'JetBrains Mono, monospace' }}>{currentLabel}</strong>
+              <strong style={{ fontFamily: 'JetBrains Mono, monospace' }}>{markerLabel}</strong>
             </div>
           )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-3)' }}>
             <div style={{ width: 20, height: 2, background: '#f59e0b', borderTop: '2px dashed #f59e0b' }} />
-            <span>Vị trí video</span>
+            <span>Điểm trùng khớp Video</span>
           </div>
         </div>
       </div>
 
-      {!visibleBins.length ? (
+      {!processedHistory.length ? (
         <div className="chart-empty">
           <div className="chart-empty-icon">📊</div>
           <div style={{ color: 'var(--text-3)' }}>
-            {!videoStartMs ? 'Đang chờ dữ liệu...' : 'Bắt đầu phát video để xem biểu đồ'}
+            Đang chờ dữ liệu lịch sử tích lũy từ database...
           </div>
         </div>
       ) : (

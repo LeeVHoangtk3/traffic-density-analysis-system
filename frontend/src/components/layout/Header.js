@@ -66,6 +66,7 @@ export default function Header({ activeCamera, onChangeCamera }) {
           >
             <option value="cam01" style={{ background: '#0c1525', color: '#fff' }}>CAM01 (traffic3)</option>
             <option value="cam02" style={{ background: '#0c1525', color: '#fff' }}>CAM02 (traffic8)</option>
+            <option value="cam03" style={{ background: '#0c1525', color: '#fff' }}>CAM03 (traffic1-2)</option>
           </select>
         </div>
 

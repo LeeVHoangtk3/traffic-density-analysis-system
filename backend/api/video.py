@@ -63,17 +63,45 @@ def get_video(
             selected_video = "cam01-traffic3.mp4"
         elif camera_id.lower() == "cam02":
             selected_video = "cam02-traffic8.mp4"
+        elif camera_id.lower() == "cam03":
+            selected_video = "cam03-traffic1.mp4"
         else:
             selected_video = f"{camera_id.lower()}-traffic3.mp4"
 
+    # ================= SMART VIDEO SELECTION =================
+    # Tự động phát hiện và ưu tiên phát tệp video kết quả đã qua xử lý AI (_output.mp4)
     file_path = VIDEO_FOLDER / selected_video
+    
+    if selected_video.endswith(".mp4") and not selected_video.endswith("_output.mp4"):
+        output_name = selected_video.replace(".mp4", "_output.mp4")
+        output_path_local = VIDEO_FOLDER / output_name
+        output_path_root = PROJECT_ROOT / output_name
+        output_path_test_data = PROJECT_ROOT / "test_data" / "output" / output_name
+        
+        if output_path_local.exists() and output_path_local.is_file():
+            file_path = output_path_local
+            print(f"[Smart-Stream] Phát hiện video đã xử lý AI (VIDEO_FOLDER): {output_name}")
+        elif output_path_test_data.exists() and output_path_test_data.is_file():
+            file_path = output_path_test_data
+            print(f"[Smart-Stream] Phát hiện video đã xử lý AI (test_data/output): {output_name}")
+        elif output_path_root.exists() and output_path_root.is_file():
+            file_path = output_path_root
+            print(f"[Smart-Stream] Phát hiện video đã xử lý AI (PROJECT_ROOT): {output_name}")
+
+    # Fallback kiểm tra nếu file_path không tồn tại ở data/video
+    if not (file_path.exists() and file_path.is_file()):
+        project_root_raw = PROJECT_ROOT / selected_video
+        if project_root_raw.exists() and project_root_raw.is_file():
+            file_path = project_root_raw
+        else:
+            # Fallback cứng về video mặc định để tránh lỗi 404
+            file_path = VIDEO_FOLDER / DEFAULT_VIDEO
 
     # ================= DEBUG =================
     print("PROJECT_ROOT:", PROJECT_ROOT)
     print("VIDEO_FOLDER:", VIDEO_FOLDER)
-    print("FILE_PATH:", file_path)
+    print("FILE_PATH PREFERRED:", file_path)
     print("EXISTS:", file_path.exists())
-    print("FILES:", list(VIDEO_FOLDER.glob("*")))
     print("CWD:", Path.cwd())
     # =========================================
 

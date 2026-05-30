@@ -32,7 +32,7 @@ export default function VideoPanel({ onTimeUpdate, activeCamera = "cam01" }) {
         const currentSec = Math.floor(t);
         if (currentSec !== lastReportedSec) {
           lastReportedSec = currentSec;
-          onTimeUpdate?.(t);
+          onTimeUpdate?.(t, el.duration);
         }
       }
       rafRef.current = requestAnimationFrame(tick);
@@ -41,7 +41,7 @@ export default function VideoPanel({ onTimeUpdate, activeCamera = "cam01" }) {
     return () => cancelAnimationFrame(rafRef.current);
   }, [onTimeUpdate]);
 
-  const activeVideoName = activeCamera === "cam01" ? "cam01-traffic3.mp4" : "cam02-traffic8.mp4";
+  const activeVideoName = activeCamera === "cam01" ? "cam01-traffic3_output.mp4" : "cam02-traffic8_output.mp4";
 
   return (
     <div className="glass-card video-wrapper">
@@ -58,13 +58,13 @@ export default function VideoPanel({ onTimeUpdate, activeCamera = "cam01" }) {
         <div style={{ display: 'flex', gap: 8 }}>
           <span style={{
             padding: '3px 10px',
-            background: 'var(--red-dim)',
-            border: '1px solid rgba(239,68,68,0.3)',
+            background: 'rgba(59,130,246,0.12)',
+            border: '1px solid rgba(59,130,246,0.3)',
             borderRadius: 20,
             fontSize: 10, fontWeight: 700,
-            color: 'var(--red)',
+            color: '#60A5FA',
             letterSpacing: '0.08em',
-          }}>● LIVE</span>
+          }}>● AI PLAYBACK</span>
           <span style={{
             padding: '3px 10px',
             background: 'rgba(255,255,255,0.04)',
