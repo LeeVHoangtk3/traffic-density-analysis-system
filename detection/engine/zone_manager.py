@@ -122,12 +122,9 @@ class ZoneManager:
             state = self.memory_traffic[tid]
             
             # Xe được tính là đếm hợp lệ nếu:
-            # - Hoặc đã chốt đếm thành công khi đi ra ngoài vùng ROI lúc đang trong camera.
-            # - Hoặc đã đi vào vùng ROI (passed_trigger = True) nhưng bị mất vết bám khi đang nằm trong ROI (Fallback phòng vệ hụt xe).
-            if state["is_counted"] or state["passed_trigger"]:
+            # - Đã chốt đếm thành công khi đi ra ngoài vùng ROI lúc đang trong camera.
+            if state["is_counted"]:
                 exited_events.append((tid, "straight", state["track"]))
-                if not state["is_counted"]:
-                    print(f"[ZoneManager] [Fallback] Track ID {tid} được đếm khi thoát khung hình (chạm ROI trước đó).")
                 
             # Xóa khỏi bộ nhớ ngay khi thoát khung hình để giải phóng RAM triệt để (On-RAM Processing)
             if tid in self.memory_traffic:

@@ -48,7 +48,7 @@ export default function Header({
         <div>
           <div className="header-title">CITY TRAFFIC MONITOR</div>
           <div className="header-subtitle">
-            Real-time Traffic Intelligence System · Ho Chi Minh City
+            Real-time Traffic Intelligence System · Hà Nội
           </div>
         </div>
       </div>

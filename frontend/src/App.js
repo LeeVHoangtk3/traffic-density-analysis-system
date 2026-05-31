@@ -2,8 +2,6 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import './App.css';
 
 import Header          from './components/layout/Header';
-import TotalCard       from './components/metrics/TotalCard';
-import LanePanel       from './components/traffic/LanePanel';
 import VideoPanel      from './components/video/VideoPanel';
 import HistoryChart    from './components/charts/HistoryChart';
 import PredictionPanel from './components/metrics/PredictionPanel';
@@ -249,14 +247,6 @@ export default function App() {
       />
 
       <div className="main-grid">
-        <div className="area-total">
-          <TotalCard rawData={filteredRaw} aggregation={aggregation} averageStats={averageStats} />
-        </div>
-
-        <div className="area-lanes">
-          <LanePanel rawData={filteredRaw} aggregation={aggregation} />
-        </div>
-
         <div className="area-video">
           <VideoPanel
             onTimeUpdate={handleTimeUpdate}
@@ -276,6 +266,7 @@ export default function App() {
             videoStartMs={videoStartMs}
             videoTime={videoTime}
             videoDuration={videoDuration}
+            averageStats={averageStats}
           />
         </div>
       </div>

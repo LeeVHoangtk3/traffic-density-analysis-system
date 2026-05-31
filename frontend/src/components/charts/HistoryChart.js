@@ -17,61 +17,6 @@ ChartJS.register(
   Tooltip, Legend, Filler,
 );
 
-const videoMarkerPlugin = {
-  id: 'videoMarker',
-  afterDraw(chart, _, opts) {
-    const { index } = opts;
-    if (index == null || index < 0) return;
-    const meta = chart.getDatasetMeta(0);
-    const pt = meta?.data?.[index];
-    if (!pt) return;
-    const { ctx, chartArea: { top, bottom, right } } = chart;
-    const x = pt.x;
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(x, top);
-    ctx.lineTo(x, bottom);
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#f59e0b';
-    ctx.setLineDash([5, 4]);
-    ctx.stroke();
-    ctx.restore();
-
-    // Vẽ điểm tròn phát sáng (Glow Dot) tại giao điểm đồ thị (x, y) để nhận diện rõ điểm hiện tại
-    const y = pt.y;
-    ctx.save();
-    // Halo phát sáng bên ngoài
-    ctx.beginPath();
-    ctx.arc(x, y, 12, 0, 2 * Math.PI);
-    ctx.fillStyle = 'rgba(245, 158, 11, 0.35)';
-    ctx.fill();
-    // Điểm tròn cam chính giữa
-    ctx.beginPath();
-    ctx.arc(x, y, 6, 0, 2 * Math.PI);
-    ctx.fillStyle = '#f59e0b';
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 2;
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-
-    const lbl = opts.label || '';
-    ctx.save();
-    ctx.font = 'bold 10px JetBrains Mono, monospace';
-    const tw = ctx.measureText(lbl).width;
-    const bx = Math.min(x - tw / 2 - 5, right - tw - 14);
-    ctx.fillStyle = 'rgba(245,158,11,0.92)';
-    ctx.beginPath();
-    ctx.roundRect(Math.max(bx, chart.chartArea.left), top - 20, tw + 10, 17, 4);
-    ctx.fill();
-    ctx.fillStyle = '#000';
-    ctx.fillText(lbl, Math.max(bx, chart.chartArea.left) + 5, top - 6);
-    ctx.restore();
-  },
-};
-
-ChartJS.register(videoMarkerPlugin);
 
 function fmtMs(ms) {
   if (!ms) return '';
@@ -89,7 +34,7 @@ function fmtSecs(s) {
   return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
 }
 
-export default function HistoryChart({ historyData = [], videoStartMs, videoTime, videoDuration }) {
+export default function HistoryChart({ historyData = [], videoStartMs, videoTime, videoDuration, averageStats }) {
   const chartRef = useRef(null);
 
   // 1. Sắp xếp và Lọc dữ liệu: Nếu dữ liệu kéo dài hơn 12 tiếng, chỉ hiển thị 12 tiếng gần nhất
@@ -106,42 +51,9 @@ export default function HistoryChart({ historyData = [], videoStartMs, videoTime
     return sorted.filter(item => new Date(item.timestamp).getTime() >= cutoffMs);
   }, [historyData]);
 
-  // 2. Tìm index của mốc thời gian phát video hiện tại trên đồ thị
-  const markerIndex = useMemo(() => {
-    if (!processedHistory.length || !videoStartMs || !videoDuration) return null;
 
-    // Tìm virtual duration dựa trên mốc dữ liệu
-    const firstDetMs = videoStartMs;
-    const lastDetMs = new Date(processedHistory[processedHistory.length - 1].timestamp).getTime();
-    const virtualDurationMs = Math.max(0, lastDetMs - firstDetMs);
 
-    let scale = 1.0;
-    if (videoDuration > 0 && virtualDurationMs > 0) {
-      scale = (virtualDurationMs / 1000) / videoDuration;
-    }
 
-    const indicatorMs = firstDetMs + videoTime * scale * 1000;
-
-    // Tìm điểm gần nhất trong processedHistory
-    let closestIndex = 0;
-    let minDiff = Infinity;
-
-    processedHistory.forEach((item, idx) => {
-      const ts = new Date(item.timestamp).getTime();
-      const diff = Math.abs(ts - indicatorMs);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closestIndex = idx;
-      }
-    });
-
-    return closestIndex;
-  }, [processedHistory, videoStartMs, videoTime, videoDuration]);
-
-  const markerLabel = useMemo(() => {
-    if (markerIndex == null || !processedHistory[markerIndex]) return '';
-    return fmtMs(new Date(processedHistory[markerIndex].timestamp).getTime());
-  }, [processedHistory, markerIndex]);
 
   const chartData = {
     labels: processedHistory.map(item => {
@@ -187,10 +99,7 @@ export default function HistoryChart({ historyData = [], videoStartMs, videoTime
         titleFont: { size: 12, weight: '700', family: 'JetBrains Mono, monospace' },
         bodyFont: { size: 11 },
       },
-      videoMarker: {
-        index: markerIndex,
-        label: `🎬 Video đang chạy: ${markerLabel}`,
-      },
+
     },
     scales: {
       x: {
@@ -231,30 +140,7 @@ export default function HistoryChart({ historyData = [], videoStartMs, videoTime
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          {videoStartMs && markerLabel && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '6px 14px',
-              background: 'rgba(245,158,11,0.10)',
-              border: '1px solid rgba(245,158,11,0.25)',
-              borderRadius: 8,
-              fontSize: 11, color: '#f59e0b',
-            }}>
-              <span>🎬</span>
-              <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                Video {fmtSecs(videoTime)}
-              </span>
-              <span style={{ opacity: 0.6 }}>→</span>
-              <strong style={{ fontFamily: 'JetBrains Mono, monospace' }}>{markerLabel}</strong>
-            </div>
-          )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-3)' }}>
-            <div style={{ width: 20, height: 2, background: '#f59e0b', borderTop: '2px dashed #f59e0b' }} />
-            <span>Điểm trùng khớp Video</span>
-          </div>
-        </div>
       </div>
 
       {!processedHistory.length ? (
@@ -267,6 +153,46 @@ export default function HistoryChart({ historyData = [], videoStartMs, videoTime
       ) : (
         <div className="chart-box" style={{ height: '240px' }}>
           <Line ref={chartRef} data={chartData} options={options} />
+        </div>
+      )}
+
+      {/* Thống kê hiệu suất / Chỉ số trung bình & giờ cao điểm ở dưới biểu đồ lịch sử */}
+      {averageStats && (
+        <div style={{
+          marginTop: 20,
+          paddingTop: 16,
+          borderTop: '1px solid var(--border)',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 16
+        }}>
+          <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ fontSize: 24 }}>📈</div>
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>
+                Lưu lượng trung bình (15 phút)
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-2)', fontFamily: 'JetBrains Mono, monospace' }}>
+                {averageStats.average_vehicle_count}
+                <span style={{ fontSize: 12, color: 'var(--text-3)', marginLeft: 4, fontWeight: 400 }}>xe / 15p</span>
+              </div>
+            </div>
+          </div>
+          
+          <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ fontSize: 24 }}>🔥</div>
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>
+                Giờ cao điểm nhất
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--orange)', fontFamily: 'JetBrains Mono, monospace' }}>
+                {averageStats.peak_hour}
+                <span style={{ fontSize: 11, color: 'var(--text-3)', marginLeft: 8, fontWeight: 400 }}>
+                  (Đạt {averageStats.peak_vehicle_count} xe)
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

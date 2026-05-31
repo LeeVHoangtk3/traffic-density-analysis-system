@@ -99,28 +99,33 @@ def predict_next_density(
 ):
     """
     Dự báo lưu lượng xe và phân cụm mật độ thế hệ mới, loại bỏ hoàn toàn hướng đi.
-    Hoàn toàn tương thích ngược cho cả route cũ và route mới.
+    Được thiết kế đồng bộ theo địa điểm (gộp toàn bộ 3 camera cam01, cam02, cam03)
+    để khớp hoàn toàn với dữ liệu huấn luyện (Training) của địa điểm đó.
     """
-    camera_id = camera_id or "cam01"
+    # 1. Gom nhóm và tính tổng vehicle_count của cả 3 camera theo mốc timestamp
+    pipeline = [
+        {"$match": {"camera_id": {"$in": ["cam01", "cam02", "cam03"]}}},
+        {"$group": {
+            "_id": "$timestamp",
+            "combined_count": {"$sum": "$vehicle_count"},
+            "timestamp": {"$first": "$timestamp"}
+        }},
+        {"$sort": {"timestamp": -1}},
+        {"$limit": 3}
+    ]
+    recent_records = list(db.traffic_aggregation.aggregate(pipeline))
     
-    # 1. Lấy dữ liệu thực đo từ MongoDB
-    recent_records = list(
-        db.traffic_aggregation.find({"camera_id": camera_id})
-        .sort("timestamp", -1)
-        .limit(3)
-    )
-    
-    # 2. Xử lý đặc trưng trễ với fallback cực kỳ an toàn
-    lag_1 = 50.0
-    lag_2 = 50.0
-    lag_3 = 50.0
+    # 2. Xử lý đặc trưng trễ với fallback cực kỳ an toàn cho cả địa điểm
+    lag_1 = 150.0
+    lag_2 = 150.0
+    lag_3 = 150.0
     
     if len(recent_records) >= 1:
-        lag_1 = float(recent_records[0].get("vehicle_count", 50.0))
+        lag_1 = float(recent_records[0].get("combined_count", 150.0))
     if len(recent_records) >= 2:
-        lag_2 = float(recent_records[1].get("vehicle_count", 50.0))
+        lag_2 = float(recent_records[1].get("combined_count", 150.0))
     if len(recent_records) >= 3:
-        lag_3 = float(recent_records[2].get("vehicle_count", 50.0))
+        lag_3 = float(recent_records[2].get("combined_count", 150.0))
         
     rolling_mean_3 = (lag_1 + lag_2 + lag_3) / 3.0
     
@@ -149,14 +154,14 @@ def predict_next_density(
             predicted_raw_volume = int(round(rolling_mean_3))
             print(f"[PredictionService] Lỗi dự báo XGBoost: {e}")
             
-    # 5. Lấy ngưỡng thích ứng phân cụm từ MongoDB
+    # 5. Lấy ma trận ngưỡng K-Means thích ứng của địa điểm (lưu dưới cam01)
     low_to_medium = 467.58
     medium_to_high = 495.34
     high_to_heavy = 522.67
     
-    threshold_doc = db.density_thresholds.find_one({"camera_id": camera_id})
+    threshold_doc = db.density_thresholds.find_one({"camera_id": "cam01"})
     if not threshold_doc:
-        threshold_doc = db.directional_thresholds.find_one({"camera_id": camera_id, "direction": "total"})
+        threshold_doc = db.directional_thresholds.find_one({"camera_id": "cam01", "direction": "total"})
         
     if threshold_doc and "thresholds" in threshold_doc:
         thresholds = threshold_doc["thresholds"]

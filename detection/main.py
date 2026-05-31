@@ -87,7 +87,7 @@ SYNC_MODE      = os.getenv("SYNC_MODE", "true").lower() in ("1", "true", "yes")
 # [9] NO_DISPLAY: Chế độ tắt hiển thị trực tiếp.
 #     - True: Chạy ngầm không giao diện (Headless), tối ưu tốc độ và dùng khi chạy trên máy chủ.
 #     - False (Mặc định mới): BẬT cửa sổ hiển thị video OpenCV trực tiếp thời gian thực khi chạy độc lập trên Terminal.
-NO_DISPLAY     = os.getenv("NO_DISPLAY", "true").lower() in ("1", "true", "yes")
+NO_DISPLAY     = os.getenv("NO_DISPLAY", "false").lower() in ("1", "true", "yes")
 
 # [10] PLAYBACK_SPEED: Tốc độ phát video (chỉ áp dụng khi chạy chế độ bất đồng bộ SYNC_MODE=False).
 PLAYBACK_SPEED = float(os.getenv("PLAYBACK_SPEED", "1.0"))
@@ -95,7 +95,7 @@ PLAYBACK_SPEED = float(os.getenv("PLAYBACK_SPEED", "1.0"))
 # [11] DRY_RUN: Chế độ chạy thử nghiệm độc lập (KHÔNG CẦN BACKEND).
 #      - True (Mặc định mới): KHÔNG gửi dữ liệu qua API HTTP về Backend, đếm và hiển thị cục bộ. RẤT HỮU ÍCH KHI CHẠY TEST.
 #      - False: Gửi toàn bộ sự kiện nhận diện thời gian thực về Backend.
-DRY_RUN        = os.getenv("DRY_RUN", "false").lower() in ("1", "true", "yes")
+DRY_RUN        = os.getenv("DRY_RUN", "true").lower() in ("1", "true", "yes")
 
 # [12] AGGREGATION_INTERVAL_SEC: Chu kỳ tự động gọi API tính toán tổng hợp mật độ ùn tắc (mặc định 15 phút).
 AGGREGATION_INTERVAL_SEC = 15 * 60
@@ -243,11 +243,11 @@ def _draw_hud(frame, smoothed_fps: float, density: str, track_count: int,
     cv2.rectangle(frame, (8, 8), (720, 34), (20, 20, 20), -1)
     cv2.putText(frame, hud, (14, 26),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.52, (255, 255, 255), 1, cv2.LINE_AA)
-    y = 50
+    y = 65
     for vtype, cnt in cached_totals.items():
-        cv2.putText(frame, f"{vtype}: {cnt}", (14, y),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.58, (180, 255, 180), 1, cv2.LINE_AA)
-        y += 24
+        cv2.putText(frame, f"{vtype.upper()}: {cnt}", (14, y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.85, (0, 0, 255), 2, cv2.LINE_AA)
+        y += 32
 
 
 def display_in_notebook(video_path: str) -> None:
@@ -280,6 +280,7 @@ def display_in_notebook(video_path: str) -> None:
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main() -> None:
     import argparse
+    import json
     parser = argparse.ArgumentParser(description="Module A - Traffic Detection & Tracking")
     parser.add_argument("--camera", type=str, default=os.getenv("TRAFFIC_CAMERA_ID", "cam01"), help="Camera ID (e.g. cam01, cam02)")
     parser.add_argument("--source", type=str, default=os.getenv("TRAFFIC_VIDEO_SOURCE"), help="Video source path")
@@ -438,6 +439,7 @@ def main() -> None:
     video_anchor = camera.get_video_ms()
 
     density_tally: dict[str, int] = {"LOW": 0, "MEDIUM": 0, "HIGH": 0}
+    video_timeline = {}
     paused = False
 
     if display_enabled:
@@ -556,6 +558,24 @@ def main() -> None:
                       f"zoneIDs={zm['tracked_ids_in_memory']} | "
                       f"q={publisher._queue.qsize() if not DRY_RUN else 0}")
 
+            # ── Record timeline totals second-by-second ───────────────────────
+            sec_key = int(video_now_ms / 1000.0)
+            if sec_key >= 0 and sec_key not in video_timeline:
+                entry = {"car": 0, "motorcycle": 0, "truck": 0, "bus": 0}
+                for k, v in cached_totals.items():
+                    lk = k.lower()
+                    if lk in entry:
+                        entry[lk] = v
+                    elif "motor" in lk:
+                        entry["motorcycle"] = v
+                    elif "truck" in lk:
+                        entry["truck"] = v
+                    elif "bus" in lk:
+                        entry["bus"] = v
+                    else:
+                        entry["car"] = v
+                video_timeline[sec_key] = entry
+
             # ── Output ────────────────────────────────────────────────────────
             out.write(frame)
 
@@ -581,6 +601,8 @@ def main() -> None:
         out.release()
         alert_logger.close()
         cv2.destroyAllWindows()
+
+        # (Timeline metadata JSON saving logic removed per user request)
 
         elapsed = time.perf_counter() - perf_start
         total   = sum(density_tally.values()) or 1

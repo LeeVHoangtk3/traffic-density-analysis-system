@@ -93,7 +93,7 @@ export default function VideoPanel({
             display: 'block',
             borderRadius: '0 0 var(--r-lg) var(--r-lg)',
             background: '#000',
-            maxHeight: 500,
+            maxHeight: 680,
             objectFit: 'contain',
           }}
         />

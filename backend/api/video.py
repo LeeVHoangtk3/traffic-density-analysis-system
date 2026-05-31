@@ -1,7 +1,11 @@
 from pathlib import Path
+import json
+import re
+from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import StreamingResponse
+from backend.services.db_service import get_db
 
 router = APIRouter(tags=["video"])
 
@@ -63,6 +67,113 @@ def list_output_videos():
     videos = [f.name for f in OUTPUT_FOLDER.glob("*.mp4") if f.is_file()]
     videos.sort()
     return videos
+
+
+@router.get("/video/metadata")
+def get_video_metadata(video_name: str, db=Depends(get_db)):
+    """
+    Get or dynamically generate/cache second-by-second vehicle counts
+    for the requested video file without overwriting any live database.
+    """
+    json_name = video_name.replace(".mp4", ".json")
+    file_path = OUTPUT_FOLDER / json_name
+    
+    if file_path.exists() and file_path.is_file():
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[Metadata] Error reading {file_path}: {e}")
+            
+    # Auto-detect camera ID from the video name
+    match = re.search(r"^(cam\d+)", video_name, re.IGNORECASE)
+    camera_id = match.group(1).lower() if match else "cam01"
+    
+    # Query all detections for this camera, ordered by time ascending
+    detections = list(
+        db.vehicle_detections.find({"camera_id": camera_id})
+        .sort("timestamp", 1)
+    )
+    
+    if not detections:
+        # Fallback empty timeline
+        return {
+            "video_name": video_name,
+            "camera_id": camera_id,
+            "timeline": {
+                "0": {"car": 0, "motorcycle": 0, "truck": 0, "bus": 0}
+            }
+        }
+        
+    first_ts = detections[0]["timestamp"]
+    
+    def parse_ts(t):
+        if isinstance(t, datetime):
+            return t
+        try:
+            return datetime.fromisoformat(str(t).replace("Z", "+00:00"))
+        except Exception:
+            try:
+                return datetime.strptime(str(t), "%Y-%m-%dT%H:%M:%S.%f")
+            except Exception:
+                return datetime.utcnow()
+                
+    start_dt = parse_ts(first_ts)
+    
+    # Build cumulative second-by-second timeline
+    timeline = {}
+    running_counts = {"car": 0, "motorcycle": 0, "truck": 0, "bus": 0}
+    
+    detections_by_sec = {}
+    max_sec = 0
+    
+    for d in detections:
+        dt = parse_ts(d["timestamp"])
+        sec_offset = int((dt - start_dt).total_seconds())
+        if sec_offset < 0:
+            sec_offset = 0
+        if sec_offset > 7200:  # 2 hours ceiling for safety
+            continue
+        if sec_offset > max_sec:
+            max_sec = sec_offset
+            
+        vtype = str(d.get("vehicle_type") or "car").lower()
+        if vtype not in running_counts:
+            if "motor" in vtype:
+                vtype = "motorcycle"
+            elif "truck" in vtype:
+                vtype = "truck"
+            elif "bus" in vtype:
+                vtype = "bus"
+            else:
+                vtype = "car"
+                
+        if sec_offset not in detections_by_sec:
+            detections_by_sec[sec_offset] = []
+        detections_by_sec[sec_offset].append(vtype)
+        
+    for s in range(max_sec + 1):
+        if s in detections_by_sec:
+            for vtype in detections_by_sec[s]:
+                running_counts[vtype] = running_counts.get(vtype, 0) + 1
+        timeline[str(s)] = dict(running_counts)
+        
+    metadata = {
+        "video_name": video_name,
+        "camera_id": camera_id,
+        "timeline": timeline
+    }
+    
+    # Cache metadata JSON alongside output video
+    try:
+        if OUTPUT_FOLDER.exists():
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(metadata, f, ensure_ascii=False, indent=2)
+            print(f"[Metadata] Cached new timeline JSON to {file_path}")
+    except Exception as e:
+        print(f"[Metadata] Failed to write cache {file_path}: {e}")
+        
+    return metadata
 
 
 @router.get("/video")

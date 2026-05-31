@@ -323,33 +323,46 @@ def get_traffic_average(
     camera_id: str = "cam01",
     db=Depends(get_db),
 ):
-    filters = {"camera_id": camera_id}
-    rows = list(db.traffic_aggregation.find(filters))
+    # Lấy dữ liệu của 3 camera và gom nhóm theo timestamp
+    pipeline = [
+        {"$match": {"camera_id": {"$in": ["cam01", "cam02", "cam03"]}}},
+        {"$group": {
+            "_id": "$timestamp",
+            "combined_count": {"$sum": "$vehicle_count"},
+            "timestamp": {"$first": "$timestamp"}
+        }},
+        {"$sort": {"timestamp": 1}}
+    ]
+    rows = list(db.traffic_aggregation.aggregate(pipeline))
 
     if not rows:
         return {
-            "camera_id": camera_id,
+            "camera_id": "Làn đường đơn",
             "average_vehicle_count": 0.0,
             "peak_hour": "N/A",
             "peak_vehicle_count": 0,
             "total_records": 0,
         }
 
-    total_vehicles = sum(int(row.get("vehicle_count", 0)) for row in rows)
+    total_vehicles = sum(int(row.get("combined_count", 0)) for row in rows)
     avg_vehicles = total_vehicles / len(rows)
 
     # Find peak record
-    peak_record = max(rows, key=lambda row: int(row.get("vehicle_count", 0)))
-    peak_count = int(peak_record.get("vehicle_count", 0))
+    peak_record = max(rows, key=lambda row: int(row.get("combined_count", 0)))
+    peak_count = int(peak_record.get("combined_count", 0))
     peak_time = peak_record.get("timestamp")
 
     if isinstance(peak_time, datetime):
         peak_hour_str = f"{peak_time.hour:02d}:00 - {(peak_time.hour + 1) % 24:02d}:00"
     else:
-        peak_hour_str = "N/A"
+        try:
+            dt = datetime.fromisoformat(str(peak_time).replace("Z", "+00:00"))
+            peak_hour_str = f"{dt.hour:02d}:00 - {(dt.hour + 1) % 24:02d}:00"
+        except:
+            peak_hour_str = "N/A"
 
     return {
-        "camera_id": camera_id,
+        "camera_id": "Làn đường đơn",
         "average_vehicle_count": round(avg_vehicles, 2),
         "peak_hour": peak_hour_str,
         "peak_vehicle_count": peak_count,
