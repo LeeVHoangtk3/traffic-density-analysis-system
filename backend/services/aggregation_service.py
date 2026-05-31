@@ -185,8 +185,9 @@ def aggregate_from_detections(
         "congestion_levels": congestion_levels,
         "timestamp": end_time,
     }
-    # Do NOT insert into DB for realtime API queries
-    document["_id"] = "realtime_compute"
+    # GET /aggregation chỉ đọc dữ liệu trực quan thời gian thực, tuyệt đối không INSERT vào database
+    # để tránh gây rác dữ liệu (đặc biệt khi polling 5s/lần)
+    document["_id"] = "live_aggregation"
     return to_object(document)
 
 
@@ -229,8 +230,14 @@ def compute_window_aggregation(
         "congestion_levels": congestion_levels,
         "timestamp": now,
     }
-    result = db.traffic_aggregation.insert_one(document)
-    document["_id"] = result.inserted_id
+    # Chỉ lưu lịch sử (insert_one) vào database khi phần detection đang thực sự chạy và có xe (vehicle_count > 0)
+    # tránh khởi tạo hàng loạt giá trị 0 gây rác lịch sử khi khởi động hệ thống chưa chạy video/detection.
+    if vehicle_count > 0:
+        result = db.traffic_aggregation.insert_one(document)
+        document["_id"] = result.inserted_id
+    else:
+        document["_id"] = "temp_aggregation"
+        
     return to_object(document), window_start
 
 

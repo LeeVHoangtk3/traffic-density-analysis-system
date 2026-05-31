@@ -1,6 +1,6 @@
 {
-  "camera_id": "cam01",
-  "name": "Camera CAM01",
+  "camera_id": "cam03",
+  "name": "Camera CAM03",
   "monitored_direction": "single_roi",
   "baseline_green": 30,
   "frame_width": 960,
@@ -11,20 +11,20 @@
       "direction": "trigger",
       "points": [
         [
-          810,
-          349
+          2,
+          352
         ],
         [
-          154,
-          339
+          957,
+          357
         ],
         [
-          15,
-          446
+          958,
+          527
         ],
         [
-          922,
-          447
+          2,
+          526
         ]
       ],
       "is_trigger": true

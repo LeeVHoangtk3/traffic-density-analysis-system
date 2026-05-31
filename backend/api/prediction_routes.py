@@ -39,6 +39,7 @@ class PredictNextV1Response(BaseModel):
     color_hex: str = Field(..., description="Mã màu đại diện hiển thị trực quan lên React Dashboard")
     timestamp: datetime = Field(..., description="Mốc thời gian dự báo thời gian thực")
     features_used: dict = Field(..., description="Các đặc trưng trễ và tuần hoàn được sử dụng")
+    thresholds: dict = Field(default_factory=dict, description="Các ngưỡng phân cụm K-Means thích ứng động")
 
 # ==============================================================================
 # CACHED XGBOOST MODEL LOADER
@@ -69,29 +70,33 @@ def get_xgb_model():
 def predict_next_v1(camera_id: str = "cam01", db=Depends(get_db)):
     """
     API dự báo lưu lượng và phân cụm mật độ giao thông thích ứng thế hệ mới:
-    1. Đọc dữ liệu lịch sử thực tế từ MongoDB (`traffic_aggregation`).
-    2. Thực hiện trích xuất Feature Engineering trực tuyến (lags, rolling_mean, cyclic time).
-    3. Hồi quy bằng XGBoost Regressor để dự đoán lưu lượng thô cho 15 phút kế tiếp.
-    4. Đối chiếu trực tiếp với ma trận ngưỡng K-Means thích ứng lưu trong DB để gán nhãn mật độ & mã màu HEX.
+    Được thiết kế đồng bộ theo địa điểm (gộp toàn bộ 3 camera cam01, cam02, cam03)
+    để khớp hoàn toàn với dữ liệu huấn luyện (Training) của địa điểm đó.
     """
-    # 1. Truy vấn lịch sử 15 phút từ MongoDB (lấy tối đa 3 bản ghi gần nhất để trích xuất lag)
-    recent_records = list(
-        db.traffic_aggregation.find({"camera_id": camera_id})
-        .sort("timestamp", -1)
-        .limit(3)
-    )
+    # 1. Gom nhóm và tính tổng vehicle_count của cả 3 camera theo mốc timestamp
+    pipeline = [
+        {"$match": {"camera_id": {"$in": ["cam01", "cam02", "cam03"]}}},
+        {"$group": {
+            "_id": "$timestamp",
+            "combined_count": {"$sum": "$vehicle_count"},
+            "timestamp": {"$first": "$timestamp"}
+        }},
+        {"$sort": {"timestamp": -1}},
+        {"$limit": 3}
+    ]
+    recent_records = list(db.traffic_aggregation.aggregate(pipeline))
     
-    # 2. Cơ chế Fallback an toàn tuyệt đối cho các đặc trưng trễ (lags)
-    lag_1 = 50.0
-    lag_2 = 50.0
-    lag_3 = 50.0
+    # 2. Cơ chế Fallback an toàn tuyệt đối cho các đặc trưng trễ (lags) của cả địa điểm
+    lag_1 = 150.0
+    lag_2 = 150.0
+    lag_3 = 150.0
     
     if len(recent_records) >= 1:
-        lag_1 = float(recent_records[0].get("vehicle_count", 50.0))
+        lag_1 = float(recent_records[0].get("combined_count", 150.0))
     if len(recent_records) >= 2:
-        lag_2 = float(recent_records[1].get("vehicle_count", 50.0))
+        lag_2 = float(recent_records[1].get("combined_count", 150.0))
     if len(recent_records) >= 3:
-        lag_3 = float(recent_records[2].get("vehicle_count", 50.0))
+        lag_3 = float(recent_records[2].get("combined_count", 150.0))
         
     rolling_mean_3 = (lag_1 + lag_2 + lag_3) / 3.0
     
@@ -117,12 +122,9 @@ def predict_next_v1(camera_id: str = "cam01", db=Depends(get_db)):
     # 4. Hồi quy dự đoán lưu lượng xe thô bằng XGBoost
     model = get_xgb_model()
     if model is None:
-        # Nếu chưa huấn luyện hoặc thiếu file, dùng rolling_mean_3 làm fallback cực kỳ an toàn
         predicted_raw_volume = int(round(rolling_mean_3))
-        print("[!] Cảnh báo: Chưa nạp được model.pkl. Đang sử dụng chế độ dự báo fallback bằng trung bình trượt.")
     else:
         try:
-            # Tạo DataFrame đầu vào đúng định dạng với các đặc trưng lúc train
             X_pred = pd.DataFrame([[
                 lag_1, lag_2, rolling_mean_3, hour_sin, hour_cos, day_of_week, is_weekend
             ]], columns=['lag_1', 'lag_2', 'rolling_mean_3', 'hour_sin', 'hour_cos', 'day_of_week', 'is_weekend'])
@@ -133,15 +135,14 @@ def predict_next_v1(camera_id: str = "cam01", db=Depends(get_db)):
             predicted_raw_volume = int(round(rolling_mean_3))
             print(f"[!] Lỗi dự báo XGBoost, kích hoạt fallback: {e}")
             
-    # 5. Truy cập MongoDB lấy ma trận ngưỡng K-Means thích ứng
-    # Các ngưỡng mặc định (dựa trên phân phối NYC nếu DB trống)
+    # 5. Lấy ma trận ngưỡng K-Means thích ứng của địa điểm (lưu dưới cam01)
     low_to_medium = 467.58
     medium_to_high = 495.34
     high_to_heavy = 522.67
     
-    threshold_doc = db.density_thresholds.find_one({"camera_id": camera_id})
+    threshold_doc = db.density_thresholds.find_one({"camera_id": "cam01"})
     if not threshold_doc:
-        threshold_doc = db.directional_thresholds.find_one({"camera_id": camera_id, "direction": "total"})
+        threshold_doc = db.directional_thresholds.find_one({"camera_id": "cam01", "direction": "total"})
         
     if threshold_doc and "thresholds" in threshold_doc:
         thresholds = threshold_doc["thresholds"]
@@ -152,27 +153,27 @@ def predict_next_v1(camera_id: str = "cam01", db=Depends(get_db)):
     # 6. Ánh xạ ngưỡng K-Means thích ứng sang nhãn trạng thái & màu sắc HEX
     if predicted_raw_volume < low_to_medium:
         status_label = "LOW"
-        color_hex = "#10B981"  # Emerald Green (Đường vắng vẻ)
+        color_hex = "#10B981"  # Emerald Green
     elif predicted_raw_volume < medium_to_high:
         status_label = "MEDIUM"
-        color_hex = "#3B82F6"  # Royal Blue (Thông thoáng bình thường)
+        color_hex = "#3B82F6"  # Royal Blue
     elif predicted_raw_volume < high_to_heavy:
         status_label = "HIGH"
-        color_hex = "#F59E0B"  # Amber Gold (Bắt đầu đông đúc)
+        color_hex = "#F59E0B"  # Amber Gold
     else:
         status_label = "HEAVY"
-        color_hex = "#EF4444"  # Crimson Red (Ùn tắc nghiêm trọng)
+        color_hex = "#EF4444"  # Crimson Red
         
-    # 7. Lưu trữ lịch sử dự báo vào MongoDB để theo dõi hiệu năng sau này
+    # 7. Lưu trữ lịch sử dự báo
     prediction_doc = {
-        "camera_id": camera_id,
+        "camera_id": "all",
         "predicted_raw_volume": predicted_raw_volume,
         "predicted_density": float(predicted_raw_volume),
         "predicted_congestion_level": status_label,
         "color_hex": color_hex,
         "timestamp": datetime.utcnow(),
         "horizon_minutes": 15,
-        "source": "xgboost_v1_single_roi",
+        "source": "xgboost_v1_location_unified",
         "features": features_used
     }
     
@@ -182,12 +183,17 @@ def predict_next_v1(camera_id: str = "cam01", db=Depends(get_db)):
         print(f"[!] Lỗi khi lưu bản ghi dự báo vào MongoDB: {e}")
         
     return PredictNextV1Response(
-        camera_id=camera_id,
+        camera_id="Làn đường đơn",
         predicted_raw_volume=predicted_raw_volume,
         status_label=status_label,
         color_hex=color_hex,
         timestamp=datetime.now(),
-        features_used=features_used
+        features_used=features_used,
+        thresholds={
+            "low_to_medium": low_to_medium,
+            "medium_to_high": medium_to_high,
+            "high_to_heavy": high_to_heavy
+        }
     )
 
 # ==============================================================================

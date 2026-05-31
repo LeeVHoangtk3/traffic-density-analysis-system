@@ -2,12 +2,14 @@
 detection/calibrate_zones.py  -  Interactive Camera Zone Calibration Tool (Single ROI Edition)
 
 Công cụ hiệu chuẩn đồ họa OpenCV giúp vẽ duy nhất 1 vùng ROI đa giác dẹt
-(Vùng chốt đếm tổng) chặn mặt cắt đường một chiều.
+(Vùng chốt đếm tổng) chặn mặt cắt đường một chiều cho cam01, cam02, cam03, etc.
 
-Tự động lưu và cập nhật cấu hình vào `detection/configs_cameras/cam01.json`.
+Tự động nhận diện CAMERA_ID và nạp đúng cấu hình cam (.json) dựa theo tên video nguồn đầu vào,
+bảo toàn các cấu hình vùng đa dạng có sẵn (multi-zone) của từng Camera.
 
 Sử dụng:
-  python -m detection.calibrate_zones
+  TRAFFIC_CAMERA_ID=cam01 python -m detection.calibrate_zones
+  TRAFFIC_VIDEO_SOURCE=data/video/cam02-traffic4.mp4 python -m detection.calibrate_zones
 """
 
 import os
@@ -15,6 +17,7 @@ import sys
 import json
 import cv2
 import numpy as np
+import re
 from pathlib import Path
 
 # Thêm thư mục gốc vào hệ thống
@@ -22,10 +25,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
 
-# Cấu hình Camera và Đường dẫn dữ liệu
+# Cấu hình Camera và Đường dẫn dữ liệu mặc định
 CAMERA_ID = os.getenv("TRAFFIC_CAMERA_ID", "cam01")
-CONFIG_FILE = os.path.join(BASE_DIR, "detection", "configs_cameras", f"{CAMERA_ID.lower()}.json")
-DEFAULT_VIDEO_SOURCE = os.path.join(BASE_DIR, "data", "video", "cam02-traffic8.mp4")
+DEFAULT_VIDEO_SOURCE = os.path.join(BASE_DIR, "data", "video", "cam03-traffic2.mp4")
 TARGET_WIDTH = 960
 TARGET_HEIGHT = 540
 
@@ -34,15 +36,29 @@ ROI_COLOR = (129, 185, 16)
 
 class ZoneCalibrator:
     def __init__(self):
-        self.config_path = CONFIG_FILE
+        # 1. Giữ nguyên định dạng lấy nguồn video đầu vào (từ biến môi trường hoặc mặc định)
+        # HỆ THỐNG TỰ ĐỘNG MAP NGUỒN VIDEO VÀ FILE CẤU HÌNH THEO CAMERA_ID (MẶC ĐỊNH LÀ CAM01, HỖ TRỢ ĐỘNG CAM02, CAM03,...)
         self.video_source = os.getenv("TRAFFIC_VIDEO_SOURCE", DEFAULT_VIDEO_SOURCE)
+        
+        # 2. Tự động nhận diện CAMERA_ID chính xác dựa trên tên của tệp video nguồn đầu vào
+        self.camera_id = CAMERA_ID.lower()
+        match = re.search(r'(cam\d+)', os.path.basename(self.video_source).lower())
+        if match:
+            self.camera_id = match.group(1)
+            print(f"[Smart-Detect] Phát hiện thấy CAMERA_ID '{self.camera_id.upper()}' từ tên video: {os.path.basename(self.video_source)}")
+
+        # 3. Chỉ định đúng đường dẫn cấu hình của camera đó
+        self.config_path = os.path.join(BASE_DIR, "detection", "configs_cameras", f"{self.camera_id}.json")
+        print(f"[Smart-Config] Sử dụng file cấu hình: {self.config_path}")
+        print(f"[Smart-Video] Nguồn video đầu vào: {self.video_source}")
+        
         self.frame = None
         self.display_frame = None
         
-        # Nạp cấu hình hiện tại
+        # 4. Nạp cấu hình hiện tại
         self.load_config()
         
-        # Trích xuất dữ liệu của duy nhất zone_trigger
+        # 5. Trích xuất dữ liệu của duy nhất zone_trigger để chỉnh sửa
         self.zone_points = []
         for zone in self.config.get("zones", []):
             if zone.get("id") == "zone_trigger" or zone.get("is_trigger"):
@@ -54,16 +70,20 @@ class ZoneCalibrator:
         self.show_hud = True
         self.mouse_pos = (0, 0)
         
-        # Nạp khung hình video làm nền vẽ
+        # 6. Nạp khung hình video làm nền vẽ
         self.load_video_frame()
         
     def load_config(self):
+        """
+        Nạp cấu hình JSON. Nếu chưa tồn tại, khởi tạo cấu hình mẫu phù hợp.
+        """
         if not os.path.exists(self.config_path):
-            print(f"[Warning] Config file not found tại {self.config_path}. Tạo cấu hình mặc định.")
+            print(f"[Warning] Config file không tồn tại tại {self.config_path}. Tạo cấu hình mặc định cho {self.camera_id.upper()}.")
+            monitored_dir = "multi" if self.camera_id == "cam02" else "single_roi"
             self.config = {
-                "camera_id": CAMERA_ID,
-                "name": f"Camera {CAMERA_ID.upper()} - Single ROI",
-                "monitored_direction": "single_roi",
+                "camera_id": self.camera_id,
+                "name": f"Camera {self.camera_id.upper()}",
+                "monitored_direction": monitored_dir,
                 "baseline_green": 30,
                 "frame_width": TARGET_WIDTH,
                 "frame_height": TARGET_HEIGHT,
@@ -72,9 +92,12 @@ class ZoneCalibrator:
         else:
             with open(self.config_path, "r", encoding="utf-8") as f:
                 self.config = json.load(f)
-            print(f"[Info] Loaded camera config from: {self.config_path}")
+            print(f"[Info] Đã nạp cấu hình camera từ: {self.config_path}")
 
     def load_video_frame(self):
+        """
+        Nạp khung hình từ video nguồn làm hình nền vẽ ROI.
+        """
         print(f"[Info] Đang mở nguồn video: {self.video_source}")
         src = int(self.video_source) if self.video_source.isdigit() else self.video_source
         cap = cv2.VideoCapture(src)
@@ -102,31 +125,53 @@ class ZoneCalibrator:
             print(f"[Info] Đã nạp thành công khung hình kích thước {TARGET_WIDTH}x{TARGET_HEIGHT}")
 
     def save_to_config(self):
+        """
+        Cập nhật duy nhất tọa độ zone_trigger, bảo toàn các zone khác (ví dụ: zone_left, zone_straight)
+        và ghi đè vào file JSON cấu hình của đúng camera tương ứng.
+        """
         if not self.current_points or len(self.current_points) < 3:
             print("[Warning] Đa giác phải có ít nhất 3 điểm đỉnh! Hủy lưu file.")
             return
 
-        # Tạo danh sách zones chỉ chứa duy nhất 1 ROI tổng
-        zones_list = [
-            {
+        formatted_points = [[int(p[0]), int(p[1])] for p in self.current_points]
+        
+        if "zones" not in self.config:
+            self.config["zones"] = []
+            
+        # Tìm và cập nhật zone_trigger hiện có, bảo toàn các zone định hướng khác
+        updated = False
+        for zone in self.config["zones"]:
+            if zone.get("id") == "zone_trigger" or zone.get("is_trigger"):
+                zone["points"] = formatted_points
+                zone["id"] = "zone_trigger"
+                zone["direction"] = "trigger"
+                zone["is_trigger"] = True
+                updated = True
+                print(f"[Info] Đã cập nhật tọa độ 'zone_trigger' trong danh sách vùng.")
+                break
+                
+        # Nếu chưa có zone_trigger, tiến hành append mới
+        if not updated:
+            self.config["zones"].append({
                 "id": "zone_trigger",
                 "direction": "trigger",
-                "points": [[int(p[0]), int(p[1])] for p in self.current_points],
+                "points": formatted_points,
                 "is_trigger": True
-            }
-        ]
+            })
+            print(f"[Info] Đã thêm mới vùng 'zone_trigger' vào danh sách vùng.")
             
-        self.config["zones"] = zones_list
         self.config["frame_width"] = TARGET_WIDTH
         self.config["frame_height"] = TARGET_HEIGHT
-        self.config["monitored_direction"] = "single_roi"
         
+        # Ghi cấu hình ra file JSON của camera tương ứng
         os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
         with open(self.config_path, "w", encoding="utf-8") as f:
             json.dump(self.config, f, indent=2)
             
         print("\n" + "="*70)
-        print(f"[SUCCESS] Đã lưu vùng ROI đếm tổng thành công vào:\n {self.config_path}")
+        print(f"[SUCCESS] Đã lưu vùng ROI thành công vào cấu hình Camera {self.camera_id.upper()}:")
+        print(f" 👉 File Path: {self.config_path}")
+        print(f" 👉 Số lượng zone đang có: {len(self.config['zones'])}")
         print("="*70 + "\n")
 
     def mouse_callback(self, event, x, y, flags, param):
@@ -141,15 +186,17 @@ class ZoneCalibrator:
         elif event == cv2.EVENT_RBUTTONDOWN:
             if self.current_points:
                 popped = self.current_points.pop()
-                print(f"Đã hoàn tác (Xóa điểm): {popped}")
+                print(f"Đã Undo (Xóa điểm cuối): {popped}")
             else:
-                print("Chưa có điểm nào để xóa.")
+                print("Chưa có điểm nào để Undo.")
 
     def print_instructions(self):
         print("\n" + "="*70)
-        print("   HƯỚNG DẪN VẼ VÙNG ĐỒNG ROI ĐẾM TỔNG DUY NHẤT (SINGLE ROI CALIBRATION)")
+        print(f"   SMART ZONE CALIBRATION TOOL - CAMERA: {self.camera_id.upper()}")
         print("="*70)
-        print("  Thao tác chuột:")
+        print(f"  👉 Config File: {self.config_path}")
+        print(f"  👉 Video Source: {self.video_source}")
+        print("\n  Thao tác chuột:")
         print("    - Click CHUỘT TRÁI để tạo điểm đỉnh đa giác.")
         print("    - Click CHUỘT PHẢI để xóa điểm đỉnh vừa tạo (Undo).")
         print("\n  Thao tác phím nóng:")
@@ -160,14 +207,14 @@ class ZoneCalibrator:
         print("="*70 + "\n")
 
     def run(self):
-        # Đảm bảo mã hóa UTF-8 hiển thị mượt trên terminal Windows
         if hasattr(sys.stdout, 'reconfigure'):
             sys.stdout.reconfigure(encoding='utf-8')
             
         self.print_instructions()
         
-        cv2.namedWindow("Single ROI Calibrator", cv2.WINDOW_AUTOSIZE)
-        cv2.setMouseCallback("Single ROI Calibrator", self.mouse_callback)
+        window_title = f"Smart ROI Calibrator - {self.camera_id.upper()}"
+        cv2.namedWindow(window_title, cv2.WINDOW_AUTOSIZE)
+        cv2.setMouseCallback(window_title, self.mouse_callback)
         
         while True:
             self.display_frame = self.frame.copy()
@@ -195,30 +242,41 @@ class ZoneCalibrator:
             # Vẽ hồng tâm chuột phục vụ vẽ độ chính xác cao
             cv2.circle(self.display_frame, self.mouse_pos, 5, ROI_COLOR, 1)
             
-            # Áp dụng độ mờ trong suốt
+            # Áp dụng độ mờ trong suốt cho đa giác vẽ
             cv2.addWeighted(overlay, 0.25, self.display_frame, 0.75, 0, self.display_frame)
             
+            # ── HIỂN THỊ CÁC ZONE KHÁC CÓ SẴN (ĐỂ TRÁNH VẼ TRÙNG) ───────────────
+            # Vẽ viền nét đứt hoặc mờ của các zone khác như straight, left, right nếu có
+            for zone in self.config.get("zones", []):
+                if zone.get("id") != "zone_trigger" and not zone.get("is_trigger"):
+                    pts = np.array(zone["points"], np.int32)
+                    cv2.polylines(self.display_frame, [pts], isClosed=True, color=(150, 150, 150), thickness=1)
+                    # Ghi tên zone
+                    if len(pts) > 0:
+                        cv2.putText(self.display_frame, zone["id"], tuple(pts[0]),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (180, 180, 180), 1, cv2.LINE_AA)
+
             # ── HIỂN THỊ HUD ĐỒ HỌA ───────────────────────────────────────────
             if self.show_hud:
                 # Vẽ HUD panel mờ đục màu đen sang trọng
-                cv2.rectangle(self.display_frame, (12, 12), (540, 108), (15, 15, 15), -1)
-                cv2.rectangle(self.display_frame, (12, 12), (540, 108), (80, 80, 80), 1)
+                cv2.rectangle(self.display_frame, (12, 12), (580, 112), (15, 15, 15), -1)
+                cv2.rectangle(self.display_frame, (12, 12), (580, 112), (80, 80, 80), 1)
                 
-                cv2.putText(self.display_frame, f"ROI CALIBRATION (SINGLE ZONE MODE) - {CAMERA_ID.upper()}", (22, 32),
+                cv2.putText(self.display_frame, f"ROI CALIBRATION (SMART ZONE MODE) - {self.camera_id.upper()}", (22, 32),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.52, (255, 255, 255), 1, cv2.LINE_AA)
                 
                 cv2.putText(self.display_frame, "Target:", (22, 55),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.48, (200, 200, 200), 1, cv2.LINE_AA)
-                cv2.putText(self.display_frame, "ZONE_TRIGGER (ROI DỰ BÁO & ĐẾM XE)", (100, 55),
+                cv2.putText(self.display_frame, "ZONE_TRIGGER (ROI DỰ BÁO & ĐẾM XE CHUNG)", (100, 55),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.48, ROI_COLOR, 1, cv2.LINE_AA)
                 
                 pts_count = len(self.current_points)
-                cv2.putText(self.display_frame, f"Points drawn: {pts_count}/4+", (22, 75),
+                cv2.putText(self.display_frame, f"Points drawn: {pts_count}/4+", (22, 77),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.45, (100, 255, 100) if pts_count >= 3 else (100, 100, 255), 1, cv2.LINE_AA)
-                cv2.putText(self.display_frame, "Controls: [C] Clear | [S] Save | [ESC / Q] Save All & Exit", (22, 94),
+                cv2.putText(self.display_frame, "Controls: [C] Clear | [S] Save | [ESC / Q] Save & Exit", (22, 96),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.42, (200, 200, 200), 1, cv2.LINE_AA)
 
-            cv2.imshow("Single ROI Calibrator", self.display_frame)
+            cv2.imshow(window_title, self.display_frame)
             key = cv2.waitKey(30) & 0xFF
             
             # Xử lý sự kiện bàn phím

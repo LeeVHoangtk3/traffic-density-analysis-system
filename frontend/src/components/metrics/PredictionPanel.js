@@ -44,13 +44,13 @@ export default function PredictionPanel({ data }) {
   const timestamp = data.timestamp;
   const features = data.features_used || data.features || {};
 
-  // Ma trận ngưỡng K-Means chuẩn
-  const T1 = 94.81;
-  const T2 = 199.54;
-  const T3 = 369.01;
+  // Lấy ngưỡng K-Means thích ứng động từ Backend nếu có, ngược lại fallback về giá trị chuẩn
+  const T1 = data.thresholds?.low_to_medium ?? 94.81;
+  const T2 = data.thresholds?.medium_to_high ?? 199.54;
+  const T3 = data.thresholds?.high_to_heavy ?? 369.01;
 
-  // Tính tỷ lệ phần trăm thanh đo
-  const maxScale = 500;
+  // Tính tỷ lệ phần trăm thanh đo động theo ngưỡng Heavy (T3)
+  const maxScale = Math.max(500, T3 * 1.25);
   const gaugePercent = Math.min(100, (predictedVolume / maxScale) * 100);
 
   return (

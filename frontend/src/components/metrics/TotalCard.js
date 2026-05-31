@@ -21,7 +21,7 @@ function levelTranslation(level = '') {
   return 'ĐƯỜNG VẮNG';
 }
 
-export default function TotalCard({ rawData = [], aggregation }) {
+export default function TotalCard({ rawData = [], aggregation, averageStats }) {
   // Lấy tổng số xe đã đếm qua ROI tổng
   const total = rawData.length;
 
@@ -63,7 +63,40 @@ export default function TotalCard({ rawData = [], aggregation }) {
         </span>
       </div>
 
-      {total === 0 && (
+      {/* Chỉ số tích lũy từ Backend */}
+      {averageStats && (
+        <div style={{
+          marginTop: 20,
+          paddingTop: 16,
+          borderTop: '1px solid var(--border)',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 12
+        }}>
+          <div>
+            <div style={{ fontSize: 9, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
+              📈 Trung bình tích lũy
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-2)', fontFamily: 'JetBrains Mono, monospace' }}>
+              {averageStats.average_vehicle_count}
+              <span style={{ fontSize: 10, color: 'var(--text-3)', marginLeft: 4, fontWeight: 400 }}>xe/15p</span>
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 9, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
+              🔥 Giờ cao điểm nhất
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--orange)', fontFamily: 'JetBrains Mono, monospace' }}>
+              {averageStats.peak_hour}
+              <span style={{ fontSize: 9, color: 'var(--text-3)', display: 'block', fontWeight: 400, marginTop: 2 }}>
+                (Đạt {averageStats.peak_vehicle_count} xe)
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {total === 0 && !averageStats && (
         <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 8 }}>
           ⏳ Đang kết nối camera AI, vui lòng phát video...
         </div>

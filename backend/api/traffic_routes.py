@@ -275,3 +275,96 @@ def get_raw_data(
         "offset": offset,
         "items": [normalize_document(row) for row in rows],
     }
+
+
+@router.get("/api/traffic/history")
+def get_traffic_history(
+    camera_id: str | None = None,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
+    db=Depends(get_db),
+):
+    filters = {}
+    if camera_id:
+        filters["camera_id"] = camera_id
+
+    # Dynamic Range scanning if start_time or end_time are missing
+    if not start_time or not end_time:
+        min_doc = db.traffic_aggregation.find_one(filters, sort=[("timestamp", 1)])
+        max_doc = db.traffic_aggregation.find_one(filters, sort=[("timestamp", -1)])
+        
+        if min_doc and not start_time:
+            start_time = min_doc["timestamp"]
+        if max_doc and not end_time:
+            end_time = max_doc["timestamp"]
+
+    if start_time or end_time:
+        timestamp_filter = {}
+        if start_time:
+            timestamp_filter["$gte"] = start_time
+        if end_time:
+            timestamp_filter["$lte"] = end_time
+        filters["timestamp"] = timestamp_filter
+
+    # Sort ASCENDING to draw a nice timeline from past to present
+    rows = list(db.traffic_aggregation.find(filters).sort("timestamp", 1))
+
+    return {
+        "camera_id": camera_id,
+        "start_time": start_time,
+        "end_time": end_time,
+        "total": len(rows),
+        "items": [normalize_document(row) for row in rows],
+    }
+
+
+@router.get("/api/traffic/average")
+def get_traffic_average(
+    camera_id: str = "cam01",
+    db=Depends(get_db),
+):
+    # Lấy dữ liệu của 3 camera và gom nhóm theo timestamp
+    pipeline = [
+        {"$match": {"camera_id": {"$in": ["cam01", "cam02", "cam03"]}}},
+        {"$group": {
+            "_id": "$timestamp",
+            "combined_count": {"$sum": "$vehicle_count"},
+            "timestamp": {"$first": "$timestamp"}
+        }},
+        {"$sort": {"timestamp": 1}}
+    ]
+    rows = list(db.traffic_aggregation.aggregate(pipeline))
+
+    if not rows:
+        return {
+            "camera_id": "Làn đường đơn",
+            "average_vehicle_count": 0.0,
+            "peak_hour": "N/A",
+            "peak_vehicle_count": 0,
+            "total_records": 0,
+        }
+
+    total_vehicles = sum(int(row.get("combined_count", 0)) for row in rows)
+    avg_vehicles = total_vehicles / len(rows)
+
+    # Find peak record
+    peak_record = max(rows, key=lambda row: int(row.get("combined_count", 0)))
+    peak_count = int(peak_record.get("combined_count", 0))
+    peak_time = peak_record.get("timestamp")
+
+    if isinstance(peak_time, datetime):
+        peak_hour_str = f"{peak_time.hour:02d}:00 - {(peak_time.hour + 1) % 24:02d}:00"
+    else:
+        try:
+            dt = datetime.fromisoformat(str(peak_time).replace("Z", "+00:00"))
+            peak_hour_str = f"{dt.hour:02d}:00 - {(dt.hour + 1) % 24:02d}:00"
+        except:
+            peak_hour_str = "N/A"
+
+    return {
+        "camera_id": "Làn đường đơn",
+        "average_vehicle_count": round(avg_vehicles, 2),
+        "peak_hour": peak_hour_str,
+        "peak_vehicle_count": peak_count,
+        "total_records": len(rows),
+    }

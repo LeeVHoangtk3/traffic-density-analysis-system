@@ -1,5 +1,6 @@
 // HistoryChart.js
-// Vẽ lịch sử số xe tổng cộng vượt ROI theo chuỗi thời gian
+// Vẽ toàn bộ lịch sử lượng xe tổng hợp thực tế tích lũy từ database (Giới hạn 12 tiếng gần nhất)
+// Ghim vị trí phát video bằng thước đo dọc màu cam chuyển động đồng bộ.
 
 import { useMemo, useRef } from 'react';
 import {
@@ -16,7 +17,6 @@ ChartJS.register(
   Tooltip, Legend, Filler,
 );
 
-const BIN_SECONDS = 10; // nhóm mỗi 10 giây
 
 function fmtMs(ms) {
   if (!ms) return '';
@@ -34,103 +34,42 @@ function fmtSecs(s) {
   return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
 }
 
-const videoMarkerPlugin = {
-  id: 'videoMarker',
-  afterDraw(chart, _, opts) {
-    const { index } = opts;
-    if (index == null || index < 0) return;
-    const meta = chart.getDatasetMeta(0);
-    const pt = meta?.data?.[index];
-    if (!pt) return;
-    const { ctx, chartArea: { top, bottom, right } } = chart;
-    const x = pt.x;
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(x, top);
-    ctx.lineTo(x, bottom);
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#f59e0b';
-    ctx.setLineDash([5, 4]);
-    ctx.stroke();
-    ctx.restore();
-
-    const lbl = opts.label || '';
-    ctx.save();
-    ctx.font = 'bold 10px JetBrains Mono, monospace';
-    const tw = ctx.measureText(lbl).width;
-    const bx = Math.min(x - tw / 2 - 5, right - tw - 14);
-    ctx.fillStyle = 'rgba(245,158,11,0.92)';
-    ctx.beginPath();
-    ctx.roundRect(Math.max(bx, chart.chartArea.left), top - 20, tw + 10, 17, 4);
-    ctx.fill();
-    ctx.fillStyle = '#000';
-    ctx.fillText(lbl, Math.max(bx, chart.chartArea.left) + 5, top - 6);
-    ctx.restore();
-  },
-};
-
-ChartJS.register(videoMarkerPlugin);
-
-function buildBins(sortedRaw, videoStartMs, cutoffMs) {
-  if (!sortedRaw.length || !videoStartMs) return [];
-
-  const endMs = Math.min(
-    cutoffMs,
-    new Date(sortedRaw[sortedRaw.length - 1].timestamp).getTime() + BIN_SECONDS * 1000
-  );
-  const bins = [];
-
-  for (let t = videoStartMs; t < endMs; t += BIN_SECONDS * 1000) {
-    const binEnd = t + BIN_SECONDS * 1000;
-    let total = 0;
-
-    for (const item of sortedRaw) {
-      const ts = new Date(item.timestamp).getTime();
-      if (ts < videoStartMs) continue;
-      if (ts >= binEnd) break;
-      total++;
-    }
-
-    bins.push({
-      time: binEnd,
-      label: fmtMs(binEnd),
-      total,
-    });
-  }
-
-  return bins;
-}
-
-export default function HistoryChart({ sortedRaw, videoStartMs, videoTime }) {
+export default function HistoryChart({ historyData = [], videoStartMs, videoTime, videoDuration, averageStats }) {
   const chartRef = useRef(null);
-  const cutoffMs = videoStartMs ? videoStartMs + videoTime * 1000 : 0;
 
-  const allBins = useMemo(
-    () => buildBins(sortedRaw, videoStartMs, new Date(sortedRaw[sortedRaw.length - 1]?.timestamp).getTime() + BIN_SECONDS * 1000),
-    [sortedRaw, videoStartMs]
-  );
+  // 1. Sắp xếp và Lọc dữ liệu: Nếu dữ liệu kéo dài hơn 12 tiếng, chỉ hiển thị 12 tiếng gần nhất
+  const processedHistory = useMemo(() => {
+    if (!historyData || !historyData.length) return [];
 
-  const visibleBins = useMemo(
-    () => allBins.filter(b => b.time <= cutoffMs + BIN_SECONDS * 1000),
-    [allBins, cutoffMs]
-  );
+    const sorted = [...historyData].sort((a, b) =>
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
 
-  const markerIndex = visibleBins.length > 0 ? visibleBins.length - 1 : null;
-  const markerLabel = markerIndex != null ? visibleBins[markerIndex].label : '';
+    const latestMs = new Date(sorted[sorted.length - 1].timestamp).getTime();
+    const cutoffMs = latestMs - 12 * 60 * 60 * 1000; // Cửa sổ trượt 12 tiếng gần nhất
+
+    return sorted.filter(item => new Date(item.timestamp).getTime() >= cutoffMs);
+  }, [historyData]);
+
+
+
+
 
   const chartData = {
-    labels: visibleBins.map(b => b.label),
+    labels: processedHistory.map(item => {
+      const t = new Date(item.timestamp);
+      return t.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    }),
     datasets: [
       {
-        label: 'Tổng số xe vượt ROI',
-        data: visibleBins.map(b => b.total),
+        label: 'Lưu lượng thực tế (15p/chu kỳ)',
+        data: processedHistory.map(item => item.vehicle_count),
         borderColor: '#3B82F6',
         backgroundColor: 'rgba(59,130,246,0.06)',
         fill: true,
         tension: 0.4,
-        pointRadius: 3,
-        pointHoverRadius: 6,
+        pointRadius: 4,
+        pointHoverRadius: 7,
         borderWidth: 2.5,
       }
     ],
@@ -139,7 +78,7 @@ export default function HistoryChart({ sortedRaw, videoStartMs, videoTime }) {
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: { duration: 250 },
+    animation: { duration: 200 },
     interaction: { mode: 'index', intersect: false },
     plugins: {
       legend: {
@@ -160,10 +99,7 @@ export default function HistoryChart({ sortedRaw, videoStartMs, videoTime }) {
         titleFont: { size: 12, weight: '700', family: 'JetBrains Mono, monospace' },
         bodyFont: { size: 11 },
       },
-      videoMarker: {
-        index: markerIndex,
-        label: markerLabel,
-      },
+
     },
     scales: {
       x: {
@@ -183,7 +119,7 @@ export default function HistoryChart({ sortedRaw, videoStartMs, videoTime }) {
         border: { color: 'rgba(255,255,255,0.05)' },
         title: {
           display: true,
-          text: 'Số lượng xe (lũy kế)',
+          text: 'Lượng phương tiện / 15 phút',
           color: '#475569',
           font: { size: 10 },
         },
@@ -191,55 +127,72 @@ export default function HistoryChart({ sortedRaw, videoStartMs, videoTime }) {
     },
   };
 
-  const startLabel = videoStartMs ? fmtMs(videoStartMs) : '--:--:--';
-  const currentLabel = cutoffMs ? fmtMs(cutoffMs) : '--:--:--';
+  const startLabel = processedHistory.length > 0 ? fmtMs(new Date(processedHistory[0].timestamp).getTime()) : '--:--:--';
+  const endLabel = processedHistory.length > 0 ? fmtMs(new Date(processedHistory[processedHistory.length - 1].timestamp).getTime()) : '--:--:--';
 
   return (
     <div className="glass-card chart-card">
       <div className="chart-header-row">
         <div className="chart-title-block">
-          <div className="chart-title">📈 LỊCH SỬ LƯU LƯỢNG XE TỔNG HỢP</div>
+          <div className="chart-title">📈 LỊCH SỬ MẬT ĐỘ TÍCH LŨY HỆ THỐNG</div>
           <div className="chart-subtitle">
-            {visibleBins.length} điểm · Gốc: {startLabel} · Chu kỳ {BIN_SECONDS}s / điểm
+            {processedHistory.length} điểm dữ liệu · Khung: {startLabel} - {endLabel} (12h gần nhất)
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          {videoStartMs && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '6px 14px',
-              background: 'rgba(245,158,11,0.10)',
-              border: '1px solid rgba(245,158,11,0.25)',
-              borderRadius: 8,
-              fontSize: 11, color: '#f59e0b',
-            }}>
-              <span>🎬</span>
-              <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                Video {fmtSecs(videoTime)}
-              </span>
-              <span style={{ opacity: 0.6 }}>→</span>
-              <strong style={{ fontFamily: 'JetBrains Mono, monospace' }}>{currentLabel}</strong>
-            </div>
-          )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--text-3)' }}>
-            <div style={{ width: 20, height: 2, background: '#f59e0b', borderTop: '2px dashed #f59e0b' }} />
-            <span>Vị trí video</span>
-          </div>
-        </div>
       </div>
 
-      {!visibleBins.length ? (
+      {!processedHistory.length ? (
         <div className="chart-empty">
           <div className="chart-empty-icon">📊</div>
           <div style={{ color: 'var(--text-3)' }}>
-            {!videoStartMs ? 'Đang chờ dữ liệu...' : 'Bắt đầu phát video để xem biểu đồ'}
+            Đang chờ dữ liệu lịch sử tích lũy từ database...
           </div>
         </div>
       ) : (
         <div className="chart-box" style={{ height: '240px' }}>
           <Line ref={chartRef} data={chartData} options={options} />
+        </div>
+      )}
+
+      {/* Thống kê hiệu suất / Chỉ số trung bình & giờ cao điểm ở dưới biểu đồ lịch sử */}
+      {averageStats && (
+        <div style={{
+          marginTop: 20,
+          paddingTop: 16,
+          borderTop: '1px solid var(--border)',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 16
+        }}>
+          <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ fontSize: 24 }}>📈</div>
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>
+                Lưu lượng trung bình (15 phút)
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-2)', fontFamily: 'JetBrains Mono, monospace' }}>
+                {averageStats.average_vehicle_count}
+                <span style={{ fontSize: 12, color: 'var(--text-3)', marginLeft: 4, fontWeight: 400 }}>xe / 15p</span>
+              </div>
+            </div>
+          </div>
+          
+          <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ fontSize: 24 }}>🔥</div>
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>
+                Giờ cao điểm nhất
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--orange)', fontFamily: 'JetBrains Mono, monospace' }}>
+                {averageStats.peak_hour}
+                <span style={{ fontSize: 11, color: 'var(--text-3)', marginLeft: 8, fontWeight: 400 }}>
+                  (Đạt {averageStats.peak_vehicle_count} xe)
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

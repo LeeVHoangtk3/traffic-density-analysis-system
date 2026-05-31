@@ -2,9 +2,15 @@
 
 import { useEffect, useState } from 'react';
 
-const API = 'http://localhost:8000';
+const API = 'http://127.0.0.1:8000';
 
-export default function Header({ activeCamera, onChangeCamera }) {
+export default function Header({
+  activeCamera,
+  onChangeCamera,
+  activeVideo,
+  onChangeVideo,
+  outputVideos = []
+}) {
   const [dbStatus, setDbStatus] = useState('checking');
 
   useEffect(() => {
@@ -30,6 +36,11 @@ export default function Header({ activeCamera, onChangeCamera }) {
   };
   const { color, label } = statusMap[dbStatus] || statusMap.checking;
 
+  // Lọc danh sách video: chỉ hiện các video thuộc camera đang chọn
+  const filteredVideos = outputVideos.filter(vid => 
+    vid.toLowerCase().startsWith(activeCamera.toLowerCase())
+  );
+
   return (
     <header className="header">
       <div className="header-logo">
@@ -37,36 +48,47 @@ export default function Header({ activeCamera, onChangeCamera }) {
         <div>
           <div className="header-title">CITY TRAFFIC MONITOR</div>
           <div className="header-subtitle">
-            Real-time Traffic Intelligence System · Ho Chi Minh City
+            Real-time Traffic Intelligence System · Hà Nội
           </div>
         </div>
       </div>
 
       <div className="header-right">
-        {/* Camera Selector Dropdown */}
-        <div className="camera-selector-container" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.04em' }}>SELECT CAMERA:</span>
-          <select 
-            value={activeCamera}
-            onChange={(e) => onChangeCamera(e.target.value)}
-            style={{
-              padding: '6px 14px',
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid var(--border)',
-              borderRadius: 20,
-              color: 'var(--text-2)',
-              fontSize: 11,
-              fontWeight: 700,
-              outline: 'none',
-              cursor: 'pointer',
-              letterSpacing: '0.04em',
-              transition: 'all 0.2s ease',
-            }}
-            className="glass-select"
-          >
-            <option value="cam01" style={{ background: '#0c1525', color: '#fff' }}>CAM01 (traffic3)</option>
-            <option value="cam02" style={{ background: '#0c1525', color: '#fff' }}>CAM02 (traffic8)</option>
-          </select>
+        {/* Controls Container */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          {/* Selector 1: SEGMENT */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.04em' }}>SEGMENT:</span>
+            <select
+              value={activeCamera}
+              onChange={(e) => onChangeCamera?.(e.target.value)}
+              className="glass-select-btn"
+            >
+              <option value="cam01">🛣️ SEGMENT 01</option>
+              <option value="cam02">🛣️ SEGMENT 02</option>
+              <option value="cam03">🛣️ SEGMENT 03</option>
+            </select>
+          </div>
+
+          {/* Selector 2: VIDEO */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.04em' }}>VIDEO:</span>
+            <select
+              value={activeVideo}
+              onChange={(e) => onChangeVideo?.(e.target.value)}
+              className="glass-select-btn"
+              style={{ maxWidth: '240px' }}
+            >
+              {filteredVideos.map((vid) => (
+                <option key={vid} value={vid}>
+                  🎬 {vid.replace('_output.mp4', '')}
+                </option>
+              ))}
+              {filteredVideos.length === 0 && (
+                <option value={activeVideo}>🎬 {activeVideo}</option>
+              )}
+            </select>
+          </div>
         </div>
 
         <div className="status-badge">

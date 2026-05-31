@@ -1,70 +1,319 @@
-# Getting Started with Create React App
+# 🎨 Frontend Dashboard - React Application
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+**Frontend** là giao diện người dùng của hệ thống Traffic Density Analysis. Dùng React để hiển thị dữ liệu giao thông real-time, dự báo lưu lượng, và trạng thái đèn tín hiệu.
 
-## Available Scripts
+---
 
-In the project directory, you can run:
+## 📋 Chức Năng Chính
 
-### `npm start`
+| Chức năng | Mô tả |
+|----------|-------|
+| **Real-time Dashboard** | Hiển thị mật độ giao thông từ các camera |
+| **Dự Báo Lưu Lượng** | Biểu đồ dự báo 15 phút tiếp theo |
+| **Trạng Thái Đèn Tín Hiệu** | Thời gian xanh/đỏ hiện tại và tối ưu |
+| **Lịch Sử Dữ Liệu** | Truy vấn dữ liệu theo khoảng thời gian |
+| **Giám Sát Hiệu Năng** | Biểu đồ quá trình & chỉ số độ chính xác ML |
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+---
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## 🛠️ Công Nghệ
 
-### `npm test`
+- **React 18+** - Framework UI
+- **React Router** - Định tuyến trang
+- **Axios** - HTTP client gọi Backend API
+- **Chart.js / Recharts** - Biểu đồ dữ liệu
+- **Tailwind CSS** - Styling
+- **React Hook Form** - Form validation
+- **WebSocket** (optional) - Real-time updates
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+---
 
-### `npm run build`
+## 🚀 Hướng Dẫn Chạy
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### Cài Đặt Dependencies
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+```bash
+cd frontend
+npm install
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Development Mode
 
-### `npm run eject`
+```bash
+npm start
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+Truy cập: `http://localhost:3000`
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### Build Production
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+```bash
+npm run build
+```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+Tệp output: `frontend/build/`
 
-## Learn More
+### Deploy
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+```bash
+# Với Netlify
+npm run build
+netlify deploy --prod --dir=build
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+# Với Vercel
+vercel --prod
 
-### Code Splitting
+# Với Docker
+docker build -t traffic-dashboard .
+docker run -p 3000:3000 traffic-dashboard
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+---
 
-### Analyzing the Bundle Size
+## 📁 Cấu Trúc Thư Mục
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+```
+frontend/
+├── public/
+│   ├── index.html          # HTML chính
+│   ├── manifest.json       # PWA manifest
+│   └── favicon.ico
+│
+├── src/
+│   ├── components/         # React components tái sử dụng
+│   │   ├── Dashboard.jsx
+│   │   ├── CameraCard.jsx
+│   │   ├── PredictionChart.jsx
+│   │   ├── TrafficLightStatus.jsx
+│   │   ├── DataTable.jsx
+│   │   └── ...
+│   │
+│   ├── pages/              # Trang chính
+│   │   ├── HomePage.jsx
+│   │   ├── DetailPage.jsx
+│   │   ├── HistoryPage.jsx
+│   │   └── ...
+│   │
+│   ├── hooks/              # Custom React hooks
+│   │   ├── useAPI.js       # Hook gọi Backend API
+│   │   ├── useWebSocket.js # Hook WebSocket (optional)
+│   │   └── ...
+│   │
+│   ├── services/           # API service layer
+│   │   ├── api.js          # Axios instance & base config
+│   │   ├── trafficService.js
+│   │   ├── predictionService.js
+│   │   └── cameraService.js
+│   │
+│   ├── utils/              # Utility functions
+│   │   ├── formatters.js   # Format time, number
+│   │   ├── validators.js
+│   │   └── constants.js
+│   │
+│   ├── styles/             # Global styles
+│   │   ├── index.css
+│   │   ├── tailwind.config.js
+│   │   └── theme.css
+│   │
+│   ├── App.jsx             # Root component
+│   ├── index.jsx           # Entry point
+│   └── setupProxy.js       # Proxy cấu hình (dev mode)
+│
+├── package.json
+├── package-lock.json
+├── .env                    # Biến môi trường
+├── .env.example
+├── Dockerfile
+├── docker-compose.yml
+└── README.md
+```
 
-### Making a Progressive Web App
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## ⚙️ Biến Môi Trường (.env)
 
-### Advanced Configuration
+```env
+# Backend API URL
+REACT_APP_API_URL=http://localhost:8000
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+# Polling interval (ms)
+REACT_APP_POLLING_INTERVAL=5000
 
-### Deployment
+# WebSocket URL (optional)
+REACT_APP_WS_URL=ws://localhost:8000/ws
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+# Feature flags
+REACT_APP_ENABLE_WEBSOCKET=false
+REACT_APP_ENABLE_ANALYTICS=true
 
-### `npm run build` fails to minify
+# App info
+REACT_APP_TITLE=Traffic Density Analysis System
+REACT_APP_VERSION=1.0.0
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+---
+
+## 🔌 API Integration
+
+### Gọi API từ Frontend
+
+```javascript
+// services/trafficService.js
+import api from './api';
+
+export const getAggregation = async (cameraId, limit = 10) => {
+  const response = await api.get('/aggregation', {
+    params: { camera_id: cameraId, limit }
+  });
+  return response.data;
+};
+
+export const getRawData = async (cameraId, direction = null) => {
+  const response = await api.get('/raw-data', {
+    params: { 
+      camera_id: cameraId, 
+      direction,
+      limit: 100 
+    }
+  });
+  return response.data;
+};
+
+export const getPrediction = async (cameraId) => {
+  const response = await api.get('/predict-next', {
+    params: { camera_id: cameraId }
+  });
+  return response.data;
+};
+```
+
+### Sử dụng trong Component
+
+```jsx
+import { useEffect, useState } from 'react';
+import { getAggregation, getPrediction } from '../services/trafficService';
+
+function Dashboard({ cameraId }) {
+  const [aggregation, setAggregation] = useState(null);
+  const [prediction, setPrediction] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const agg = await getAggregation(cameraId);
+        const pred = await getPrediction(cameraId);
+        setAggregation(agg);
+        setPrediction(pred);
+      } catch (error) {
+        console.error('API Error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+    const interval = setInterval(fetchData, 5000); // Poll mỗi 5s
+
+    return () => clearInterval(interval);
+  }, [cameraId]);
+
+  if (loading) return <div>Loading...</div>;
+
+  return (
+    <div>
+      <h1>Traffic Dashboard - {cameraId}</h1>
+      {aggregation && (
+        <div>
+          <h2>Current Traffic Level: {aggregation.congestion_level}</h2>
+          <p>Total Vehicles: {aggregation.total_vehicles}</p>
+          <ul>
+            <li>Left: {aggregation.direction_counts.left}</li>
+            <li>Straight: {aggregation.direction_counts.straight}</li>
+            <li>Right: {aggregation.direction_counts.right}</li>
+          </ul>
+        </div>
+      )}
+      {prediction && (
+        <div>
+          <h2>Next Period Prediction</h2>
+          <p>Straight: {prediction.predictions.straight} vehicles</p>
+          <p>Phase 1 Green: {prediction.phase_timing.phase_1_green}s</p>
+          <p>Phase 2 Green: {prediction.phase_timing.phase_2_green}s</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default Dashboard;
+```
+
+---
+
+## 🔒 CORS Configuration
+
+Nếu Frontend và Backend trên khác origin, cần set CORS ở Backend:
+
+```python
+# backend/main.py
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "https://yourdomain.com"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+
+---
+
+## 🚢 Docker Deployment
+
+```dockerfile
+# Dockerfile
+FROM node:18-alpine as build
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npm run build
+
+FROM node:18-alpine
+WORKDIR /app
+RUN npm install -g serve
+COPY --from=build /app/build ./build
+EXPOSE 3000
+CMD ["serve", "-s", "build", "-l", "3000"]
+```
+
+```bash
+docker build -t traffic-dashboard .
+docker run -p 3000:3000 \
+  -e REACT_APP_API_URL=http://backend:8000 \
+  traffic-dashboard
+```
+
+---
+
+## 📝 Troubleshooting
+
+| Lỗi | Giải pháp |
+|-----|---------|
+| `CORS error` | Kiểm tra CORS config ở Backend |
+| `API 404 error` | Đảm bảo Backend URL đúng ở `.env` |
+| `White screen` | Check browser console, run `npm start` again |
+| `Port 3000 already in use` | `lsof -ti:3000 \| xargs kill -9` hoặc dùng port khác |
+
+---
+
+## 📚 Tài Liệu Thêm
+
+- [React Documentation](https://react.dev)
+- [Create React App Docs](https://create-react-app.dev)
+- [Tailwind CSS](https://tailwindcss.com)
+- [Recharts Documentation](https://recharts.org)
+
+**Cập nhật lần cuối:** 2026-05-31
