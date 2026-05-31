@@ -177,16 +177,8 @@ _light_model = None
 
 
 def _get_light_model():
-    """Import and return the singleton instance of LightDeltaModel."""
-    global _light_model
-    if _light_model is None:
-        try:
-            from ml_service.light_delta_model import LightDeltaModel
-            _light_model = LightDeltaModel()
-        except Exception as e:
-            print(f"[system_runner] Failed to import/initialize LightDeltaModel: {e}")
-            _light_model = None
-    return _light_model
+    """LightDeltaModel has been removed per user request."""
+    return None
 
 
 def _controlled_phase_for_camera(camera_id: str) -> str:
@@ -207,32 +199,13 @@ def apply(
     dow: int,
 ) -> float:
     """
-    Tinh green_time bang cach cong delta du doan vao baseline cua camera.
-    Tra ve: green_time (giay, float, >= 0)
-    Hien tai LightDeltaModel da bi go bo, luon tra ve baseline.
+    Tra ve thoi gian den xanh baseline (giay, float, >= 0).
+    Hien tai LightDeltaModel da bi go bo theo yeu cau nguoi dung.
     """
     phase_info = get_phase(camera_id)
     controlled_phase = phase_info.get("controlled_phase", "phase_1")
     baseline_green = PHASE_BASELINE.get(controlled_phase, PHASE_BASELINE["phase_1"])
-
-    try:
-        feature_dict = {
-            "camera_id":        camera_id,
-            "controlled_phase": controlled_phase,
-            "queue_proxy":      queue_proxy,
-            "inbound_count":    inbound_count,
-            "congestion_level": congestion_level.lower(),
-            "baseline_green":   baseline_green,
-            "hour":             hour,
-            "day_of_week":      dow,
-        }
-        raw_delta: float = _get_light_model().predict_delta(feature_dict)
-        delta: float = max(_DELTA_MIN, min(_DELTA_MAX, raw_delta))
-        green_time: float = max(0.0, baseline_green + delta)
-        return green_time
-    except Exception as e:
-        print(f"    [DeltaApplier] Error: {e}. Using baseline.")
-        return float(baseline_green)
+    return float(baseline_green)
 
 
 # ===========================================================================
