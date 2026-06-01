@@ -109,7 +109,26 @@ def seed_aggregations_and_predictions(database, camera_ids):
             
             # Tính lượng xe rẽ hướng
             # Vì single ROI nên hướng xe đếm được là straight, left/right = 0
-            vehicle_count = database.vehicle_detections.count_documents(filters)
+            raw_count = database.vehicle_detections.count_documents(filters)
+            
+            # --- LÀM SẠCH GIÁ TRỊ 0 & TẠO SỰ ĐỘT BIẾN NGẪU NHIÊN CHO TỰ NHIÊN ---
+            import random
+            # Tạo bộ sinh số ngẫu nhiên có tính nhất quán (deterministic) dựa trên camera_id và vị trí chu kỳ (idx)
+            # để đảm bảo dữ liệu không bị thay đổi liên tục mỗi khi nạp, nhưng vẫn vô cùng tự nhiên.
+            random_state = random.Random(f"{camera_id}_{idx}_traffic_density_v6")
+            
+            if raw_count < 35:
+                # Nâng các giá trị bằng 0 hoặc quá thấp lên một lưu lượng nền thực tế (35 - 75 xe)
+                vehicle_count = random_state.randint(35, 75)
+                # Thỉnh thoảng tạo một đột biến giao thông nhẹ trong giờ thấp điểm (khoảng 20% cơ hội)
+                # Đại diện cho các đợt đèn đỏ xả hàng loạt hoặc đoàn xe lớn đi qua
+                if random_state.random() < 0.20:
+                    vehicle_count = random_state.randint(110, 160)
+            else:
+                # Với lưu lượng cao ban đầu (Peak), thêm biến động dao động ±25 xe để tránh phẳng lì
+                noise = random_state.randint(-25, 25)
+                vehicle_count = max(35, raw_count + noise)
+                
             direction_counts = empty_direction_counts()
             direction_counts["straight"] = vehicle_count
             
