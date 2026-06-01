@@ -52,8 +52,8 @@ def seed_cameras(database):
 
 def seed_aggregations_and_predictions(database, camera_ids):
     """
-    Phân chia trục thời gian 180 phút thành 12 block 15 phút.
-    Gom nhóm dữ liệu và tạo lịch sử dữ liệu aggregation & prediction hoàn toàn đồng bộ.
+    Phân chia trục thời gian 180 phút thành 12 block 15 phút đồng bộ TOÀN CỤC.
+    Gom nhóm dữ liệu và tạo lịch sử dữ liệu aggregation & prediction hoàn toàn đồng bộ theo dòng chảy tuần tự của các camera.
     """
     agg_created = 0
     pred_created = 0
@@ -61,40 +61,40 @@ def seed_aggregations_and_predictions(database, camera_ids):
     # Lấy mô hình XGBoost
     model = get_cached_model()
 
+    # 1. Tìm khoảng thời gian dữ liệu thô TOÀN CỤC (Global Time Range) để đồng bộ hóa trục thời gian cho tất cả camera
+    first_det_global = database.vehicle_detections.find_one({}, sort=[("timestamp", 1)])
+    last_det_global = database.vehicle_detections.find_one({}, sort=[("timestamp", -1)])
+    
+    if not first_det_global or not last_det_global:
+        print("   [⚠️ Warning] Không tìm thấy bất kỳ detections nào trong DB. Bỏ qua.")
+        return 0, 0
+        
+    t_start_global = first_det_global["timestamp"]
+    t_end_global = last_det_global["timestamp"]
+    
+    # Chuyển đổi timestamp thành timezone-aware UTC
+    if t_start_global.tzinfo is None:
+        t_start_global = t_start_global.replace(tzinfo=timezone.utc)
+    if t_end_global.tzinfo is None:
+        t_end_global = t_end_global.replace(tzinfo=timezone.utc)
+        
+    # Tròn hóa thời gian bắt đầu toàn cục xuống mốc 15 phút gần nhất
+    start_rounded = t_start_global - timedelta(
+        minutes=t_start_global.minute % 15,
+        seconds=t_start_global.second,
+        microseconds=t_start_global.microsecond
+    )
+    
+    # Sinh 12 chu kỳ liên tục từ start_rounded (Đồng bộ 3 tiếng toàn hệ thống)
+    intervals = []
+    for i in range(12):
+        interval_start = start_rounded + timedelta(minutes=i * 15)
+        interval_end = interval_start + timedelta(minutes=15)
+        intervals.append((interval_start, interval_end))
+
     for camera_id in camera_ids:
         print(f"🔄 Đang tạo dữ liệu lịch sử tích lũy cho camera: {camera_id}...")
         
-        # 1. Tìm khoảng thời gian dữ liệu thô
-        first_det = database.vehicle_detections.find_one({"camera_id": camera_id}, sort=[("timestamp", 1)])
-        last_det = database.vehicle_detections.find_one({"camera_id": camera_id}, sort=[("timestamp", -1)])
-        
-        if not first_det or not last_det:
-            print(f"   [⚠️ Warning] Không tìm thấy detections nào cho camera {camera_id}. Bỏ qua.")
-            continue
-            
-        t_start = first_det["timestamp"]
-        t_end = last_det["timestamp"]
-        
-        # Tròn hóa thời gian bắt đầu xuống mốc 15 phút gần nhất (e.g. 08:02 -> 08:00)
-        # Chuyển đổi timestamp thành timezone-aware UTC
-        if t_start.tzinfo is None:
-            t_start = t_start.replace(tzinfo=timezone.utc)
-        if t_end.tzinfo is None:
-            t_end = t_end.replace(tzinfo=timezone.utc)
-            
-        start_rounded = t_start - timedelta(
-            minutes=t_start.minute % 15,
-            seconds=t_start.second,
-            microseconds=t_start.microsecond
-        )
-        
-        # Sinh 12 chu kỳ liên tục từ start_rounded
-        intervals = []
-        for i in range(12):
-            interval_start = start_rounded + timedelta(minutes=i * 15)
-            interval_end = interval_start + timedelta(minutes=15)
-            intervals.append((interval_start, interval_end))
-            
         # 2. Tạo Aggregation cho từng khoảng
         history_list = []
         for idx, (i_start, i_end) in enumerate(intervals):
