@@ -257,6 +257,11 @@ def display_in_notebook(video_path: str) -> None:
     Fallback sang base64 chỉ khi file < 20MB.
     """
     from IPython.display import HTML, display as ipy_display
+    
+    if not os.path.exists(video_path):
+        print(f"[Warning ⚠️] Tệp video '{video_path}' không tồn tại. Bỏ qua hiển thị trong notebook.")
+        return
+
     size_mb = Path(video_path).stat().st_size / 1024 / 1024
 
     if size_mb < 20:
@@ -366,8 +371,40 @@ def main() -> None:
     frame_delay = 1.0 / (fps * PLAYBACK_SPEED)
 
     out_w, out_h = _get_output_size(VIDEO_SOURCE, TARGET_WIDTH)
-    out = cv2.VideoWriter(OUTPUT_VIDEO, cv2.VideoWriter_fourcc(*"avc1"),
-                          fps, (out_w, out_h))
+    
+    # Tạo thư mục chứa video đầu ra nếu chưa tồn tại
+    out_dir = os.path.dirname(OUTPUT_VIDEO)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+
+    # Thử nghiệm nhiều codec khác nhau để đảm bảo chạy được trên mọi môi trường (Windows, Colab/Linux)
+    codecs_to_try = ["avc1", "H264", "mp4v", "XVID", "MJPG"]
+    out = None
+    selected_codec = None
+
+    for codec in codecs_to_try:
+        try:
+            fourcc = cv2.VideoWriter_fourcc(*codec)
+            temp_out = cv2.VideoWriter(OUTPUT_VIDEO, fourcc, fps, (out_w, out_h))
+            if temp_out is not None and temp_out.isOpened():
+                out = temp_out
+                selected_codec = codec
+                break
+            elif temp_out is not None:
+                temp_out.release()
+        except Exception as e:
+            print(f"[Warning] Thử codec '{codec}' thất bại: {e}")
+
+    if out is None or not out.isOpened():
+        print(f"[ERROR ❌] Không thể khởi tạo cv2.VideoWriter với bất kỳ codec nào trong {codecs_to_try}!")
+        # Fallback sang Dummy để tránh crash giữa chừng khi chạy lâu
+        class DummyVideoWriter:
+            def write(self, frame): pass
+            def release(self): pass
+            def isOpened(self): return False
+        out = DummyVideoWriter()
+    else:
+        print(f"[Info] Đã khởi tạo VideoWriter thành công với codec: '{selected_codec}'")
 
     display_enabled = not (NO_DISPLAY or IS_NOTEBOOK or IS_COLAB)
 
