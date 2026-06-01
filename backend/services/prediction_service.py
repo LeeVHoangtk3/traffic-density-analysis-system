@@ -70,28 +70,6 @@ def get_recent_aggregations(db, camera_id: str, n: int = 5) -> pd.DataFrame:
     return df.sort_values("timestamp").reset_index(drop=True)
 
 
-def _optimize_phase_timing(predicted_volume: int) -> dict[str, int]:
-    """
-    Tối ưu hóa nhịp đèn tín hiệu an toàn dựa trên tổng lưu lượng đếm đơn ROI:
-    - Phase 1 (Đoạn đường chính): Tăng thời gian đèn xanh nếu lưu lượng đông, giảm nếu vắng.
-    - Tổng chu kỳ đèn xanh là 80 giây.
-    """
-    # Ngưỡng trung bình để chia tỉ lệ nhịp đèn
-    if predicted_volume <= 0:
-        phase_1_green = 50
-    else:
-        # Tỉ lệ đèn xanh tăng dần theo mức độ đông đúc (Min 25 giây, Max 55 giây cho Phase 1)
-        raw_phase_1 = 25 + (min(predicted_volume, 600) / 600.0) * 30
-        phase_1_green = max(25, min(55, int(round(raw_phase_1))))
-
-    phase_2_green = 80 - phase_1_green
-    return {
-        "phase_1_green": phase_1_green,
-        "phase_2_green": phase_2_green,
-        "delta_phase_1": phase_1_green - 50,
-        "delta_phase_2": phase_2_green - 30,
-    }
-
 
 def predict_next_density(
     db,
@@ -178,10 +156,6 @@ def predict_next_density(
         congestion_level = "HIGH"
     else:
         congestion_level = "HEAVY"
-        
-    # 6. Tối ưu hóa nhịp đèn tín hiệu giao thông
-    phase_timing = _optimize_phase_timing(predicted_raw_volume)
-    green_light_time = phase_timing["phase_1_green"]
     
     # 7. Xây dựng cấu trúc dữ liệu tương thích ngược cho cả left, straight, right
     # (Để 'straight' đại diện cho toàn bộ lưu lượng đếm đơn ROI, left/right = 0)
@@ -203,10 +177,8 @@ def predict_next_density(
         "horizon_minutes": settings.prediction_horizon_minutes,
         "source": "xgb_single_roi_directionless",
         "timestamp": datetime.utcnow(),
-        "green_light_time": green_light_time,
         "predictions": predictions_dict,
         "congestion_levels": congestion_levels_dict,
-        "phase_timing": phase_timing,
     }
 
     result = db.traffic_predictions.insert_one(document)

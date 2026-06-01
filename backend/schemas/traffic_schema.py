@@ -23,30 +23,7 @@ class RawDataSummary(BaseModel):
     offset: int
 
 
-class PhaseTiming(BaseModel):
-    phase_1_green: int = 50
-    phase_2_green: int = 30
-    delta_phase_1: int = 0
-    delta_phase_2: int = 0
 
-
-class TrafficLightPhase(BaseModel):
-    name: str
-    directions: list[Direction]
-    status: Literal["GREEN", "RED", "YELLOW"] = "RED"
-    duration: int = Field(ge=0)
-
-
-class TrafficLightStatusResponse(BaseModel):
-    camera_id: str
-    active_phase: Literal["phase_1", "phase_2"]
-    cycle_time: int = 90
-    transition_time: int = 10
-    phase_timing: PhaseTiming
-    phases: dict[str, TrafficLightPhase]
-    mode: str = "unknown"
-    source: dict
-    updated_at: datetime
 
 
 class ThresholdValues(BaseModel):

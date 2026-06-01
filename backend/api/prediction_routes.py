@@ -214,13 +214,6 @@ def _congestion_levels(item) -> dict:
         "right": None,
     }
 
-def _phase_timing(item) -> dict:
-    return getattr(item, "phase_timing", None) or {
-        "phase_1_green": getattr(item, "green_light_time", 45),
-        "phase_2_green": 30,
-        "delta_phase_1": getattr(item, "green_light_time", 45) - 50,
-        "delta_phase_2": 0,
-    }
 
 @router.get("/predict-next", response_model=PredictionResponse)
 def predict_next(camera_id: str | None = None, db=Depends(get_db)):
@@ -247,10 +240,8 @@ def predict_next(camera_id: str | None = None, db=Depends(get_db)):
         camera_id=prediction.camera_id,
         predicted_density=prediction.predicted_density,
         predicted_congestion_level=getattr(prediction, "predicted_congestion_level", None),
-        green_light_time=getattr(prediction, "green_light_time", 45),
         predictions=_predictions(prediction),
         congestion_levels=_congestion_levels(prediction),
-        phase_timing=_phase_timing(prediction),
         horizon_minutes=prediction.horizon_minutes,
         source=prediction.source,
         timestamp=prediction.timestamp,
@@ -281,10 +272,8 @@ def get_prediction_history(
                 camera_id=item.camera_id,
                 predicted_density=item.predicted_density,
                 predicted_congestion_level=getattr(item, "predicted_congestion_level", None),
-                green_light_time=getattr(item, "green_light_time", 45),
                 predictions=_predictions(item),
                 congestion_levels=_congestion_levels(item),
-                phase_timing=_phase_timing(item),
                 horizon_minutes=item.horizon_minutes,
                 source=item.source,
                 timestamp=item.timestamp,

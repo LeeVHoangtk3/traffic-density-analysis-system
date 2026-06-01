@@ -16,27 +16,20 @@ class DirectionCongestionLevels(BaseModel):
     right: Optional[str] = None
 
 
-class PhaseTiming(BaseModel):
-    phase_1_green: int = 50
-    phase_2_green: int = 30
-    delta_phase_1: int = 0
-    delta_phase_2: int = 0
+
 
 
 class PredictionResponse(BaseModel):
     camera_id: Optional[str] = None
     predicted_density: float
     predicted_congestion_level: Optional[str] = None
-    green_light_time: int = 45
     predictions: DirectionPredictions = Field(default_factory=DirectionPredictions)
     congestion_levels: DirectionCongestionLevels = Field(
         default_factory=DirectionCongestionLevels
     )
-    phase_timing: PhaseTiming = Field(default_factory=PhaseTiming)
     horizon_minutes: int
     source: str
     timestamp: datetime
-    time_green_light: Optional[int] = None
 
 
 class PredictionHistoryItem(BaseModel):
@@ -44,16 +37,13 @@ class PredictionHistoryItem(BaseModel):
     camera_id: Optional[str] = None
     predicted_density: float
     predicted_congestion_level: Optional[str] = None
-    green_light_time: int = 45
     predictions: DirectionPredictions = Field(default_factory=DirectionPredictions)
     congestion_levels: DirectionCongestionLevels = Field(
         default_factory=DirectionCongestionLevels
     )
-    phase_timing: PhaseTiming = Field(default_factory=PhaseTiming)
     horizon_minutes: int
     source: str
     timestamp: datetime
-    time_green_light: Optional[int] = None
 
 
 class PredictionHistoryResponse(BaseModel):

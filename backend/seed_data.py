@@ -13,7 +13,7 @@ from backend.services.aggregation_service import (
     empty_direction_counts,
     compute_overall_congestion,
 )
-from backend.services.prediction_service import get_cached_model, _optimize_phase_timing
+from backend.services.prediction_service import get_cached_model
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -209,8 +209,7 @@ def seed_aggregations_and_predictions(database, camera_ids):
             else:
                 status_label = "HEAVY"
                 
-            # Đèn tín hiệu và cấu trúc tương thích ngược
-            phase_timing = _optimize_phase_timing(predicted_raw_volume)
+
             
             pred_doc = {
                 "camera_id": camera_id,
@@ -219,7 +218,6 @@ def seed_aggregations_and_predictions(database, camera_ids):
                 "horizon_minutes": 15,
                 "source": "xgb_single_roi_directionless_seeded",
                 "timestamp": target_time.replace(tzinfo=None),
-                "green_light_time": phase_timing["phase_1_green"],
                 "predictions": {
                     "left": 0,
                     "straight": predicted_raw_volume,
@@ -230,7 +228,6 @@ def seed_aggregations_and_predictions(database, camera_ids):
                     "straight": status_label,
                     "right": "LOW"
                 },
-                "phase_timing": phase_timing,
                 "features_used": features_used
             }
             
