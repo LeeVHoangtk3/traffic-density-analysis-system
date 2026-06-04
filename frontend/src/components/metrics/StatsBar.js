@@ -18,13 +18,6 @@ const CARDS = [
     color: "#f59e0b",
   },
   {
-    key:   "green_time",
-    label: "Green Light Time",
-    icon:  "🟢",
-    unit:  "s",
-    color: "#10b981",
-  },
-  {
     key:   "predicted",
     label: "Next Prediction",
     icon:  "🔮",
@@ -42,19 +35,16 @@ const CONGESTION_COLOR = {
 
 export default function StatsBar() {
   const [agg,  setAgg]  = useState(null);
-  const [light, setLight] = useState(null);
   const [pred,  setPred]  = useState(null);
 
   useEffect(() => {
     async function fetchAll() {
       try {
-        const [a, l, p] = await Promise.all([
+        const [a, p] = await Promise.all([
           fetch(`${API}/aggregation/history?limit=1`).then(r => r.json()),
-          fetch(`${API}/traffic-lights/status`).then(r => r.json()),
           fetch(`${API}/predictions/history?limit=1`).then(r => r.json()),
         ]);
         setAgg(a.items?.[0]  ?? null);
-        setLight(l            ?? null);
         setPred(p.items?.[0] ?? null);
       } catch (e) {
         console.warn("[StatsBar] fetch error:", e.message);
@@ -72,7 +62,6 @@ export default function StatsBar() {
   const values = {
     vehicle_count:    agg?.vehicle_count ?? "—",
     congestion_level: congLevel,
-    green_time:       light?.green_time != null ? Math.round(light.green_time) : "—",
     predicted:        pred?.predicted_congestion_level ?? "—",
   };
 
@@ -105,7 +94,7 @@ export default function StatsBar() {
 const styles = {
   grid: {
     display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
+    gridTemplateColumns: "repeat(3, 1fr)",
     gap: "16px",
   },
   card: {

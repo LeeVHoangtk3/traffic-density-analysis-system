@@ -8,8 +8,8 @@ Tài liệu này mô tả kiến trúc, công nghệ và định hướng mục 
 
 Mục tiêu cốt lõi của dự án là xây dựng một **Hệ Thống Điều Khiển Tối Ưu Pha Đèn Tín Hiệu Động Cho Nút Giao Tách Luồng** (*Isolated Intelligent Junction Phase Controller*). Hệ thống chuyển đổi toàn diện từ trạng thái giả lập (mock/random data) sang vận hành dựa trên dữ liệu thực tế thông qua việc tích hợp luồng xử lý khép kín:
 
-### 🎯 Tối ưu hóa hạ tầng đô thị
-Hạ tầng nút giao không được điều khiển cào bằng theo chu kỳ thời gian cố định. Hệ thống phân tách nhu cầu giao thông thành các **Pha giao thông (Traffic Phases)** độc lập, tự động điều chỉnh số giây đèn xanh tỷ lệ thuận với áp lực dòng xe được dự báo, giúp chủ động giải tỏa ùn tắc từ sớm và rút ngắn thời gian chờ đợi trung bình của phương tiện.
+### 🎯 Phân tích lưu lượng giao thông thông minh
+Hạ tầng nút giao được giám sát và phân tách nhu cầu giao thông thành các luồng di chuyển độc lập. Hệ thống tự động dự báo áp lực dòng xe, giúp cảnh báo ùn tắc từ sớm và hỗ trợ đưa ra các quyết định điều tiết phù hợp.
 
 ### 💾 Xử lý Trên RAM (On-RAM) & Tiết kiệm tài nguyên
 Để loại bỏ bài toán quá tải dung lượng lưu trữ ổ cứng khi triển khai diện rộng, hệ thống xử lý trực tiếp dòng video stream thời gian thực trên RAM thông qua OpenCV và các thuật toán Thị giác máy tính. Dữ liệu hình ảnh thô sau khi được trích xuất thành số liệu đếm phương tiện (dạng text/JSON cực nhẹ) sẽ được lưu trữ vào cơ sở dữ liệu MongoDB, còn khung hình video sẽ được giải phóng ngay lập tức.
@@ -27,13 +27,7 @@ Hệ thống sử dụng **1 Camera góc rộng cố định (Fixed Wide-Angle T
 2. **Nhánh Đi Thẳng (`straight`):** Trục hành lang chính, hạ tầng rộng, vận tốc tối đa và sức chứa lớn, năng lực xả xe cao nhất.
 3. **Nhánh Rẽ Phải (`right`):** Hướng dòng phương tiện tách luồng đi vào làn đường gom nội bộ hoặc đường dịch vụ, dòng chảy tương đối độc lập, ít xung đột trực diện.
 
-### Quy hoạch 2 Pha Đèn Tín Hiệu (Signal Phases)
-Tổng chu kỳ đèn giao thông (Cycle Time) được cố định là **90 giây** để đảm bảo tính an toàn giao thông đô thị và được phân bổ động thành:
-- **Pha 1 (Pha Tuyến Chính):** Cho phép các luồng xe **Đi thẳng (straight)** và **Rẽ phải (right)** di chuyển song song. Cấu hình nền mặc định: **50 giây**.
-- **Pha 2 (Pha Rẽ Trái):** Cho phép các luồng xe **Rẽ trái (left)** di chuyển cắt ngang để thoát nút giao an toàn. Cấu hình nền mặc định: **30 giây**.
-- **10 giây chuyển mạch:** Khóa cứng cố định dành cho đèn vàng và đèn đỏ an toàn chuyển pha đô thị (không thay đổi).
 
----
 
 ## 3. Kiến Trúc Luồng Dữ Liệu Khép Kín (Closed-Loop Data Pipeline)
 
@@ -67,16 +61,11 @@ Luồng vận hành đồng bộ thời gian thực của hệ thống được 
           → Đối chiếu lưu lượng xe thực tế/dự báo với ma trận ngưỡng thích ứng động
           → Gắn nhãn trạng thái mật độ ùn tắc (Low/Medium/High/Heavy) riêng biệt cho từng ngả
         
-        Ý TƯỞNG C (Phase Light Optimizer):
-          → Nạp áp lực dự báo 3 ngả vào bộ tối ưu phân bổ thời lượng xanh động
-          → Tính toán số giây bù trừ (delta_green) cho Pha Tuyến Chính và Pha Rẽ Trái
-          → Đảm bảo ràng buộc an toàn (Đèn xanh tối thiểu 15s, tối đa 55s)
-          → Ghi đè trạng thái chu kỳ mới vào file 'integration_system/light_status.json'
+
                                   │
                                   ▼ (Cập nhật thời gian thực)
                
                [ TẦNG 4: DASHBOARD FRONTEND DISPLAY ]
-        - Dashboard React hiển thị đồng hồ đếm ngược pha đèn của AI từ file light_status.json
         - Vẽ đồ thị so sánh thực tế và dự báo của 3 ngả rẽ kèm màu sắc cảnh báo trực quan tương ứng
 ```
 
@@ -98,16 +87,7 @@ Luồng vận hành đồng bộ thời gian thực của hệ thống được 
 - **Cơ chế vận hành:** Tác vụ chạy ngầm định kỳ hàng tuần quét toàn bộ lịch sử đếm xe của từng hướng trong MongoDB, tính toán trung điểm giữa các tâm cụm liên tiếp để làm ranh giới bước nhảy trạng thái, sau đó lưu trữ kết quả cấu hình ngưỡng động vào collection `directional_thresholds`.
 - **Hiệu năng thực tế:** Làn rẽ trái sức chứa nhỏ chỉ cần $>30 \text{ xe/15 phút}$ đã báo trạng thái `Heavy` (màu Đỏ), trong khi làn đi thẳng rộng rãi phải đạt $>100 \text{ xe}$ mới kích hoạt cảnh báo tương ứng.
 
-### 🚥 Ý Tưởng C: Bộ Tối Ưu Hóa Chu Kỳ Pha Đèn Tín Hiệu Động (Dynamic Phase Timing Optimizer)
-- **Chức năng:** Đóng vòng điều khiển logic (Closed-loop control), chuyển dịch kết quả phân tích số liệu của AI thành hành động thay đổi thời lượng xanh của hạ tầng giao thông thực tế.
-- **Thuật toán:** Tối ưu hóa phân bổ toán học tỷ lệ thuận theo chỉ số áp lực dòng xe (Flow Ratio Pressure) kết hợp bộ lọc điều kiện biên an toàn giao thông đô thị (Hard Constraints).
-- **Ràng buộc giới hạn (Hard Constraints):**
-  - Thời gian đèn xanh tối thiểu của mỗi pha: $\ge 15$ giây.
-  - Thời gian đèn xanh tối đa của mỗi pha: $\le 55$ giây.
-  - Ràng buộc tổng chu kỳ Pha 1 + Pha 2 + 10s chuyển mạch = 90 giây cố định.
-- **Kết quả đầu ra:** Ghi đè trực tiếp trạng thái chu kỳ pha đèn mới vào file `light_status.json` để đồng bộ hiển thị màn hình OpenCV và dashboard frontend.
 
----
 
 ## 5. Cấu Trúc Thư Mục Dự Án Thực Tế
 
@@ -158,9 +138,6 @@ traffic-density-analysis-system/
 │
 ├── integration_system/             # Orchestration & Coordination Layer
 │   ├── system_runner.py            # Vòng lặp điều khiển hệ thống chu kỳ 5 giây
-│   ├── traffic_light_logic.py      # Logic tính toán phân bổ giây đèn nền
-│   ├── delta_applier.py            # Áp dụng dự báo delta đèn
-│   ├── direction_router.py         # Ánh xạ camera sang pha cụ thể
 │   ├── congestion_classifier.py    # Phân loại ùn tắc dựa trên ngưỡng
 │   ├── performance_monitor.py      # Giám sát tài nguyên hệ thống (RAM/CPU)
 │   └── scheduler.py                # Bộ lập lịch gọi API tuần tự
@@ -181,7 +158,6 @@ traffic-density-analysis-system/
 ├── video_data/                     # Thư mục lưu trữ video mẫu chạy thử
 ├── yolov9-cus/                     # Mã nguồn YOLOv9 custom
 ├── requirements.txt                # Danh sách thư viện Python phụ thuộc
-├── light_status.json               # Trạng thái pha đèn cập nhật thời gian thực
 └── yolov9c.pt                      # Trọng số YOLOv9 pre-trained
 ```
 
@@ -244,7 +220,7 @@ $env:NO_DISPLAY="true"
 python -m detection.main
 ```
 
-### 5. Chạy Orchestrator điều khiển đèn tín hiệu và ML pipeline
+### 5. Chạy Orchestrator và ML pipeline
 ```bash
 $env:NO_SUBPROCESS="1"
 python integration_system/system_runner.py

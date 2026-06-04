@@ -1,4 +1,4 @@
-# 🚦 Hệ Thống Phân Tích Mật Độ Giao Thông & Điều Phối Pha Đèn Tín Hiệu Động
+# 🚦 Hệ Thống Phân Tích Mật Độ Giao Thông
 
 ## 📋 Tổng Quan Dự Án
 
@@ -6,8 +6,7 @@
 - ✅ **Nhận diện & theo dõi xe** từ camera video sử dụng YOLOv9
 - ✅ **Tổng hợp dữ liệu lưu lượng** theo hướng di chuyển (thẳng, rẽ trái, rẽ phải) trong khoảng 15 phút
 - ✅ **Dự báo lưu lượng** cho 15 phút tiếp theo bằng mô hình XGBoost
-- ✅ **Tối ưu hóa phân bổ thời gian xanh** cho đèn tín hiệu dựa trên dự báo lưu lượng
-- ✅ **Cung cấp dashboard thời gian thực** hiển thị trạng thái giao thông và kiến nghị pha đèn
+- ✅ **Cung cấp dashboard thời gian thực** hiển thị trạng thái giao thông
 
 ---
 
@@ -16,7 +15,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Frontend Dashboard (React)                   │
-│           Hiển thị mật độ, dự báo, trạng thái đèn              │
+│           Hiển thị mật độ, dự báo              │
 └──────────────────────────┬──────────────────────────────────────┘
                            │ HTTP/WebSocket
                            ↓
@@ -35,10 +34,9 @@
 │  (YOLOv9 + ByteTrack)              │       │  (XGBoost Regressor)       │
 │  - detect.py (YOLO inference)      │       │  - train.py                │
 │  - tracker.py (ByteTrack)          │       │  - traffic_predictor.py    │
-│  - density_estimator.py            │       │  - phase_optimizer.py      │
-│  - event_generator.py              │       │  - light_delta_model.py    │
-│  - zone_manager.py                 │       │                            │
-│  Output: vehicle_detections        │       │  Output: traffic_predictions│
+│  - density_estimator.py            │       │  - predict.py              │
+│  - event_generator.py              │       │                            │
+│  - zone_manager.py                 │       │  Output: traffic_predictions│
 └──────────────────────────────────────┘     └────────────────────────────┘
 ```
 
@@ -166,8 +164,6 @@ python -m backend.seed_data
 │   ├── train.py              # Huấn luyện XGBoost
 │   ├── preprocess.py         # Tiền xử lý dữ liệu
 │   ├── traffic_predictor.py  # Kỹ nghệ đặc trưng
-│   ├── phase_optimizer.py    # Tối ưu pha đèn
-│   ├── light_delta_model.py  # Bridge dự báo ↔ điều phối
 │   ├── evaluate.py           # Đánh giá mô hình
 │   ├── model/                # Trọng số pkl
 │   ├── data/                 # Dữ liệu training/validation
@@ -223,15 +219,8 @@ Video Input (MP4/Webcam)
   [ML Service]
   - Load features
   - Run 3 XGBoost models
-  - Optimize phase timing
          ↓
   [MongoDB] traffic_predictions
-         ↓
-  [Integration System]
-  - Apply traffic light logic
-  - Generate delta adjustment
-         ↓
-  light_status.json
          ↓
   Frontend Dashboard
 ```

@@ -45,8 +45,6 @@ Hệ thống Traffic Density Analysis được tài liệu hóa chi tiết qua c
   - Task 1: Tiền xử lý dữ liệu (preprocess.py)
   - Task 2: Kỹ nghệ đặc trưng (traffic_predictor.py)
   - Task 3: Huấn luyện (train.py)
-  - Task 5: Tối ưu pha đèn (phase_optimizer.py)
-  - Task 6: Bridge model (light_delta_model.py)
   - Task 9: Đánh giá (evaluate.py)
 - ✅ Chi tiết từng file:
   - Input/output schema
@@ -60,7 +58,6 @@ Hệ thống Traffic Density Analysis được tài liệu hóa chi tiết qua c
 - Muốn hiểu dự báo lưu lượng
 - Debug sai số cao (MAPE)
 - Tune hyperparameters
-- Tối ưu pha đèn (pha sáng bao lâu)
 
 ---
 
@@ -136,7 +133,6 @@ Hệ thống Traffic Density Analysis được tài liệu hóa chi tiết qua c
 
 **Khi nào đọc:**
 - Lần đầu hiểu mục tiêu dự án
-- Nếu muốn hiểu chiến lược pha đèn
 
 ---
 
@@ -220,7 +216,7 @@ Store: backend/mongo_database.py (vehicle_detections)
        ↓
 Aggregate: backend/services/aggregation_service.py (15-min)
        ↓
-Predict: ml_service/light_delta_model.py
+Predict: ml_service/traffic_predictor.py
        ↓
 Dashboard: frontend/src/pages/HomePage.jsx
 ```

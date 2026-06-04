@@ -127,13 +127,7 @@ backend/
     left: 14,
     right: 9
   },
-  phase_timing: {
-    phase_1_green: 52,                 // Giây xanh pha 1 (thẳng + phải)
-    phase_2_green: 28,                 // Giây xanh pha 2 (rẽ trái)
-    delta_straight: 5,                 // Điều chỉnh so với baseline
-    delta_left: 0,
-    delta_right: 0
-  },
+
   model_accuracy: {
     mae_straight: 3.2,
     mae_left: 1.5,
@@ -326,11 +320,7 @@ GET /predict-next?camera_id=CAM_01
     "left": 14,
     "right": 9
   },
-  "phase_timing": {
-    "phase_1_green": 52,
-    "phase_2_green": 28,
-    "delta_straight": 5
-  },
+
   "confidence": 0.87,
   "predicted_at": "2026-05-23T02:15:00Z"
 }
@@ -340,8 +330,7 @@ GET /predict-next?camera_id=CAM_01
 1. Lấy 24 mốc aggregation gần nhất (6 giờ lịch sử)
 2. Trích đặc trưng (hour, day_of_week, etc.)
 3. Gọi 3 mô hình XGBoost từ `ml_service/model/`
-4. Tính pha đèn tối ưu
-5. Lưu vào `traffic_predictions`
+4. Lưu vào `traffic_predictions`
 
 ---
 
@@ -376,10 +365,7 @@ CONFIDENCE_THRESHOLD = 0.40
 KMEANS_N_CLUSTERS = 3
 KMEANS_RANDOM_STATE = 42
 
-# Pha đèn
-TOTAL_GREEN_SECONDS = 80  # Total green seconds per cycle
-PHASE_1_MIN_GREEN = 10    # min sec for phase 1 (straight + right)
-PHASE_2_MIN_GREEN = 10    # min sec for phase 2 (left)
+
 ```
 
 ---
@@ -537,28 +523,11 @@ Response co dang:
     "straight": "Medium",
     "right": "Low"
   },
-  "phase_timing": {
-    "phase_1_green": 55,
-    "phase_2_green": 25,
-    "delta_phase_1": 5,
-    "delta_phase_2": -5
-  },
+
   "horizon_minutes": 15,
   "source": "straight:ml_service,left:fallback,right:ml_service"
 }
 ```
-
-### Traffic Light Status
-
-```text
-GET /traffic-lights/status
-```
-
-Backend doc `integration_system/light_status.json` neu co, neu khong se doc `light_status.json`
-o thu muc goc. Response duoc chuan hoa thanh 2 pha:
-
-- `phase_1`: `straight` + `right`
-- `phase_2`: `left`
 
 ### Dataset Export
 
@@ -622,8 +591,7 @@ Da hoan thien:
 - MongoDB la storage chinh.
 - Detection nhan `left`, `straight`, `right`.
 - Aggregation tinh `direction_counts` va `congestion_levels`.
-- Prediction tra du bao 3 huong va `phase_timing`.
-- API `/traffic-lights/status` cho frontend.
+- Prediction tra du bao 3 huong.
 - Index MongoDB cho `directional_thresholds`.
 - API `/thresholds` de quan tri nguong dong.
 - API `/dataset/export` de xuat du lieu huan luyen.

@@ -8,10 +8,7 @@ Cac buoc trong mot chu ky pipeline:
     [1] Goi /raw-data          -> lay ban ghi tho tu Backend
     [2] Goi /aggregation       -> lay vehicle_count + congestion_level
     [3] Phan loai tac nghen    -> CongestionClassifier (rule-based, local)
-    [4] Toi uu den tin hieu    -> TrafficLightOptimizer (ML hoac rule-based)
-    [4a] DeltaApplier     -> predict delta tu LightDeltaModel
-    [4b] DirectionRouter  -> anh xa camera_id -> pha den
-    [5] Giam sat hieu nang     -> PerformanceMonitor (CPU / RAM)
+    [4] Giam sat hieu nang     -> PerformanceMonitor (CPU / RAM)
 
 Bien moi truong:
     TRAFFIC_API_BASE    (mac dinh: http://127.0.0.1:8000)
@@ -94,199 +91,6 @@ class PerformanceMonitor:
         return {"cpu_usage": cpu, "memory_usage": memory}
 
 
-# ===========================================================================
-# 4. DIRECTION ROUTER  (noi tuyen tu direction_router.py)
-# ===========================================================================
-
-# Anh xa camera_id -> thong tin pha den va huong luong xe.
-# Chinh bang nay theo so do vat ly cua he thong thuc te.
-CAMERA_PHASE_MAP: dict[str, dict[str, str]] = {
-    "cam01": {
-        "phase": "north_green",
-        "controlled_phase": "phase_1",
-        "direction": "straight_right",
-        "junction": "JCT_A",
-    },
-    "cam02": {
-        "phase": "south_green",
-        "controlled_phase": "phase_1",
-        "direction": "straight_right",
-        "junction": "JCT_A",
-    },
-    "CAM_03": {
-        "phase": "east_green",
-        "controlled_phase": "phase_2",
-        "direction": "left",
-        "junction": "JCT_A",
-    },
-    "CAM_04": {
-        "phase": "west_green",
-        "controlled_phase": "phase_1",
-        "direction": "straight_right",
-        "junction": "JCT_A",
-    },
-}
-
-
-def get_phase(camera_id: str) -> dict[str, str]:
-    """Tra ve thong tin pha den cua camera_id."""
-    if camera_id not in CAMERA_PHASE_MAP:
-        raise KeyError(
-            f"[DirectionRouter] Camera '{camera_id}' not configured. "
-            f"Valid: {list(CAMERA_PHASE_MAP.keys())}"
-        )
-    return CAMERA_PHASE_MAP[camera_id].copy()
-
-
-def get_phase_name(camera_id: str) -> str:
-    """Tra ve ten pha den (vd: 'north_green')."""
-    return get_phase(camera_id)["phase"]
-
-
-def register_camera(camera_id: str, phase: str,
-                    direction: str = "straight_right",
-                    junction: str = "JCT_DEFAULT",
-                    controlled_phase: str = "phase_1") -> None:
-    """Dang ky camera moi tai runtime."""
-    CAMERA_PHASE_MAP[camera_id] = {
-        "phase": phase,
-        "controlled_phase": controlled_phase,
-        "direction": direction,
-        "junction": junction,
-    }
-    print(f"[DirectionRouter] Registered: {camera_id} -> phase='{phase}', "
-          f"controlled_phase='{controlled_phase}', direction='{direction}', "
-          f"junction='{junction}'")
-
-
-# ===========================================================================
-# 5. DELTA APPLIER  (noi tuyen tu delta_applier.py)
-# ===========================================================================
-
-# Thoi gian den xanh baseline (giay) theo 2 pha trong PhaseLightOptimizer.
-PHASE_BASELINE: dict[str, int] = {
-    "phase_1": 50,
-    "phase_2": 30,
-}
-
-_DELTA_MIN: float = -30.0
-_DELTA_MAX: float = +45.0
-
-# Singleton LightDeltaModel — chi load pkl mot lan
-_light_model = None
-
-
-def _get_light_model():
-    """LightDeltaModel has been removed per user request."""
-    return None
-
-
-def _controlled_phase_for_camera(camera_id: str) -> str:
-    return get_phase(camera_id).get("controlled_phase", "phase_1")
-
-
-def _baseline_for_camera(camera_id: str) -> int:
-    controlled_phase = _controlled_phase_for_camera(camera_id)
-    return PHASE_BASELINE.get(controlled_phase, PHASE_BASELINE["phase_1"])
-
-
-def apply(
-    camera_id: str,
-    queue_proxy: float,
-    inbound_count: int,
-    congestion_level: str,
-    hour: int,
-    dow: int,
-) -> float:
-    """
-    Tra ve thoi gian den xanh baseline (giay, float, >= 0).
-    Hien tai LightDeltaModel da bi go bo theo yeu cau nguoi dung.
-    """
-    phase_info = get_phase(camera_id)
-    controlled_phase = phase_info.get("controlled_phase", "phase_1")
-    baseline_green = PHASE_BASELINE.get(controlled_phase, PHASE_BASELINE["phase_1"])
-    return float(baseline_green)
-
-
-# ===========================================================================
-# 6. TRAFFIC LIGHT OPTIMIZER  (noi tuyen tu traffic_light_logic.py)
-# ===========================================================================
-
-_RULE_MAP: dict[str, int] = {
-    "low":    20,
-    "medium": 40,
-    "high":   60,
-    "severe": 90,
-}
-
-
-class TrafficLightOptimizer:
-    """
-    Dieu phoi thoi gian den xanh.
-    - optimize()          : rule-based fallback
-    - optimize_with_ml()  : ML delta + direction router
-    """
-
-    def optimize(self, congestion_level: str) -> dict:
-        """Rule-based fallback."""
-        lvl = str(congestion_level).lower()
-        green_time = _RULE_MAP.get(lvl, 90)
-        return {"green_time": green_time, "mode": "rule"}
-
-    def optimize_with_ml(
-        self,
-        camera_id: str,
-        queue_proxy: float,
-        inbound_count: int,
-        congestion_level: str,
-        hour: int,
-        dow: int,
-    ) -> dict:
-        """
-        Tinh green_time bang ML delta model ket hop direction router.
-        """
-        try:
-            phase_info = get_phase(camera_id)
-            baseline = _baseline_for_camera(camera_id)
-
-            green_time = apply(
-                camera_id=camera_id,
-                queue_proxy=queue_proxy,
-                inbound_count=inbound_count,
-                congestion_level=congestion_level,
-                hour=hour,
-                dow=dow,
-            )
-            delta = round(green_time - baseline, 2)
-            model = _get_light_model()
-
-            result = {
-                "camera_id":  camera_id,
-                "phase":      phase_info["phase"],
-                "controlled_phase": phase_info.get("controlled_phase", "phase_1"),
-                "direction":  phase_info["direction"],
-                "green_time": round(green_time, 2),
-                "baseline":   baseline,
-                "delta":      delta,
-                "mode":       "ml",
-                "prediction_source": model.prediction_source(),
-            }
-            if model.fallback_reason:
-                result["fallback_reason"] = model.fallback_reason
-            return result
-
-        except Exception as exc:
-            print(f"    [TrafficLightOptimizer] WARNING: {exc}. Fallback to rule.")
-            rule_result = self.optimize(congestion_level)
-            return {
-                "camera_id":  camera_id,
-                "phase":      "unknown",
-                "direction":  "unknown",
-                "green_time": float(rule_result["green_time"]),
-                "baseline":   rule_result["green_time"],
-                "delta":      0.0,
-                "mode":       "rule_fallback",
-            }
 
 
 # ===========================================================================
@@ -311,14 +115,9 @@ class TrafficSystem:
         self.classifier = CongestionClassifier()
         print("[OK] CongestionClassifier ready")
 
-        self.optimizer = TrafficLightOptimizer()
-        print("[OK] TrafficLightOptimizer ready (ML + rule fallback)")
-
         self.monitor = PerformanceMonitor()
         print("[OK] PerformanceMonitor ready")
 
-        print(f"[OK] DirectionRouter ready | cameras: {list(CAMERA_PHASE_MAP.keys())}")
-        print(f"[OK] DeltaApplier ready    | phase baselines: {PHASE_BASELINE}")
         print(f"[OK] API base: {API_BASE} | Camera: {CAMERA_ID}")
         print("=" * 60)
 
@@ -436,80 +235,9 @@ class TrafficSystem:
             print(f"    Local result     : {local_level}")
 
             # -------------------------------------------------------
-            # BUOC 4: Toi uu den tin hieu (ML > rule fallback)
+            # BUOC 4: Giam sat hieu nang
             # -------------------------------------------------------
-            print("\n[4] Traffic light optimization ...")
-
-            # Lay them cac truong ML neu API tra ve
-            queue_proxy   = float(data.get("queue_proxy",   0.0))
-            inbound_count = int(data.get("inbound_count",   vehicle_count))
-            now           = datetime.datetime.now()
-            hour          = int(data.get("hour",            now.hour))
-            dow           = int(data.get("day_of_week",     now.weekday()))
-
-            ml_fields_available = all(
-                k in data for k in ("queue_proxy", "inbound_count", "hour", "day_of_week")
-            )
-
-            if ml_fields_available:
-                light = self.optimizer.optimize_with_ml(
-                    camera_id=CAMERA_ID,
-                    queue_proxy=queue_proxy,
-                    inbound_count=inbound_count,
-                    congestion_level=backend_level,
-                    hour=hour,
-                    dow=dow,
-                )
-            else:
-                # Fallback rule-based (API khong du truong ML)
-                print("    (ML fields not in API response -> using rule-based fallback)")
-                # Van co the su dung local classification + apply_delta
-                try:
-                    light = self.optimizer.optimize_with_ml(
-                        camera_id=CAMERA_ID,
-                        queue_proxy=queue_proxy,
-                        inbound_count=vehicle_count,
-                        congestion_level=local_level,
-                        hour=now.hour,
-                        dow=now.weekday(),
-                    )
-                except Exception:
-                    light = self.optimizer.optimize(local_level)
-
-            # Hien thi ket qua den tin hieu
-            try:
-                phase_info = get_phase(CAMERA_ID)
-                print(f"    Phase applied    : {phase_info['phase']} "
-                      f"({phase_info['direction']}, {phase_info['junction']})")
-            except KeyError:
-                pass
-
-            if "green_time" in light:
-                print(f"    GREEN TIME       : {light['green_time']}s")
-            if "delta" in light:
-                print(f"    Delta applied    : {light.get('delta', 0):+.2f}s")
-            if "baseline" in light:
-                print(f"    Baseline         : {light.get('baseline')}s")
-            print(f"    Mode             : {light.get('mode', '?')}")
-            if "prediction_source" in light:
-                print(f"    Prediction source: {light.get('prediction_source')}")
-            if "fallback_reason" in light:
-                print(f"    Fallback reason  : {light.get('fallback_reason')}")
-            print(f"    Full config      : {light}")
-
-            # Ghi trang thai den ra file cho detection/main.py doc
-            import json
-            light_file = os.path.join(_ROOT, "light_status.json")
-            try:
-                with open(light_file, "w") as f:
-                    json.dump(light, f)
-            except Exception as e:
-                pass
-
-            # -------------------------------------------------------
-            # BUOC 5: Giam sat hieu nang
-            # -------------------------------------------------------
-            print("\n[5] Performance monitoring ...")
+            print("\n[4] Performance monitoring ...")
             perf = self.monitor.monitor()
             print(f"    CPU usage    : {perf['cpu_usage']}%")
             print(f"    Memory usage : {perf['memory_usage']}%")
