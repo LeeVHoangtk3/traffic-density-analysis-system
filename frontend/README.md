@@ -1,6 +1,6 @@
 # 🎨 Frontend Dashboard - React Application
 
-**Frontend** là giao diện người dùng của hệ thống Traffic Density Analysis. Dùng React để hiển thị dữ liệu giao thông real-time, dự báo lưu lượng, và trạng thái đèn tín hiệu.
+**Frontend** là giao diện người dùng của hệ thống Traffic Density Analysis. Dùng React để hiển thị dữ liệu giao thông real-time và dự báo lưu lượng.
 
 ---
 
@@ -10,7 +10,6 @@
 |----------|-------|
 | **Real-time Dashboard** | Hiển thị mật độ giao thông từ các camera |
 | **Dự Báo Lưu Lượng** | Biểu đồ dự báo 15 phút tiếp theo |
-| **Trạng Thái Đèn Tín Hiệu** | Thời gian xanh/đỏ hiện tại và tối ưu |
 | **Lịch Sử Dữ Liệu** | Truy vấn dữ liệu theo khoảng thời gian |
 | **Giám Sát Hiệu Năng** | Biểu đồ quá trình & chỉ số độ chính xác ML |
 
@@ -84,7 +83,6 @@ frontend/
 │   │   ├── Dashboard.jsx
 │   │   ├── CameraCard.jsx
 │   │   ├── PredictionChart.jsx
-│   │   ├── TrafficLightStatus.jsx
 │   │   ├── DataTable.jsx
 │   │   └── ...
 │   │

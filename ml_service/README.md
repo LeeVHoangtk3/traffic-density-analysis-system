@@ -1,7 +1,8 @@
-# 🤖 ML Service – Dự Báo Lưu Lượng & Tối Ưu Hóa Pha Đèn Động
-Tài liệu này đặc tả toàn bộ kiến trúc học máy (Machine Learning) cốt lõi của **Hệ Thống Phân Tích Mật Độ Giao Thông & Tự Động Điều Phối Pha Đèn Tín Hiệu Động**. 
+# 🤖 ML Service – Dự Báo Lưu Lượng & Phân Cụm Mật Độ
 
-Hệ thống kết hợp sức mạnh của **Học máy giám sát (XGBoost Regressor)** để dự báo lưu lượng, **Học máy không giám sát (K-Means Clustering)** để tự thích ứng ngưỡng ùn tắc động và **Lý thuyết luồng giao thông (Flow Ratio Control)** để đưa ra số giây xanh an toàn tuyệt đối.
+Tài liệu này đặc tả toàn bộ kiến trúc học máy (Machine Learning) cốt lõi của **Hệ Thống Phân Tích Mật Độ Giao Thông & Tự Động Phân Cụm Mật Độ Động**. 
+
+Hệ thống kết hợp sức mạnh của **Học máy giám sát (XGBoost Regressor)** để dự báo lưu lượng, và **Học máy không giám sát (K-Means Clustering)** để tự thích ứng ngưỡng ùn tắc động.
 
 ---
 
@@ -26,8 +27,6 @@ ml_service/
 ├── preprocess.py                       # [Active Task 1] Tiền xử lý volume thô đa ngã rẽ (138, 72887, 83624)
 ├── traffic_predictor.py                # [Active Task 2] Định nghĩa lớp đặc trưng & dự báo AI TrafficPredictor
 ├── train.py                            # [Active Task 3] Huấn luyện 3 mô hình XGBoost hợp nhất đa nút giao
-├── phase_optimizer.py                  # [Active Task 5] Bộ toán học tối ưu phân bổ giây xanh PhaseLightOptimizer
-├── light_delta_model.py                # [Active Task 6] Lớp cầu nối Bridge tích hợp models với system_runner.py
 ├── evaluate.py                         # [Active Task 9] Script đánh giá sai số học thuật (MAE/RMSE/MAPE) & vẽ đồ thị
 └── README.md                           # Tài liệu đặc tả kỹ thuật này
 ```
@@ -57,20 +56,7 @@ ml_service/
 
 ---
 
-### 2.3. Nhóm Tối Ưu Hóa & Tích Hợp (Optimization & Integration)
-#### 🚀 [phase_optimizer.py](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/phase_optimizer.py) *(Thiết kế mới Task 5)*
-* **Chức năng:** Định nghĩa lớp toán học `PhaseLightOptimizer` phân chia thời lượng xanh khả dụng $G_{total} = 80$ giây cho 2 Pha giao thông (P1: thẳng + phải, P2: rẽ trái) dựa trên áp lực dòng xe dự báo, đảm bảo an toàn tuyệt đối qua các ràng buộc biên đô thị.
-* **Đầu vào:** Số xe dự báo thẳng, rẽ trái, rẽ phải trong 15 phút kế tiếp.
-* **Đầu ra:** Số giây xanh tối ưu `phase_1_green`, `phase_2_green` và các độ lệch `delta` so với baseline.
-
-#### 🚀 [light_delta_model.py](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/light_delta_model.py) *(Thiết kế mới Task 6)*
-* **Chức năng:** Đóng vai trò là lớp cầu nối (Adapter Pattern) tích hợp khép kín. Lớp này tiếp nhận yêu cầu gọi `predict_delta(feature_dict)` trực tiếp từ orchestrator `system_runner.py` trên RAM, gọi 3 mô hình pkl chạy dự báo, truyền kết quả vào `PhaseLightOptimizer` và trả về độ lệch `delta` giây tối ưu nhất cho Pha tương ứng của camera.
-* **Đầu vào:** `feature_dict` thời gian thực (inbound count, queue, hour, day of week).
-* **Đầu ra:** Giá trị độ lệch đèn xanh `delta` (Float).
-
----
-
-### 2.4. Nhóm Nghiệm Thu Học Thuật
+### 2.3. Nhóm Nghiệm Thu Học Thuật
 #### 🚀 [evaluate.py](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/evaluate.py) *(Thiết kế mới Task 9)*
 * **Chức năng:** Chạy đánh giá khoa học chuyên sâu độc lập trên tập Test (từ ngày 2025-01-01 trở đi), tính toán các chỉ số thống kê MAE, RMSE, MAPE. Đồng thời sử dụng `matplotlib` trích xuất 100 bước thời gian liên tục vẽ đồ thị trực quan so sánh **Thực tế (Actual) vs Dự báo (Predicted)**.
 * **Đầu vào:** `junction_pivot_clean.csv` và 3 tệp mô hình pkl.
@@ -78,13 +64,13 @@ ml_service/
 
 ---
 
-### 2.5. Nhóm Công Cụ Phụ Trợ & Thử Nghiệm (`ml_service/helpers/`)
+### 2.4. Nhóm Công Cụ Phụ Trợ & Thử Nghiệm (`ml_service/helpers/`)
 Các tệp tin trong thư mục này phục vụ việc phát sinh dữ liệu thử nghiệm, kiểm thử nhanh các dịch vụ APIs và thực hiện phân tích khám phá dữ liệu (EDA):
 
 #### 🚀 [predict.py](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/helpers/predict.py)
-* **Chức năng:** Tệp tin kịch bản CLI độc lập dùng để kiểm thử nhanh tính hoạt động của REST APIs Backend. Tiến trình sẽ trực tiếp gửi HTTP GET request đến endpoint `/predict-next` của FastAPI kèm tham số `camera_id` và in trực tiếp kết quả mật độ, đèn xanh đèn đỏ dự báo của AI ra màn hình.
+* **Chức năng:** Tệp tin kịch bản CLI độc lập dùng để kiểm thử nhanh tính hoạt động của REST APIs Backend. Tiến trình sẽ trực tiếp gửi HTTP GET request đến endpoint `/predict-next` của FastAPI kèm tham số `camera_id` và in trực tiếp kết quả dự báo mật độ và lưu lượng của AI ra màn hình.
 * **Đầu vào:** Biến môi trường cấu hình `TRAFFIC_API_URL` và `TRAFFIC_CAMERA_ID`.
-* **Đầu ra:** Bản ghi thông số trạng thái đèn tín hiệu và lưu lượng in ra console.
+* **Đầu ra:** Bản ghi thông số trạng thái dự báo lưu lượng in ra console.
 
 #### 🚀 [synthesize_data.py](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/helpers/synthesize_data.py)
 * **Chức năng:** Script tạo dữ liệu lưu lượng giao thông giả lập chất lượng cao cực kỳ sinh động. Thuật toán áp dụng hệ số lưu thông đô thị Việt Nam thực tế theo giờ (đỉnh điểm sáng 7-9h, chiều 17-19h, thấp điểm ban đêm 23-5h), thiết lập công suất đỉnh và tỷ lệ làn đường riêng biệt cho từng ngã ba/ngã tư, đồng thời tích hợp 5% xác suất sự cố giao thông ngẫu nhiên hoặc thời tiết mưa bão làm giảm volume để nâng cao tính đa dạng của dữ liệu.
@@ -108,7 +94,6 @@ Các tệp tin trong thư mục này phục vụ việc phát sinh dữ liệu t
 
 ---
 
-
 ## 🧮 3. Các Công Thức Toán Học Nền Tảng (Mathematical Formulation)
 
 ### 3.1. Kỹ Nghệ Đặc Trưng Chuỗi Thời Gian
@@ -130,26 +115,7 @@ Ranh giới quyết định (Decision Boundaries) giữa các mức độ đư�
 
 ---
 
-### 3.3. Bộ Tối Ưu Hóa Pha Đèn Động (Phase Light Optimizer)
-1. **Tính toán Áp lực dòng xe (Flow Pressure Index):**
-   * **Pha 1 (Tuyến chính - thẳng + phải):**
-     $$P_1 = \text{predicted\_straight} + 0.3 \times \text{predicted\_right}$$
-   * **Pha 2 (Tuyến phụ - rẽ trái):** Nhánh rẽ trái cua hẹp sức chứa kém, nhân hệ số hình học cản trở 1.5 để tăng mức ưu tiên:
-     $$P_2 = 1.5 \times \text{predicted\_left}$$
-
-2. **Phân bổ giây xanh thô (Raw green timing allocation):**
-   Với tổng số giây xanh khả dụng của chu kỳ là $G_{total} = 80$ giây:
-   $$g_1^{raw} = \frac{P_1}{P_1 + P_2} \times G_{total}, \quad g_2^{raw} = \frac{P_2}{P_1 + P_2} \times G_{total}$$
-
-3. **Ràng buộc an toàn đô thị (Hard Safety Constraints):**
-   Thời lượng đèn xanh tối thiểu của mỗi pha không được thấp hơn 15 giây và tối đa không vượt quá 55 giây. Vì $g_1 + g_2 = 80$, ta kẹp chặt Pha 1:
-   $$g_1 = \max(25, \min(55, g_1^{raw}))$$
-   $$g_2 = 80 - g_1$$
-   *(Đảm bảo cả 2 pha luôn thỏa mãn an toàn vượt mức tối thiểu 15s)*.
-
----
-
-### 3.4. Các Chỉ Số Đánh Giá Sai Số Học Thuật (Evaluation Metrics)
+### 3.3. Các Chỉ Số Đánh Giá Sai Số Học Thuật (Evaluation Metrics)
 * **Mean Absolute Error (MAE):** Đo lệch trung bình tuyệt đối số lượng xe vật lý:
   $$\text{MAE} = \frac{1}{N} \sum_{i=1}^N |y_i - \hat{y}_i|$$
 * **Root Mean Square Error (RMSE):** Phạt nặng các sai số lệch lớn đột biến để đo độ ổn định:
