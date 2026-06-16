@@ -70,16 +70,15 @@ def get_xgb_model():
 def predict_next_v1(camera_id: str = "cam01", db=Depends(get_db)):
     """
     API dự báo lưu lượng và phân cụm mật độ giao thông thích ứng thế hệ mới:
-    Được thiết kế đồng bộ theo địa điểm (gộp toàn bộ 3 camera cam01, cam02, cam03)
-    để khớp hoàn toàn với dữ liệu huấn luyện (Training) của địa điểm đó.
+    Được thiết kế chuẩn hóa cho 1 video phân tích duy nhất (Single ROI).
     """
-    # 1. Gom nhóm và tính tổng vehicle_count của cả 3 camera theo mốc timestamp
+    # 1. Lấy dữ liệu đếm xe thực tế của camera mục tiêu - Không gộp nhóm tránh lỗi rò rỉ cộng dồn
     pipeline = [
-        {"$match": {"camera_id": {"$in": ["cam01", "cam02", "cam03"]}}},
-        {"$group": {
-            "_id": "$timestamp",
-            "combined_count": {"$sum": "$vehicle_count"},
-            "timestamp": {"$first": "$timestamp"}
+        {"$match": {"camera_id": camera_id}},
+        {"$project": {
+            "_id": 0,
+            "combined_count": "$vehicle_count",
+            "timestamp": 1
         }},
         {"$sort": {"timestamp": -1}},
         {"$limit": 3}
@@ -135,14 +134,14 @@ def predict_next_v1(camera_id: str = "cam01", db=Depends(get_db)):
             predicted_raw_volume = int(round(rolling_mean_3))
             print(f"[!] Lỗi dự báo XGBoost, kích hoạt fallback: {e}")
             
-    # 5. Lấy ma trận ngưỡng K-Means thích ứng của địa điểm (lưu dưới cam01)
+    # 5. Lấy ma trận ngưỡng K-Means thích ứng của địa điểm (lưu dưới camera_id)
     low_to_medium = 467.58
     medium_to_high = 495.34
     high_to_heavy = 522.67
     
-    threshold_doc = db.density_thresholds.find_one({"camera_id": "cam01"})
+    threshold_doc = db.density_thresholds.find_one({"camera_id": camera_id})
     if not threshold_doc:
-        threshold_doc = db.directional_thresholds.find_one({"camera_id": "cam01", "direction": "total"})
+        threshold_doc = db.directional_thresholds.find_one({"camera_id": camera_id, "direction": "total"})
         
     if threshold_doc and "thresholds" in threshold_doc:
         thresholds = threshold_doc["thresholds"]
@@ -166,14 +165,14 @@ def predict_next_v1(camera_id: str = "cam01", db=Depends(get_db)):
         
     # 7. Lưu trữ lịch sử dự báo
     prediction_doc = {
-        "camera_id": "all",
+        "camera_id": camera_id,
         "predicted_raw_volume": predicted_raw_volume,
         "predicted_density": float(predicted_raw_volume),
         "predicted_congestion_level": status_label,
         "color_hex": color_hex,
         "timestamp": datetime.utcnow(),
         "horizon_minutes": 15,
-        "source": "xgboost_v1_location_unified",
+        "source": "xgboost_v1_single_roi",
         "features": features_used
     }
     
@@ -196,23 +195,7 @@ def predict_next_v1(camera_id: str = "cam01", db=Depends(get_db)):
         }
     )
 
-# ==============================================================================
-# ĐƯỜNG DẪN CŨ (BACKWARD COMPATIBILITY) - PHỤC VỤ LOGIC VÀ CODE CŨ
-# ==============================================================================
 
-def _predictions(item) -> dict:
-    return getattr(item, "predictions", None) or {
-        "left": 0,
-        "straight": int(getattr(item, "predicted_density", 0) or 0),
-        "right": 0,
-    }
-
-def _congestion_levels(item) -> dict:
-    return getattr(item, "congestion_levels", None) or {
-        "left": None,
-        "straight": getattr(item, "predicted_congestion_level", None),
-        "right": None,
-    }
 
 
 @router.get("/predict-next", response_model=PredictionResponse)
@@ -240,8 +223,6 @@ def predict_next(camera_id: str | None = None, db=Depends(get_db)):
         camera_id=prediction.camera_id,
         predicted_density=prediction.predicted_density,
         predicted_congestion_level=getattr(prediction, "predicted_congestion_level", None),
-        predictions=_predictions(prediction),
-        congestion_levels=_congestion_levels(prediction),
         horizon_minutes=prediction.horizon_minutes,
         source=prediction.source,
         timestamp=prediction.timestamp,
@@ -272,8 +253,6 @@ def get_prediction_history(
                 camera_id=item.camera_id,
                 predicted_density=item.predicted_density,
                 predicted_congestion_level=getattr(item, "predicted_congestion_level", None),
-                predictions=_predictions(item),
-                congestion_levels=_congestion_levels(item),
                 horizon_minutes=item.horizon_minutes,
                 source=item.source,
                 timestamp=item.timestamp,
