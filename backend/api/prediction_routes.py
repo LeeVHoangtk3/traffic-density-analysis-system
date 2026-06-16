@@ -194,6 +194,19 @@ def predict_next_v1(camera_id: str = "cam01", db=Depends(get_db)):
 
 
 
+def _predictions(item) -> dict:
+    return getattr(item, "predictions", None) or {
+        "left": 0,
+        "straight": int(getattr(item, "predicted_density", 0) or 0),
+        "right": 0,
+    }
+
+def _congestion_levels(item) -> dict:
+    return getattr(item, "congestion_levels", None) or {
+        "left": None,
+        "straight": getattr(item, "predicted_congestion_level", None),
+        "right": None,
+    }
 
 @router.get("/predict-next", response_model=PredictionResponse)
 def predict_next(camera_id: str | None = None, db=Depends(get_db)):
@@ -220,6 +233,8 @@ def predict_next(camera_id: str | None = None, db=Depends(get_db)):
         camera_id=prediction.camera_id,
         predicted_density=prediction.predicted_density,
         predicted_congestion_level=getattr(prediction, "predicted_congestion_level", None),
+        predictions=_predictions(prediction),
+        congestion_levels=_congestion_levels(prediction),
         horizon_minutes=prediction.horizon_minutes,
         source=prediction.source,
         timestamp=prediction.timestamp,
@@ -251,6 +266,8 @@ def get_prediction_history(
                 camera_id=item.camera_id,
                 predicted_density=item.predicted_density,
                 predicted_congestion_level=getattr(item, "predicted_congestion_level", None),
+                predictions=_predictions(item),
+                congestion_levels=_congestion_levels(item),
                 horizon_minutes=item.horizon_minutes,
                 source=item.source,
                 timestamp=item.timestamp,

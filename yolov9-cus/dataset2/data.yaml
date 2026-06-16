@@ -1,6 +1,6 @@
-train: /content/drive/MyDrive/yolov9-cus/dataset/train/images
-val: /content/drive/MyDrive/yolov9-cus/dataset/val/images
-test: /content/drive/MyDrive/yolov9-cus/dataset/test/images
+train: D:\GIT REPO\trafffic-density-analysis-system\traffic-density-analysis-system\yolov9-cus\dataset2\images\train
+val: D:\GIT REPO\trafffic-density-analysis-system\traffic-density-analysis-system\yolov9-cus\dataset2\images\val
+test: D:\GIT REPO\trafffic-density-analysis-system\traffic-density-analysis-system\yolov9-cus\dataset2\images\test
 
 nc: 4
 names: ['bus', 'car', 'motorcycle', 'truck']

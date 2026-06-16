@@ -5,7 +5,6 @@ import cv2
 import numpy as np
 import torchvision
 
-# 1. Thiết lập đường dẫn tìm code YOLOv9 core
 current_dir     = os.path.dirname(os.path.abspath(__file__))
 project_root    = os.path.join(current_dir, "..")
 yolo_core_path  = os.path.join(project_root, "ultralytics_yolov9")
@@ -18,7 +17,7 @@ os.makedirs(local_yolo_config, exist_ok=True)
 if yolo_core_path not in sys.path:
     sys.path.insert(0, yolo_core_path)
 
-# Custom classes — model đã train với 4 class này
+
 VEHICLE_CLASSES = {
     0: "bus",
     1: "car",
@@ -26,9 +25,7 @@ VEHICLE_CLASSES = {
     3: "truck",
 }
 
-# FIX #4: Per-class confidence threshold
-# motorcycle nhỏ hơn → confidence thấp hơn tự nhiên → threshold thấp hơn
-# Tránh bỏ sót motorcycle trong khi vẫn lọc được false positive của class lớn
+
 CLASS_CONF_THRESHOLD = {
     0: 0.40,  # bus      — to, dễ detect, giữ ngưỡng cao
     1: 0.40,  # car
@@ -38,49 +35,21 @@ CLASS_CONF_THRESHOLD = {
 
 
 class Detector:
-    """
-    YOLOv9 detector wrapper.
-
-    Thay đổi so với bản gốc:
-    ─────────────────────────────────────────────────────────────────
-    1. [CRITICAL] bbox scale tách scale_x / scale_y riêng biệt
-       → Tránh lệch bbox khi frame không phải hình vuông (16:9, v.v.)
-
-    2. [CRITICAL] img_size chuyển thành __init__ param (self.img_size)
-       → Không hardcode trong detect(), dễ override từ config
-
-    3. [CRITICAL] torch.load() thêm comment cảnh báo weights_only
-       → Giữ nguyên weights_only=False vì YOLOv9 custom ckpt cần pickle,
-         nhưng thêm guard kiểm tra file tồn tại và log rõ ràng
-
-    4. [HIGH] Per-class confidence threshold (CLASS_CONF_THRESHOLD)
-       → motorcycle dùng 0.25, các class khác 0.40
-
-    5. [HIGH] Output parsing thêm max depth guard (depth < 10)
-       → Tránh infinite loop nếu model trả về nested structure bất thường
-
-    6. [HIGH] GPU memory: del tensor sau mỗi frame, empty_cache định kỳ
-       → Tránh VRAM leak khi chạy nhiều giờ trên Colab T4
-    ─────────────────────────────────────────────────────────────────
-    """
-
     def __init__(
         self,
         model_path: str,
         conf_threshold: float = 0.40,
-        img_size: int = 960,          # FIX #2: không hardcode trong detect()
+        img_size: int = 960,
     ):
         self.device         = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.conf_threshold = conf_threshold
-        self.img_size       = img_size   # FIX #2
-        self._frame_count   = 0          # dùng cho empty_cache định kỳ
+        self.img_size       = img_size  
+        self._frame_count   = 0
 
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model not found: {model_path}")
 
         try:
-            # weights_only=False cần thiết vì YOLOv9 custom ckpt dùng pickle
-            # Chỉ load file .pt từ nguồn tin cậy (model do bạn train)
             ckpt = torch.load(model_path, map_location=self.device, weights_only=False)
             self.model = ckpt["model"].float().eval()
             print(f"[Detector] Loaded: {os.path.basename(model_path)}")
@@ -116,7 +85,6 @@ class Detector:
             with torch.no_grad():
                 output = self.model(img)
 
-            # FIX #5: Parse output với max depth guard — tránh infinite loop
             pred  = output
             depth = 0
             while isinstance(pred, (list, tuple)) and depth < 10:
@@ -125,7 +93,6 @@ class Detector:
                 pred  = pred[0]
                 depth += 1
 
-            # Fallback: thử lấy output[1] nếu output[0] không phải tensor
             if not isinstance(pred, torch.Tensor):
                 if isinstance(output, (list, tuple)) and len(output) > 1:
                     pred  = output[1]

@@ -150,6 +150,17 @@ def predict_next_density(
     else:
         congestion_level = "HEAVY"
     
+    predictions_dict = {
+        "left": 0,
+        "straight": predicted_raw_volume,
+        "right": 0
+    }
+    congestion_levels_dict = {
+        "left": "LOW",
+        "straight": congestion_level,
+        "right": "LOW"
+    }
+
     document = {
         "camera_id": camera_id,
         "predicted_density": float(predicted_raw_volume),
@@ -157,6 +168,8 @@ def predict_next_density(
         "horizon_minutes": settings.prediction_horizon_minutes,
         "source": "xgb_single_roi",
         "timestamp": datetime.utcnow(),
+        "predictions": predictions_dict,
+        "congestion_levels": congestion_levels_dict,
     }
 
     result = db.traffic_predictions.insert_one(document)

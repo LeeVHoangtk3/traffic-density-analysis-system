@@ -1,7 +1,8 @@
-# 🤖 ML Service – Dự Báo Lưu Lượng
-Tài liệu này đặc tả toàn bộ kiến trúc học máy (Machine Learning) cốt lõi của **Hệ Thống Phân Tích Mật Độ Giao Thông**. 
+# 🤖 ML Service – Dự Báo Lưu Lượng & Phân Cụm Mật Độ
 
-Hệ thống kết hợp sức mạnh của **Học máy giám sát (XGBoost Regressor)** để dự báo lưu lượng, **Học máy không giám sát (K-Means Clustering)** để tự thích ứng ngưỡng ùn tắc động.
+Tài liệu này đặc tả toàn bộ kiến trúc học máy (Machine Learning) cốt lõi của **Hệ Thống Phân Tích Mật Độ Giao Thông & Tự Động Phân Cụm Mật Độ Động**. 
+
+Hệ thống kết hợp sức mạnh của **Học máy giám sát (XGBoost Regressor)** để dự báo lưu lượng, và **Học máy không giám sát (K-Means Clustering)** để tự thích ứng ngưỡng ùn tắc động.
 
 ---
 
@@ -55,7 +56,7 @@ ml_service/
 
 ---
 
-
+### 2.3. Nhóm Nghiệm Thu Học Thuật
 #### 🚀 [evaluate.py](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/evaluate.py) *(Thiết kế mới Task 9)*
 * **Chức năng:** Chạy đánh giá khoa học chuyên sâu độc lập trên tập Test (từ ngày 2025-01-01 trở đi), tính toán các chỉ số thống kê MAE, RMSE, MAPE. Đồng thời sử dụng `matplotlib` trích xuất 100 bước thời gian liên tục vẽ đồ thị trực quan so sánh **Thực tế (Actual) vs Dự báo (Predicted)**.
 * **Đầu vào:** `junction_pivot_clean.csv` và 3 tệp mô hình pkl.
@@ -63,13 +64,13 @@ ml_service/
 
 ---
 
-### 2.5. Nhóm Công Cụ Phụ Trợ & Thử Nghiệm (`ml_service/helpers/`)
+### 2.4. Nhóm Công Cụ Phụ Trợ & Thử Nghiệm (`ml_service/helpers/`)
 Các tệp tin trong thư mục này phục vụ việc phát sinh dữ liệu thử nghiệm, kiểm thử nhanh các dịch vụ APIs và thực hiện phân tích khám phá dữ liệu (EDA):
 
 #### 🚀 [predict.py](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/helpers/predict.py)
-* **Chức năng:** Tệp tin kịch bản CLI độc lập dùng để kiểm thử nhanh tính hoạt động của REST APIs Backend. Tiến trình sẽ trực tiếp gửi HTTP GET request đến endpoint `/predict-next` của FastAPI kèm tham số `camera_id`.
+* **Chức năng:** Tệp tin kịch bản CLI độc lập dùng để kiểm thử nhanh tính hoạt động của REST APIs Backend. Tiến trình sẽ trực tiếp gửi HTTP GET request đến endpoint `/predict-next` của FastAPI kèm tham số `camera_id` và in trực tiếp kết quả dự báo mật độ và lưu lượng của AI ra màn hình.
 * **Đầu vào:** Biến môi trường cấu hình `TRAFFIC_API_URL` và `TRAFFIC_CAMERA_ID`.
-* **Đầu ra:** Bản ghi thông số trạng thái lưu lượng in ra console.
+* **Đầu ra:** Bản ghi thông số trạng thái dự báo lưu lượng in ra console.
 
 #### 🚀 [synthesize_data.py](file:///D:/GIT%20REPO/trafffic-density-analysis-system/traffic-density-analysis-system/ml_service/helpers/synthesize_data.py)
 * **Chức năng:** Script tạo dữ liệu lưu lượng giao thông giả lập chất lượng cao cực kỳ sinh động. Thuật toán áp dụng hệ số lưu thông đô thị Việt Nam thực tế theo giờ (đỉnh điểm sáng 7-9h, chiều 17-19h, thấp điểm ban đêm 23-5h), thiết lập công suất đỉnh và tỷ lệ làn đường riêng biệt cho từng ngã ba/ngã tư, đồng thời tích hợp 5% xác suất sự cố giao thông ngẫu nhiên hoặc thời tiết mưa bão làm giảm volume để nâng cao tính đa dạng của dữ liệu.
@@ -93,7 +94,6 @@ Các tệp tin trong thư mục này phục vụ việc phát sinh dữ liệu t
 
 ---
 
-
 ## 🧮 3. Các Công Thức Toán Học Nền Tảng (Mathematical Formulation)
 
 ### 3.1. Kỹ Nghệ Đặc Trưng Chuỗi Thời Gian
@@ -115,7 +115,7 @@ Ranh giới quyết định (Decision Boundaries) giữa các mức độ đư�
 
 ---
 
-
+### 3.3. Các Chỉ Số Đánh Giá Sai Số Học Thuật (Evaluation Metrics)
 * **Mean Absolute Error (MAE):** Đo lệch trung bình tuyệt đối số lượng xe vật lý:
   $$\text{MAE} = \frac{1}{N} \sum_{i=1}^N |y_i - \hat{y}_i|$$
 * **Root Mean Square Error (RMSE):** Phạt nặng các sai số lệch lớn đột biến để đo độ ổn định:
