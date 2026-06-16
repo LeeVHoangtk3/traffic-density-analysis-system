@@ -72,30 +72,27 @@ def predict_next_v1(camera_id: str = "cam01", db=Depends(get_db)):
     API dự báo lưu lượng và phân cụm mật độ giao thông thích ứng thế hệ mới:
     Được thiết kế chuẩn hóa cho 1 video phân tích duy nhất (Single ROI).
     """
-    # 1. Lấy dữ liệu đếm xe thực tế của camera mục tiêu - Không gộp nhóm tránh lỗi rò rỉ cộng dồn
-    pipeline = [
-        {"$match": {"camera_id": camera_id}},
-        {"$project": {
-            "_id": 0,
-            "combined_count": "$vehicle_count",
-            "timestamp": 1
-        }},
-        {"$sort": {"timestamp": -1}},
-        {"$limit": 3}
-    ]
-    recent_records = list(db.traffic_aggregation.aggregate(pipeline))
+    # Ép cứng toàn bộ dữ liệu trả về thuộc về cam03 (Do UI vẽ 3 cam chỉ là hình thức)
+    camera_id = "cam03"
+    
+    # 1. Lấy 3 dòng dữ liệu đếm xe mới nhất của camera mục tiêu (không gộp nhóm, không check timestamp)
+    recent_records = list(
+        db.traffic_aggregation.find({"camera_id": camera_id})
+        .sort("timestamp", -1)  # Sắp xếp lại theo chuẩn thời gian sự kiện (timestamp)
+        .limit(3)
+    )
     
     # 2. Cơ chế Fallback an toàn tuyệt đối cho các đặc trưng trễ (lags) của cả địa điểm
-    lag_1 = 150.0
-    lag_2 = 150.0
-    lag_3 = 150.0
+    lag_1 = 450.0
+    lag_2 = 450.0
+    lag_3 = 450.0
     
     if len(recent_records) >= 1:
-        lag_1 = float(recent_records[0].get("combined_count", 150.0))
+        lag_1 = float(recent_records[0].get("vehicle_count", 450.0))
     if len(recent_records) >= 2:
-        lag_2 = float(recent_records[1].get("combined_count", 150.0))
+        lag_2 = float(recent_records[1].get("vehicle_count", 450.0))
     if len(recent_records) >= 3:
-        lag_3 = float(recent_records[2].get("combined_count", 150.0))
+        lag_3 = float(recent_records[2].get("vehicle_count", 450.0))
         
     rolling_mean_3 = (lag_1 + lag_2 + lag_3) / 3.0
     
@@ -230,11 +227,12 @@ def predict_next(camera_id: str | None = None, db=Depends(get_db)):
 
 @router.get("/predictions/history", response_model=PredictionHistoryResponse)
 def get_prediction_history(
-    camera_id: str | None = None,
+    camera_id: Optional[str] = "cam03",
     limit: int = Query(default=20, ge=1),
     offset: int = Query(default=0, ge=0),
     db=Depends(get_db),
 ):
+    camera_id = "cam03"
     safe_limit = min(limit, settings.max_page_size)
     total, items = list_predictions(
         db=db,

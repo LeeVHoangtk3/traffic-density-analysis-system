@@ -146,6 +146,7 @@ def get_raw_data(
     offset: int = Query(default=0, ge=0),
     db=Depends(get_db),
 ):
+    camera_id = "cam03"
     filters = {}
     if camera_id:
         filters["camera_id"] = camera_id
@@ -181,14 +182,12 @@ def get_raw_data(
 
 @router.get("/api/traffic/history")
 def get_traffic_history(
-    camera_id: str | None = None,
     start_time: datetime | None = None,
     end_time: datetime | None = None,
+    limit: int = Query(default=24, ge=1),
     db=Depends(get_db),
 ):
     filters = {}
-    if camera_id:
-        filters["camera_id"] = camera_id
 
     # Dynamic Range scanning if start_time or end_time are missing
     if not start_time or not end_time:
@@ -208,11 +207,12 @@ def get_traffic_history(
             timestamp_filter["$lte"] = end_time
         filters["timestamp"] = timestamp_filter
 
-    # Sort ASCENDING to draw a nice timeline from past to present
-    rows = list(db.traffic_aggregation.find(filters).sort("timestamp", 1))
+    # Get latest 'limit' records and sort them descending to get the most recent, then reverse for timeline
+    rows = list(db.traffic_aggregation.find(filters).sort("timestamp", -1).limit(limit))
+    rows.reverse()
 
     return {
-        "camera_id": camera_id,
+        "camera_id": "Làn đường đơn",
         "start_time": start_time,
         "end_time": end_time,
         "total": len(rows),
@@ -222,12 +222,13 @@ def get_traffic_history(
 
 @router.get("/api/traffic/average")
 def get_traffic_average(
-    camera_id: str = "cam01",
+    limit: int = Query(default=24, ge=1),
     db=Depends(get_db),
 ):
-    # Lấy dữ liệu đếm xe của camera mục tiêu
+    # Lấy dữ liệu đếm xe 24 bản ghi gần nhất
     pipeline = [
-        {"$match": {"camera_id": camera_id}},
+        {"$sort": {"timestamp": -1}},
+        {"$limit": limit},
         {"$project": {
             "_id": 0,
             "combined_count": "$vehicle_count",

@@ -221,7 +221,7 @@ def _process_tracks(
     exited_vehicles = zone_manager.cleanup_memory(active_track_ids)
     
     # 3. Ghi nhận đếm và gửi sự kiện cho các xe vừa thoát
-    for tid, final_lane, cached_track in exited_vehicles:
+    for tid, cached_track in exited_vehicles:
         counter.count(cached_track["class_name"])
         totals = counter.get_totals()
         event  = event_generator.generate(

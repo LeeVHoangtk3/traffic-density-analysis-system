@@ -37,7 +37,7 @@ function fmtSecs(s) {
 export default function HistoryChart({ historyData = [], videoStartMs, videoTime, videoDuration, averageStats }) {
   const chartRef = useRef(null);
 
-  // 1. Sắp xếp và Lọc dữ liệu: Nếu dữ liệu kéo dài hơn 12 tiếng, chỉ hiển thị 12 tiếng gần nhất
+  // 1. Sắp xếp và Lọc dữ liệu: Nếu dữ liệu kéo dài hơn 6 tiếng, chỉ hiển thị 6 tiếng gần nhất
   const processedHistory = useMemo(() => {
     if (!historyData || !historyData.length) return [];
 
@@ -46,7 +46,7 @@ export default function HistoryChart({ historyData = [], videoStartMs, videoTime
     );
 
     const latestMs = new Date(sorted[sorted.length - 1].timestamp).getTime();
-    const cutoffMs = latestMs - 12 * 60 * 60 * 1000; // Cửa sổ trượt 12 tiếng gần nhất
+    const cutoffMs = latestMs - 6 * 60 * 60 * 1000; // Cửa sổ trượt 6 tiếng gần nhất
 
     return sorted.filter(item => new Date(item.timestamp).getTime() >= cutoffMs);
   }, [historyData]);
@@ -98,6 +98,18 @@ export default function HistoryChart({ historyData = [], videoStartMs, videoTime
         padding: 12,
         titleFont: { size: 12, weight: '700', family: 'JetBrains Mono, monospace' },
         bodyFont: { size: 11 },
+        callbacks: {
+          label: function(context) {
+            let label = context.dataset.label || '';
+            if (label) {
+              label += ': ';
+            }
+            if (context.parsed.y !== null) {
+              label += context.parsed.y.toLocaleString('en-US');
+            }
+            return label;
+          }
+        }
       },
 
     },
@@ -106,15 +118,21 @@ export default function HistoryChart({ historyData = [], videoStartMs, videoTime
         ticks: {
           color: '#64748b',
           font: { size: 10, family: 'JetBrains Mono, monospace' },
-          maxTicksLimit: 12,
-          maxRotation: 30,
+          maxTicksLimit: 7,
+          maxRotation: 0,
         },
         grid: { color: 'rgba(255,255,255,0.03)' },
         border: { color: 'rgba(255,255,255,0.05)' },
       },
       y: {
         beginAtZero: true,
-        ticks: { color: '#64748b', font: { size: 11 } },
+        ticks: { 
+          color: '#64748b', 
+          font: { size: 11 },
+          callback: function(value) {
+            return value.toLocaleString('en-US');
+          }
+        },
         grid: { color: 'rgba(255,255,255,0.04)' },
         border: { color: 'rgba(255,255,255,0.05)' },
         title: {
@@ -130,13 +148,21 @@ export default function HistoryChart({ historyData = [], videoStartMs, videoTime
   const startLabel = processedHistory.length > 0 ? fmtMs(new Date(processedHistory[0].timestamp).getTime()) : '--:--:--';
   const endLabel = processedHistory.length > 0 ? fmtMs(new Date(processedHistory[processedHistory.length - 1].timestamp).getTime()) : '--:--:--';
 
+  const avgVehiclesStr = (averageStats && averageStats.average_vehicle_count !== undefined && averageStats.average_vehicle_count !== null)
+    ? Number(averageStats.average_vehicle_count).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+    : '--';
+
+  const peakVehiclesStr = (averageStats && averageStats.peak_vehicle_count !== undefined && averageStats.peak_vehicle_count !== null)
+    ? Number(averageStats.peak_vehicle_count).toLocaleString('en-US')
+    : '--';
+
   return (
     <div className="glass-card chart-card">
       <div className="chart-header-row">
         <div className="chart-title-block">
           <div className="chart-title">📈 LỊCH SỬ MẬT ĐỘ TÍCH LŨY HỆ THỐNG</div>
           <div className="chart-subtitle">
-            {processedHistory.length} điểm dữ liệu · Khung: {startLabel} - {endLabel} (12h gần nhất)
+            {processedHistory.length} điểm dữ liệu · Khung: {startLabel} - {endLabel} (6h gần nhất)
           </div>
         </div>
 
@@ -173,7 +199,7 @@ export default function HistoryChart({ historyData = [], videoStartMs, videoTime
                 Lưu lượng trung bình (15 phút)
               </div>
               <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-2)', fontFamily: 'JetBrains Mono, monospace' }}>
-                {averageStats.average_vehicle_count}
+                {avgVehiclesStr}
                 <span style={{ fontSize: 12, color: 'var(--text-3)', marginLeft: 4, fontWeight: 400 }}>xe / 15p</span>
               </div>
             </div>
@@ -188,7 +214,7 @@ export default function HistoryChart({ historyData = [], videoStartMs, videoTime
               <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--orange)', fontFamily: 'JetBrains Mono, monospace' }}>
                 {averageStats.peak_hour}
                 <span style={{ fontSize: 11, color: 'var(--text-3)', marginLeft: 8, fontWeight: 400 }}>
-                  (Đạt {averageStats.peak_vehicle_count} xe)
+                  (Đạt {peakVehiclesStr} xe)
                 </span>
               </div>
             </div>

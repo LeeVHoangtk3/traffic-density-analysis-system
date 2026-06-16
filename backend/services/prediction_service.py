@@ -76,34 +76,27 @@ def predict_next_density(
     camera_id: Optional[str] = None,
 ):
     """
-    Dự báo lưu lượng xe và phân cụm mật độ thế hệ mới, loại bỏ hoàn toàn hướng đi.
-    Được thiết kế đồng bộ theo địa điểm (gộp toàn bộ 3 camera cam01, cam02, cam03)
-    để khớp hoàn toàn với dữ liệu huấn luyện (Training) của địa điểm đó.
+    Dự báo lưu lượng xe và phân cụm mật độ thế hệ mới.
+    Được thiết kế chuẩn hóa cho 1 camera duy nhất (Single ROI).
     """
-    # 1. Gom nhóm và tính tổng vehicle_count của cả 3 camera theo mốc timestamp
-    pipeline = [
-        {"$match": {"camera_id": {"$in": ["cam01", "cam02", "cam03"]}}},
-        {"$group": {
-            "_id": "$timestamp",
-            "combined_count": {"$sum": "$vehicle_count"},
-            "timestamp": {"$first": "$timestamp"}
-        }},
-        {"$sort": {"timestamp": -1}},
-        {"$limit": 3}
-    ]
-    recent_records = list(db.traffic_aggregation.aggregate(pipeline))
+    # 1. Lấy 3 dòng dữ liệu đếm xe mới nhất của camera mục tiêu (không gộp nhóm, không check timestamp)
+    recent_records = list(
+        db.traffic_aggregation.find({"camera_id": camera_id})
+        .sort("timestamp", -1)  # Sắp xếp lại theo chuẩn thời gian sự kiện (timestamp)
+        .limit(3)
+    )
     
     # 2. Xử lý đặc trưng trễ với fallback cực kỳ an toàn cho cả địa điểm
-    lag_1 = 150.0
-    lag_2 = 150.0
-    lag_3 = 150.0
+    lag_1 = 450.0
+    lag_2 = 450.0
+    lag_3 = 450.0
     
     if len(recent_records) >= 1:
-        lag_1 = float(recent_records[0].get("combined_count", 150.0))
+        lag_1 = float(recent_records[0].get("vehicle_count", 450.0))
     if len(recent_records) >= 2:
-        lag_2 = float(recent_records[1].get("combined_count", 150.0))
+        lag_2 = float(recent_records[1].get("vehicle_count", 450.0))
     if len(recent_records) >= 3:
-        lag_3 = float(recent_records[2].get("combined_count", 150.0))
+        lag_3 = float(recent_records[2].get("vehicle_count", 450.0))
         
     rolling_mean_3 = (lag_1 + lag_2 + lag_3) / 3.0
     
@@ -132,14 +125,14 @@ def predict_next_density(
             predicted_raw_volume = int(round(rolling_mean_3))
             print(f"[PredictionService] Lỗi dự báo XGBoost: {e}")
             
-    # 5. Lấy ma trận ngưỡng K-Means thích ứng của địa điểm (lưu dưới cam01)
+    # 5. Lấy ma trận ngưỡng K-Means thích ứng của địa điểm (lưu dưới camera_id)
     low_to_medium = 467.58
     medium_to_high = 495.34
     high_to_heavy = 522.67
     
-    threshold_doc = db.density_thresholds.find_one({"camera_id": "cam01"})
+    threshold_doc = db.density_thresholds.find_one({"camera_id": camera_id})
     if not threshold_doc:
-        threshold_doc = db.directional_thresholds.find_one({"camera_id": "cam01", "direction": "total"})
+        threshold_doc = db.directional_thresholds.find_one({"camera_id": camera_id, "direction": "total"})
         
     if threshold_doc and "thresholds" in threshold_doc:
         thresholds = threshold_doc["thresholds"]
@@ -157,28 +150,13 @@ def predict_next_density(
     else:
         congestion_level = "HEAVY"
     
-    # 7. Xây dựng cấu trúc dữ liệu tương thích ngược cho cả left, straight, right
-    # (Để 'straight' đại diện cho toàn bộ lưu lượng đếm đơn ROI, left/right = 0)
-    predictions_dict = {
-        "left": 0,
-        "straight": predicted_raw_volume,
-        "right": 0
-    }
-    congestion_levels_dict = {
-        "left": "LOW",
-        "straight": congestion_level,
-        "right": "LOW"
-    }
-
     document = {
         "camera_id": camera_id,
         "predicted_density": float(predicted_raw_volume),
         "predicted_congestion_level": congestion_level,
         "horizon_minutes": settings.prediction_horizon_minutes,
-        "source": "xgb_single_roi_directionless",
+        "source": "xgb_single_roi",
         "timestamp": datetime.utcnow(),
-        "predictions": predictions_dict,
-        "congestion_levels": congestion_levels_dict,
     }
 
     result = db.traffic_predictions.insert_one(document)

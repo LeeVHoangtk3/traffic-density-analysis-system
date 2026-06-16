@@ -5,9 +5,7 @@ from datetime import datetime, timezone
 class EventGenerator:
     """
     Tạo event payload khi xe vượt qua vùng ROI.
-    - Hủy bỏ hoàn toàn tham số 'direction' bên ngoài do hệ thống đã đơn giản hóa sang một chiều đơn ROI.
-    - Trường 'direction' bên trong JSON vẫn được thiết lập cố định là 'straight' để tương thích ngược 
-      hoàn toàn với database index và các API tổng hợp cũ của Backend.
+    - Hủy bỏ hoàn toàn tham số 'direction' để đơn giản hóa sang một chiều đơn ROI.
     """
 
     def generate(
@@ -30,7 +28,6 @@ class EventGenerator:
             "track_id":     track["track_id"],
             "vehicle_type": track["class_name"],
             "event_type":   "zone_entry",
-            "direction":    "straight",  # Cố định luôn là straight để duy trì tính tương thích với DB
             "timestamp":    datetime.now(timezone.utc).isoformat(),
             "confidence":   round(float(track.get("confidence") or 0.0), 4),
         }
