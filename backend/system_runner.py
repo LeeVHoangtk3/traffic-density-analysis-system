@@ -91,8 +91,10 @@ class PerformanceMonitor:
         return {"cpu_usage": cpu, "memory_usage": memory}
 
 
+
+
 # ===========================================================================
-# 4. TRAFFIC SYSTEM — KHOI DONG + PIPELINE
+# 7. TRAFFIC SYSTEM — KHOI DONG + PIPELINE
 # ===========================================================================
 
 class TrafficSystem:
@@ -165,6 +167,15 @@ class TrafficSystem:
             if proc is not None:
                 proc.terminate()
                 proc.wait()
+        
+        # Đảm bảo dọn dẹp tiến trình Node (React) bị kẹt do terminate() không giết được process con trên Mac/Linux
+        if os.name != 'nt':
+            try:
+                subprocess.run(["killall", "-9", "node"], capture_output=True)
+                print("[SHUTDOWN] Forcefully cleared background Node processes.")
+            except Exception:
+                pass
+                
         print("[SHUTDOWN] System stopped.")
 
     # ------------------------------------------------------------------

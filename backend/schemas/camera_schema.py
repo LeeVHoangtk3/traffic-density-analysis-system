@@ -7,7 +7,6 @@ class CameraBase(BaseModel):
     name: str
     location: Optional[str] = None
     baseline_green: int = Field(default=30, ge=15, le=55)
-    monitored_direction: Literal["left", "straight", "right"] = "straight"
 
 
 class CameraCreate(CameraBase):

@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from sklearn.cluster import KMeans
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import xgboost as xgb
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # Đảm bảo PYTHONPATH đúng
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -26,7 +28,7 @@ def run_pipeline():
         sys.stderr.reconfigure(encoding='utf-8')
 
     print("="*80)
-    print(" 🚀 KHỞI ĐỘNG PIPELINE: TIỀN XỬ LÝ - VALIDATE DATA - HUẤN LUYỆN - DỌN DẸP")
+    print(" KHỞI ĐỘNG PIPELINE: TIỀN XỬ LÝ - VALIDATE DATA - HUẤN LUYỆN - DỌN DẸP")
     print("="*80)
 
     raw_csv = os.path.join(PROJECT_ROOT, "data", "ml", "Automated_Traffic_Volume_Counts_20260521.csv")
@@ -73,36 +75,30 @@ def run_pipeline():
     # Làm tròn thời gian về khoảng 15 phút chuẩn (00, 15, 30, 45)
     df_raw['timestamp'] = df_raw['timestamp'].dt.round('15min')
 
-    # Loại bỏ trùng lặp và tính trung bình nếu có trùng lặp mốc đo
+    # Loại bỏ trùng lặp và tính trung bình cho cùng một hướng
     df_clean = (
         df_raw.groupby(['SegmentID', 'Direction', 'timestamp'])['Vol_clean']
         .mean()
         .reset_index()
     )
-    df_clean['Vol_clean'] = df_clean['Vol_clean'].round().astype(int)
+    
+    # Tính tổng volume cho tất cả các hướng (Single ROI mode)
+    df_total = (
+        df_clean.groupby(['SegmentID', 'timestamp'])['Vol_clean']
+        .sum()
+        .reset_index()
+    )
+    df_total['Vol_clean'] = df_total['Vol_clean'].round().astype(int)
 
-    # Cấu hình segment rẽ hướng đô thị của dự án cũ để giữ tính tương thích ngược cột
-    segments_config = {
-        138: {
-            'mapping': {'NB': 'vol_straight', 'WB': 'vol_left', 'EB': 'vol_right'},
-            'desc': 'Nút giao ngã ba tách làn (SegmentID 138)'
-        },
-        72887: {
-            'mapping': {'EB': 'vol_straight', 'WB': 'vol_left'},
-            'desc': 'Tuyến trục Đông-Tây lớn (SegmentID 72887)'
-        },
-        83624: {
-            'mapping': {'NB': 'vol_straight', 'SB': 'vol_left'},
-            'desc': 'Tuyến song hành Nam-Bắc (SegmentID 83624)'
-        }
-    }
+    # Chỉ giữ lại các nút giao mục tiêu
+    target_segments = [138, 72887, 83624]
+    df_total = df_total[df_total['SegmentID'].isin(target_segments)]
 
-    target_cols = ['timestamp', 'segment_id', 'vol_straight', 'vol_left', 'vol_right']
     all_segments_chunks = []
 
-    print("[*] Đang xoay trục và nội suy mượt mà chuỗi thời gian cho từng Segment...")
-    for seg_id, config in segments_config.items():
-        df_seg = df_clean[df_clean['SegmentID'] == seg_id].copy()
+    print("[*] Đang nội suy mượt mà chuỗi thời gian cho từng Segment...")
+    for seg_id in target_segments:
+        df_seg = df_total[df_total['SegmentID'] == seg_id].copy()
         if df_seg.empty:
             continue
 
@@ -110,7 +106,7 @@ def run_pipeline():
         ts_series = pd.Series(unique_timestamps)
         diffs = ts_series.diff()
         
-        # Nếu khoảng cách giữa 2 mốc liên tiếp > 24 giờ, xem như chu kỳ đo mới (tránh lệch nội suy)
+        # Nếu khoảng cách giữa 2 mốc liên tiếp > 24 giờ, xem như chu kỳ đo mới
         gap_threshold = pd.Timedelta(hours=24)
         block_idx = (diffs > gap_threshold).cumsum()
         ts_to_block = dict(zip(unique_timestamps, block_idx))
@@ -118,27 +114,12 @@ def run_pipeline():
 
         chunks = []
         for block_id, block_df in df_seg.groupby('block_id'):
-            p_pivot = block_df.pivot(index='timestamp', columns='Direction', values='Vol_clean').reset_index()
-            p_pivot = p_pivot.rename(columns=config['mapping'])
-            p_pivot['segment_id'] = seg_id
+            p_res = block_df.set_index('timestamp')[['Vol_clean']].resample('15min').asfreq()
+            p_res = p_res.interpolate(method='time').ffill().bfill()
+            p_res['segment_id'] = seg_id
             
-            for col in target_cols:
-                if col not in p_pivot.columns:
-                    p_pivot[col] = np.nan
-            
-            p_pivot = p_pivot[target_cols]
-            
-            for col in ['vol_straight', 'vol_left', 'vol_right']:
-                p_pivot[col] = p_pivot[col].astype(float)
-                
-            p_pivot = p_pivot.set_index('timestamp').sort_index()
-            # Nội suy thời gian tuyến tính mượt mà cho các khoảng trống nhỏ
-            p_pivot_res = p_pivot[['vol_straight', 'vol_left', 'vol_right']].resample('15min').asfreq()
-            p_pivot_res = p_pivot_res.interpolate(method='time').ffill().bfill()
-            p_pivot_res['segment_id'] = seg_id
-            
-            if len(p_pivot_res) >= 12:  # Bỏ qua block dưới 3 tiếng
-                chunks.append(p_pivot_res.reset_index())
+            if len(p_res) >= 12:  # Bỏ qua block dưới 3 tiếng
+                chunks.append(p_res.reset_index())
 
         if chunks:
             df_seg_final = pd.concat(chunks, ignore_index=True)
@@ -150,12 +131,6 @@ def run_pipeline():
 
     df_final = pd.concat(all_segments_chunks, ignore_index=True)
     df_final = df_final.sort_values(['timestamp', 'segment_id']).reset_index(drop=True)
-    
-    # Tính toán Vol_clean tổng cộng
-    df_final['vol_straight'] = df_final['vol_straight'].fillna(0)
-    df_final['vol_left'] = df_final['vol_left'].fillna(0)
-    df_final['vol_right'] = df_final['vol_right'].fillna(0)
-    df_final['Vol_clean'] = df_final['vol_straight'] + df_final['vol_left'] + df_final['vol_right']
 
     # Xuất file CSV sạch tối giản, chỉ giữ lại các cột cần thiết cho hệ thống đếm tổng đơn ROI
     df_export = df_final[['timestamp', 'segment_id', 'Vol_clean']]
@@ -170,18 +145,9 @@ def run_pipeline():
     print("="*80)
     
     total_rows = len(df_final)
-    missing_straight = df_final['vol_straight'].isnull().sum()
-    missing_left = df_final['vol_left'].isnull().sum()
-    missing_right = df_final['vol_right'].isnull().sum()
-    
-    # Thống kê mô tả về Vol_clean tổng
     vol_stats = df_final['Vol_clean'].describe()
     
     print(f" 1. Quy mô dữ liệu sạch: {total_rows:,} bản ghi chuỗi thời gian 15 phút.")
-    print(f" 2. Kiểm tra dữ liệu khuyết thiếu (NaN):")
-    print(f"    - vol_straight : {missing_straight} dòng ({(missing_straight/total_rows)*100:.2f}%)")
-    print(f"    - vol_left     : {missing_left} dòng ({(missing_left/total_rows)*100:.2f}%)")
-    print(f"    - vol_right    : {missing_right} dòng ({(missing_right/total_rows)*100:.2f}%)")
     print(f"    -> Đã được tự động điền khuyết thiếu bằng 0 và nội suy mượt mà.")
     
     print(f"\n 3. Thống kê phân phối lưu lượng xe tổng cộng (Vol_clean):")
@@ -209,6 +175,76 @@ def run_pipeline():
     print(f"    - Giờ cao điểm trung bình nhất: {busy_hour}:00 -> {busy_hour}:45 ({peak_hours[busy_hour]:.1f} xe / 15p)")
     print(f"    - Giờ thấp điểm trung bình nhất: {quiet_hour}:00 -> {quiet_hour}:45 ({peak_hours[quiet_hour]:.1f} xe / 15p)")
     print("="*80)
+
+    print("\n[*] Đang tạo biểu đồ trực quan hóa dữ liệu (Data Visualization)...")
+    try:
+        # Cấu hình matplotlib
+        plt.style.use('ggplot')
+        
+        # Biểu đồ 1: Phân phối lưu lượng trước và sau khi lọc ngoại lai (Distribution)
+        plt.figure(figsize=(12, 5))
+        plt.subplot(1, 2, 1)
+        sns.histplot(df_total['Vol_clean'], bins=50, color='salmon', kde=True)
+        plt.title('1A. Phân phối Volume Trước Lọc (Thô)', fontsize=12)
+        plt.xlabel('Volume (xe/15p)')
+        plt.ylabel('Tần suất')
+        
+        plt.subplot(1, 2, 2)
+        df_filtered = df_final[df_final['Vol_clean'] <= 3000]
+        sns.histplot(df_filtered['Vol_clean'], bins=50, color='mediumseagreen', kde=True)
+        plt.title('1B. Phân phối Volume Sau Lọc (<= 3000)', fontsize=12)
+        plt.xlabel('Volume (xe/15p)')
+        plt.ylabel('Tần suất')
+        
+        plt.tight_layout()
+        dist_chart_path = os.path.join(out_dir, "01_volume_distribution_comparison.png")
+        plt.savefig(dist_chart_path, dpi=300)
+        plt.close()
+        
+        # Biểu đồ 2: So sánh tính liên tục của chuỗi thời gian (Trước vs Sau Nội Suy)
+        plt.figure(figsize=(14, 5))
+        seg_id_sample = 72887
+        df_raw_sample = df_total[df_total['SegmentID'] == seg_id_sample].sort_values('timestamp')
+        df_clean_sample = df_final[df_final['segment_id'] == seg_id_sample].sort_values('timestamp')
+        
+        # Chọn một cửa sổ thời gian có dữ liệu (lấy 4 ngày làm mẫu)
+        if len(df_clean_sample) > 1000:
+            sample_start = df_clean_sample['timestamp'].iloc[1000]
+            sample_end = sample_start + pd.Timedelta(days=4)
+            
+            raw_window = df_raw_sample[(df_raw_sample['timestamp'] >= sample_start) & (df_raw_sample['timestamp'] <= sample_end)]
+            clean_window = df_clean_sample[(df_clean_sample['timestamp'] >= sample_start) & (df_clean_sample['timestamp'] <= sample_end)]
+            
+            plt.plot(clean_window['timestamp'], clean_window['Vol_clean'], label='Sau nội suy (Liên tục)', color='dodgerblue', alpha=0.7, linewidth=2)
+            plt.plot(raw_window['timestamp'], raw_window['Vol_clean'], label='Trước nội suy (Thô, đứt đoạn)', color='crimson', marker='o', linestyle='', markersize=5)
+            
+            plt.title(f'2. So sánh tính liên tục chuỗi thời gian (Trích xuất 4 ngày - Segment {seg_id_sample})', fontsize=12)
+            plt.xlabel('Thời gian')
+            plt.ylabel('Volume (xe/15p)')
+            plt.legend()
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+            ts_chart_path = os.path.join(out_dir, "02_timeseries_interpolation_comparison.png")
+            plt.savefig(ts_chart_path, dpi=300)
+            plt.close()
+            
+        # Biểu đồ 3: Lưu lượng trung bình theo giờ trong ngày (Hourly Pattern)
+        plt.figure(figsize=(10, 5))
+        sns.barplot(x=peak_hours.index, y=peak_hours.values, hue=peak_hours.index, palette='viridis', legend=False)
+        plt.title('3. Lưu lượng giao thông trung bình theo giờ trong ngày', fontsize=12)
+        plt.xlabel('Giờ trong ngày (0-23)')
+        plt.ylabel('Trung bình (xe/15p)')
+        plt.tight_layout()
+        hourly_chart_path = os.path.join(out_dir, "03_hourly_traffic_pattern.png")
+        plt.savefig(hourly_chart_path, dpi=300)
+        plt.close()
+        
+        print(f" [+] Đã lưu 3 biểu đồ trực quan hóa vào thư mục {out_dir}:")
+        print(f"    1. {os.path.basename(dist_chart_path)}")
+        print(f"    2. {os.path.basename(ts_chart_path)}")
+        print(f"    3. {os.path.basename(hourly_chart_path)}")
+    except Exception as e:
+        print(f" [!] Lỗi khi tạo biểu đồ: {e}")
 
     # ==========================================================================
     # BƯỚC 3: TRÍCH XUẤT ĐẶC TRƯNG & HUẤN LUYỆN MÔ HÌNH XGBOOST REGRESSOR
@@ -301,10 +337,9 @@ def run_pipeline():
     print(f"    - Trọng tâm cụm: C0={C0:.1f}, C1={C1:.1f}, C2={C2:.1f}, C3={C3:.1f}")
     print(f"    - Ngưỡng động: T1={T1:.2f}, T2={T2:.2f}, T3={T3:.2f}")
 
-    camera_id = "cam01"
+    camera_id = "cam03"
     document = {
         "camera_id": camera_id,
-        "direction": "total",
         "thresholds": {
             "low_to_medium": float(round(T1, 2)),
             "medium_to_high": float(round(T2, 2)),
@@ -317,7 +352,7 @@ def run_pipeline():
     try:
         # Cập nhật các collection để tương thích
         db.directional_thresholds.update_one(
-            {"camera_id": camera_id, "direction": "total"},
+            {"camera_id": camera_id},
             {"$set": document},
             upsert=True
         )
@@ -366,7 +401,8 @@ def run_pipeline():
     data_dir_files = os.listdir(out_dir)
     for item in data_dir_files:
         item_path = os.path.join(out_dir, item)
-        if os.path.isfile(item_path) and item != 'junction_pivot_clean.csv':
+        # Giữ lại file clean data và các biểu đồ vừa vẽ (.png)
+        if os.path.isfile(item_path) and item != 'junction_pivot_clean.csv' and not item.endswith('.png'):
             try:
                 os.remove(item_path)
                 print(f"  -> Đã xóa file tạm trong data-folder: {item}")

@@ -70,7 +70,6 @@ class ZoneManager:
             self.memory_traffic[track_id] = {
                 "passed_trigger": False,      # True khi xe đi VÀO vùng ROI
                 "is_counted": False,          # True khi xe đi RA ngoài vùng ROI (Chốt đếm)
-                "last_zone": "straight",
                 "track": track_dict,
             }
 
@@ -111,11 +110,11 @@ class ZoneManager:
             )
         return frame
 
-    def cleanup_memory(self, active_track_ids: List[int]) -> List[Tuple[int, str, Dict[str, Any]]]:
+    def cleanup_memory(self, active_track_ids: List[int]) -> List[Tuple[int, Dict[str, Any]]]:
         """
         Dọn dẹp bộ nhớ RAM và xác nhận các xe đã đếm để gửi sự kiện về Backend.
         """
-        exited_events: List[Tuple[int, str, Dict[str, Any]]] = []
+        exited_events: List[Tuple[int, Dict[str, Any]]] = []
         
         expired_ids = [tid for tid in self.memory_traffic if tid not in active_track_ids]
         for tid in expired_ids:
@@ -124,7 +123,7 @@ class ZoneManager:
             # Xe được tính là đếm hợp lệ nếu:
             # - Đã chốt đếm thành công khi đi ra ngoài vùng ROI lúc đang trong camera.
             if state["is_counted"]:
-                exited_events.append((tid, "straight", state["track"]))
+                exited_events.append((tid, state["track"]))
                 
             # Xóa khỏi bộ nhớ ngay khi thoát khung hình để giải phóng RAM triệt để (On-RAM Processing)
             if tid in self.memory_traffic:

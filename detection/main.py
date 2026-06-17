@@ -221,7 +221,7 @@ def _process_tracks(
     exited_vehicles = zone_manager.cleanup_memory(active_track_ids)
     
     # 3. Ghi nhận đếm và gửi sự kiện cho các xe vừa thoát
-    for tid, final_lane, cached_track in exited_vehicles:
+    for tid, cached_track in exited_vehicles:
         counter.count(cached_track["class_name"])
         totals = counter.get_totals()
         event  = event_generator.generate(
@@ -324,12 +324,16 @@ def main() -> None:
             camera_id = "cam01"
             print(f"[Trí Tuệ Nhân Tạo 🤖] Đã tự động nhận diện camera là 'cam01' từ tên video: '{filename}'")
 
-    # 3. Nếu video source chưa được chỉ định, gán video mặc định theo camera_id tương ứng
     if not VIDEO_SOURCE:
         if camera_id.lower() == "cam02":
-            VIDEO_SOURCE = str(Path(BASE_DIR) / "data" / "video" / "cam02-traffic4.mp4")
+            VIDEO_SOURCE = str(Path(BASE_DIR) / "data" / "video" / "cam02-traffic5.mp4")
         else:
             VIDEO_SOURCE = str(Path(BASE_DIR) / "data" / "video" / "cam01-traffic3.mp4")
+
+    # Tự động đặt tên file output nếu dùng mặc định
+    if OUTPUT_VIDEO == "output_v5.mp4":
+        basename = Path(VIDEO_SOURCE).name.replace(".mp4", "")
+        OUTPUT_VIDEO = str(Path(BASE_DIR) / "data" / "output" / f"{basename}_output.mp4")
             
     if args.model:
         MODEL_PATH = args.model

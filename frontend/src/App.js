@@ -32,19 +32,12 @@ export default function App() {
         camera_id: "Làn đường đơn",
         vehicle_count: 0,
         inbound_count: 0,
-        queue_proxy: 0,
-        direction_counts: { left: 0, straight: 0, right: 0 }
+        queue_proxy: 0
       };
-      
       const add = (data) => {
         combined.vehicle_count += data.vehicle_count || 0;
         combined.inbound_count += data.inbound_count || 0;
         combined.queue_proxy += data.queue_proxy || 0;
-        if (data.direction_counts) {
-          combined.direction_counts.left += data.direction_counts.left || 0;
-          combined.direction_counts.straight += data.direction_counts.straight || 0;
-          combined.direction_counts.right += data.direction_counts.right || 0;
-        }
       };
 
       if (r1.ok) add(await r1.json());
@@ -86,36 +79,20 @@ export default function App() {
 
   const fetchAverage = useCallback(async () => {
     try {
-      const r = await fetch(`${API}/api/traffic/average?camera_id=${activeCamera}`);
+      const r = await fetch(`${API}/api/traffic/average?limit=24`);
       if (r.ok) setAverageStats(await r.json());
     } catch {}
-  }, [activeCamera]);
+  }, []);
 
   const fetchHistory = useCallback(async () => {
     try {
-      const [r1, r2, r3] = await Promise.all([
-        fetch(`${API}/api/traffic/history?camera_id=cam01`),
-        fetch(`${API}/api/traffic/history?camera_id=cam02`),
-        fetch(`${API}/api/traffic/history?camera_id=cam03`),
-      ]);
-      let map = {};
-      const merge = (data) => {
+      const r = await fetch(`${API}/api/traffic/history?limit=24`);
+      if (r.ok) {
+        const data = await r.json();
         if (data && Array.isArray(data.items)) {
-          data.items.forEach(item => {
-            const ts = item.timestamp;
-            if (!map[ts]) {
-              map[ts] = { timestamp: ts, vehicle_count: 0 };
-            }
-            map[ts].vehicle_count += item.vehicle_count || 0;
-          });
+          setHistoryData(data.items);
         }
-      };
-      if (r1.ok) merge(await r1.json());
-      if (r2.ok) merge(await r2.json());
-      if (r3.ok) merge(await r3.json());
-      
-      const items = Object.values(map).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-      setHistoryData(items);
+      }
     } catch {}
   }, []);
 
@@ -188,7 +165,15 @@ export default function App() {
           const vids = await r.json();
           setOutputVideos(vids);
           if (vids.length > 0) {
-            const matched = vids.find(v => v.startsWith(activeCamera));
+            let matched = null;
+            if (activeCamera === 'cam01') {
+              matched = vids.find(v => v === 'cam01-traffic3_output.mp4');
+            } else if (activeCamera === 'cam02') {
+              matched = vids.find(v => v === 'cam02-traffic5_output.mp4');
+            }
+            if (!matched) {
+              matched = vids.find(v => v.startsWith(activeCamera));
+            }
             if (matched) {
               setActiveVideo(matched);
             } else {
@@ -216,7 +201,15 @@ export default function App() {
     
     // Auto-select a matching video for this camera
     if (outputVideos.length > 0) {
-      const matched = outputVideos.find(v => v.startsWith(newCam));
+      let matched = null;
+      if (newCam === 'cam01') {
+        matched = outputVideos.find(v => v === 'cam01-traffic3_output.mp4');
+      } else if (newCam === 'cam02') {
+        matched = outputVideos.find(v => v === 'cam02-traffic5_output.mp4');
+      }
+      if (!matched) {
+        matched = outputVideos.find(v => v.startsWith(newCam));
+      }
       if (matched) {
         setActiveVideo(matched);
       }

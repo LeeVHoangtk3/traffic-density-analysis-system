@@ -36,10 +36,3 @@ class DetectionCreate(BaseModel):
     event_type: EventType = EventType.zone_entry
     timestamp: datetime
     confidence: Optional[float] = Field(default=None, ge=0, le=1)
-    direction: Literal[
-        "left",
-        "straight",
-        "right",
-        "inbound",
-        "outbound",
-    ] = "straight"

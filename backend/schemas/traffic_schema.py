@@ -4,9 +4,6 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 
-Direction = Literal["left", "straight", "right"]
-
-
 class RawDataQueryParams(BaseModel):
     camera_id: Optional[str] = None
     vehicle_type: Optional[str] = None
@@ -44,7 +41,6 @@ class DirectionalThresholdUpsert(DirectionalThresholdBase):
 class DirectionalThresholdResponse(DirectionalThresholdBase):
     id: Optional[str] = None
     camera_id: Optional[str] = None
-    direction: Direction
     updated_at: datetime
 
 
@@ -56,7 +52,6 @@ class ThresholdHistoryResponse(BaseModel):
 class DatasetExportItem(BaseModel):
     camera_id: Optional[str] = None
     timestamp: datetime
-    direction: Direction
     vehicle_count: int
     congestion_level: Optional[str] = None
 

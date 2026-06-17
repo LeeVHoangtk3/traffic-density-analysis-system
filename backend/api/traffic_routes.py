@@ -8,7 +8,6 @@ from backend.config import settings
 from backend.schemas.traffic_schema import (
     DatasetExportItem,
     DatasetExportResponse,
-    Direction,
     DirectionalThresholdResponse,
     DirectionalThresholdUpsert,
     ThresholdHistoryResponse,
@@ -17,7 +16,6 @@ from backend.services.db_service import get_db
 
 router = APIRouter(tags=["traffic"])
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-LANE_DIRECTIONS = ("left", "straight", "right")
 
 
 def normalize_document(document):
@@ -32,19 +30,19 @@ def _normalize_threshold_document(document) -> dict:
     return row
 
 
+
+
+
 @router.get("/thresholds", response_model=ThresholdHistoryResponse)
 def get_directional_thresholds(
     camera_id: str | None = None,
-    direction: Direction | None = None,
     db=Depends(get_db),
 ):
     filters = {}
     if camera_id is not None:
         filters["camera_id"] = camera_id
-    if direction is not None:
-        filters["direction"] = direction
 
-    rows = list(db.directional_thresholds.find(filters).sort("direction", 1))
+    rows = list(db.directional_thresholds.find(filters))
     return ThresholdHistoryResponse(
         total=len(rows),
         items=[
@@ -54,9 +52,8 @@ def get_directional_thresholds(
     )
 
 
-@router.put("/thresholds/{direction}", response_model=DirectionalThresholdResponse)
+@router.put("/thresholds", response_model=DirectionalThresholdResponse)
 def upsert_directional_threshold(
-    direction: Direction,
     payload: DirectionalThresholdUpsert,
     camera_id: str = "cam01",
     db=Depends(get_db),
@@ -73,18 +70,17 @@ def upsert_directional_threshold(
     now = datetime.utcnow()
     document = {
         "camera_id": camera_id,
-        "direction": direction,
         "thresholds": payload.thresholds.model_dump(),
         "centroids": payload.centroids,
         "updated_at": now,
     }
     db.directional_thresholds.update_one(
-        {"camera_id": camera_id, "direction": direction},
+        {"camera_id": camera_id},
         {"$set": document},
         upsert=True,
     )
     saved = db.directional_thresholds.find_one(
-        {"camera_id": camera_id, "direction": direction}
+        {"camera_id": camera_id}
     )
     return DirectionalThresholdResponse(**_normalize_threshold_document(saved))
 
@@ -121,21 +117,17 @@ def export_training_dataset(
 
     items = []
     for row in rows:
-        direction_counts = row.get("direction_counts") or {}
-        congestion_levels = row.get("congestion_levels") or {}
-        for direction in LANE_DIRECTIONS:
-            items.append(
-                DatasetExportItem(
-                    camera_id=row.get("camera_id"),
-                    timestamp=row["timestamp"],
-                    direction=direction,
-                    vehicle_count=int(direction_counts.get(direction, 0)),
-                    congestion_level=congestion_levels.get(direction),
-                )
+        items.append(
+            DatasetExportItem(
+                camera_id=row.get("camera_id"),
+                timestamp=row["timestamp"],
+                vehicle_count=row.get("vehicle_count", 0),
+                congestion_level=row.get("congestion_level"),
             )
+        )
 
     return DatasetExportResponse(
-        total=total_records * len(LANE_DIRECTIONS),
+        total=total_records,
         limit=safe_limit,
         offset=offset,
         items=items,
@@ -154,6 +146,7 @@ def get_raw_data(
     offset: int = Query(default=0, ge=0),
     db=Depends(get_db),
 ):
+    camera_id = "cam03"
     filters = {}
     if camera_id:
         filters["camera_id"] = camera_id
@@ -161,8 +154,6 @@ def get_raw_data(
         filters["vehicle_type"] = vehicle_type
     if density:
         filters["density"] = density.upper()
-    if direction:
-        filters["direction"] = direction.lower()
 
     timestamp_filter = {}
     if start_time:
@@ -191,14 +182,12 @@ def get_raw_data(
 
 @router.get("/api/traffic/history")
 def get_traffic_history(
-    camera_id: str | None = None,
     start_time: datetime | None = None,
     end_time: datetime | None = None,
+    limit: int = Query(default=24, ge=1),
     db=Depends(get_db),
 ):
     filters = {}
-    if camera_id:
-        filters["camera_id"] = camera_id
 
     # Dynamic Range scanning if start_time or end_time are missing
     if not start_time or not end_time:
@@ -218,11 +207,12 @@ def get_traffic_history(
             timestamp_filter["$lte"] = end_time
         filters["timestamp"] = timestamp_filter
 
-    # Sort ASCENDING to draw a nice timeline from past to present
-    rows = list(db.traffic_aggregation.find(filters).sort("timestamp", 1))
+    # Get latest 'limit' records and sort them descending to get the most recent, then reverse for timeline
+    rows = list(db.traffic_aggregation.find(filters).sort("timestamp", -1).limit(limit))
+    rows.reverse()
 
     return {
-        "camera_id": camera_id,
+        "camera_id": "Làn đường đơn",
         "start_time": start_time,
         "end_time": end_time,
         "total": len(rows),
@@ -232,16 +222,17 @@ def get_traffic_history(
 
 @router.get("/api/traffic/average")
 def get_traffic_average(
-    camera_id: str = "cam01",
+    limit: int = Query(default=24, ge=1),
     db=Depends(get_db),
 ):
-    # Lấy dữ liệu của 3 camera và gom nhóm theo timestamp
+    # Lấy dữ liệu đếm xe 24 bản ghi gần nhất
     pipeline = [
-        {"$match": {"camera_id": {"$in": ["cam01", "cam02", "cam03"]}}},
-        {"$group": {
-            "_id": "$timestamp",
-            "combined_count": {"$sum": "$vehicle_count"},
-            "timestamp": {"$first": "$timestamp"}
+        {"$sort": {"timestamp": -1}},
+        {"$limit": limit},
+        {"$project": {
+            "_id": 0,
+            "combined_count": "$vehicle_count",
+            "timestamp": 1
         }},
         {"$sort": {"timestamp": 1}}
     ]

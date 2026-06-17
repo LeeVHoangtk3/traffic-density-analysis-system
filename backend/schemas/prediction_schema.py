@@ -9,12 +9,10 @@ class DirectionPredictions(BaseModel):
     straight: int = 0
     right: int = 0
 
-
 class DirectionCongestionLevels(BaseModel):
     left: Optional[str] = None
     straight: Optional[str] = None
     right: Optional[str] = None
-
 
 class PredictionResponse(BaseModel):
     camera_id: Optional[str] = None

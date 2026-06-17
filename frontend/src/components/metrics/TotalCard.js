@@ -17,7 +17,7 @@ function levelTranslation(level = '') {
   const l = (level || '').toUpperCase();
   if (l === 'HEAVY' || l === 'SEVERE') return 'ÙN TẮC NGHIÊM TRỌNG';
   if (l === 'HIGH') return 'BẮT ĐẦU ĐÔNG XE';
-  if (l === 'MEDIUM') return 'THÔNG THOÁNG';
+  if (l === 'MEDIUM') return 'TRUNG BÌNH';
   return 'ĐƯỜNG VẮNG';
 }
 
