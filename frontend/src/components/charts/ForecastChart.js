@@ -92,18 +92,18 @@ export default function ForecastChart() {
     plugins: {
       legend: {
         position: "top",
-        labels:   { color: "#94a3b8", font: { size: 12, family: "Inter" }, boxWidth: 12, padding: 20 },
+        labels:   { color: "#f1f5f9", font: { size: 12, family: "Inter" }, boxWidth: 12, padding: 20 },
       },
     },
     scales: {
       x: {
-        ticks: { color: "#475569", font: { size: 11 } },
+        ticks: { color: "#cbd5e1", font: { size: 11 } },
         grid:  { color: "rgba(255,255,255,0.04)" },
       },
       y: {
         min: 0, max: 5,
         ticks: {
-          color:    "#475569",
+          color:    "#cbd5e1",
           font:     { size: 11 },
           stepSize: 1,
           callback: v => ({ 1: "Low", 2: "Medium", 3: "High", 4: "Heavy" }[v] ?? ""),
@@ -119,7 +119,6 @@ export default function ForecastChart() {
         <span style={styles.dot} />
         FORECAST vs ACTUAL — CONGESTION LEVEL HISTORY
       </div>
-
       {(!preds.length && !aggs.length) ? (
         <div style={styles.empty}>Chưa có dữ liệu dự báo...</div>
       ) : (
@@ -145,7 +144,7 @@ const styles = {
     fontSize:      "11px",
     fontWeight:    "600",
     letterSpacing: "0.1em",
-    color:         "#475569",
+    color:         "#94a3b8",
     marginBottom:  "16px",
   },
   dot: {

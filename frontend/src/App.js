@@ -9,7 +9,6 @@ import PredictionPanel from './components/metrics/PredictionPanel';
 const API = 'http://127.0.0.1:8000';
 
 export default function App() {
-  const [aggregation, setAggregation] = useState(null);
   const [rawData,     setRawData]     = useState([]);
   const [prediction,  setPrediction]  = useState(null);
   const [averageStats, setAverageStats] = useState(null);
@@ -19,40 +18,6 @@ export default function App() {
   const [activeCamera, setActiveCamera] = useState('cam01');
   const [outputVideos, setOutputVideos] = useState([]);
   const [activeVideo, setActiveVideo] = useState('cam01-traffic3_output.mp4');
-
-  // ─── fetch helpers: Gộp luồng dữ liệu 3 camera thành 1 hành trình làn đơn ───
-  const fetchAggregation = useCallback(async () => {
-    try {
-      const [r1, r2, r3] = await Promise.all([
-        fetch(`${API}/aggregation?camera_id=cam01`),
-        fetch(`${API}/aggregation?camera_id=cam02`),
-        fetch(`${API}/aggregation?camera_id=cam03`),
-      ]);
-      let combined = {
-        camera_id: "Làn đường đơn",
-        vehicle_count: 0,
-        inbound_count: 0,
-        queue_proxy: 0
-      };
-      const add = (data) => {
-        combined.vehicle_count += data.vehicle_count || 0;
-        combined.inbound_count += data.inbound_count || 0;
-        combined.queue_proxy += data.queue_proxy || 0;
-      };
-
-      if (r1.ok) add(await r1.json());
-      if (r2.ok) add(await r2.json());
-      if (r3.ok) add(await r3.json());
-      
-      let level = "Low";
-      if (combined.vehicle_count >= 150) level = "Heavy";
-      else if (combined.vehicle_count >= 80) level = "High";
-      else if (combined.vehicle_count >= 30) level = "Medium";
-      combined.congestion_level = level;
-      
-      setAggregation(combined);
-    } catch {}
-  }, []);
 
   const fetchRaw = useCallback(async () => {
     try {
@@ -98,20 +63,18 @@ export default function App() {
 
   // ─── initial load + polling ──────────────────────────────────────
   useEffect(() => {
-    fetchAggregation();
     fetchRaw();
     fetchPrediction();
     fetchAverage();
     fetchHistory();
 
-    const t1 = setInterval(fetchAggregation, 5000);
     const t2 = setInterval(fetchRaw,         15000);
     const t3 = setInterval(fetchPrediction,  30000);
     const t4 = setInterval(fetchAverage,     30000);
     const t5 = setInterval(fetchHistory,     15000);
 
-    return () => [t1, t2, t3, t4, t5].forEach(clearInterval);
-  }, [fetchAggregation, fetchRaw, fetchPrediction, fetchAverage, fetchHistory]);
+    return () => [t2, t3, t4, t5].forEach(clearInterval);
+  }, [fetchRaw, fetchPrediction, fetchAverage, fetchHistory]);
 
   // ─── Video-time sync logic ───────────────────────────────────────
   const sortedRaw = useMemo(() =>
@@ -139,22 +102,7 @@ export default function App() {
     return 0;
   }, [videoStartMs, videoEndMs]);
 
-  // filteredRaw: xe detect trong khoảng [videoStartMs, videoStartMs + videoTime * scale * 1000)
-  const filteredRaw = useMemo(() => {
-    if (!videoStartMs || !sortedRaw.length) return [];
-    
-    // Tính hệ số co giãn tỉ lệ K: virtual_duration / physical_duration
-    let scale = 1.0;
-    if (videoDuration > 0 && virtualDurationMs > 0) {
-      scale = (virtualDurationMs / 1000) / videoDuration;
-    }
-    
-    const cutoffMs = videoStartMs + videoTime * scale * 1000;
-    return sortedRaw.filter(d => {
-      const ts = new Date(d.timestamp).getTime();
-      return ts >= videoStartMs && ts < cutoffMs;
-    });
-  }, [sortedRaw, videoStartMs, virtualDurationMs, videoTime, videoDuration]);
+
 
   // ─── fetch output videos list on mount ────────────────────────────
   useEffect(() => {
@@ -229,6 +177,16 @@ export default function App() {
     }
   }, []);
 
+  // Cập nhật currentMs đồng bộ với thước đo biểu đồ lịch sử
+  const currentMs = useMemo(() => {
+    if (!videoStartMs) return null;
+    let scale = 1.0;
+    if (videoDuration > 0 && virtualDurationMs > 0) {
+      scale = (virtualDurationMs / 1000) / videoDuration;
+    }
+    return videoStartMs + videoTime * scale * 1000;
+  }, [videoStartMs, videoTime, videoDuration, virtualDurationMs]);
+
   return (
     <div className="app">
       <Header
@@ -256,12 +214,11 @@ export default function App() {
         <div className="area-chart">
           <HistoryChart
             historyData={historyData}
-            videoStartMs={videoStartMs}
-            videoTime={videoTime}
-            videoDuration={videoDuration}
+            currentMs={currentMs}
             averageStats={averageStats}
           />
         </div>
+
       </div>
     </div>
   );

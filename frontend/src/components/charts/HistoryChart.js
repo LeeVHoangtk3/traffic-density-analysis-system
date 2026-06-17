@@ -27,14 +27,68 @@ function fmtMs(ms) {
   } catch { return ''; }
 }
 
-function fmtSecs(s) {
-  const sec = Math.floor(s || 0);
-  const m = Math.floor(sec / 60);
-  const r = sec % 60;
-  return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
-}
+const verticalLinePlugin = {
+  id: 'verticalLine',
+  afterDraw: (chart) => {
+    if (chart.tooltip?._active?.length) return;
 
-export default function HistoryChart({ historyData = [], videoStartMs, videoTime, videoDuration, averageStats }) {
+    const { currentMs, processedHistory } = chart.config.options.plugins.verticalLine || {};
+    if (!currentMs || !processedHistory || processedHistory.length === 0) return;
+
+    const times = processedHistory.map(item => new Date(item.timestamp).getTime());
+    const N = times.length;
+
+    let x = null;
+    if (currentMs <= times[0]) {
+      x = chart.scales.x.getPixelForTick(0);
+    } else if (currentMs >= times[N - 1]) {
+      x = chart.scales.x.getPixelForTick(N - 1);
+    } else {
+      for (let i = 0; i < N - 1; i++) {
+        const tStart = times[i];
+        const tEnd = times[i + 1];
+        if (currentMs >= tStart && currentMs <= tEnd) {
+          const pStart = chart.scales.x.getPixelForTick(i);
+          const pEnd = chart.scales.x.getPixelForTick(i + 1);
+          const ratio = (currentMs - tStart) / (tEnd - tStart);
+          x = pStart + ratio * (pEnd - pStart);
+          break;
+        }
+      }
+    }
+
+    if (x === null || isNaN(x)) return;
+
+    const ctx = chart.ctx;
+    const topY = chart.chartArea.top;
+    const bottomY = chart.chartArea.bottom;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x, topY);
+    ctx.lineTo(x, bottomY);
+    ctx.strokeStyle = '#f97316'; // var(--orange)
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.stroke();
+
+    // Circle at top
+    ctx.beginPath();
+    ctx.arc(x, topY, 4, 0, 2 * Math.PI);
+    ctx.fillStyle = '#f97316';
+    ctx.fill();
+
+    // Circle at bottom
+    ctx.beginPath();
+    ctx.arc(x, bottomY, 4, 0, 2 * Math.PI);
+    ctx.fillStyle = '#f97316';
+    ctx.fill();
+
+    ctx.restore();
+  }
+};
+
+export default function HistoryChart({ historyData = [], currentMs, averageStats }) {
   const chartRef = useRef(null);
 
   // 1. Sắp xếp và Lọc dữ liệu: Nếu dữ liệu kéo dài hơn 6 tiếng, chỉ hiển thị 6 tiếng gần nhất
@@ -83,7 +137,7 @@ export default function HistoryChart({ historyData = [], videoStartMs, videoTime
     plugins: {
       legend: {
         labels: {
-          color: '#94a3b8',
+          color: '#f1f5f9',
           font: { size: 11, family: 'Inter, sans-serif' },
           boxWidth: 12,
           boxHeight: 12,
@@ -91,9 +145,9 @@ export default function HistoryChart({ historyData = [], videoStartMs, videoTime
       },
       tooltip: {
         backgroundColor: 'rgba(8,18,38,0.95)',
-        titleColor: '#f1f5f9',
-        bodyColor: '#94a3b8',
-        borderColor: 'rgba(255,255,255,0.1)',
+        titleColor: '#ffffff',
+        bodyColor: '#f1f5f9',
+        borderColor: 'rgba(255,255,255,0.15)',
         borderWidth: 1,
         padding: 12,
         titleFont: { size: 12, weight: '700', family: 'JetBrains Mono, monospace' },
@@ -111,12 +165,15 @@ export default function HistoryChart({ historyData = [], videoStartMs, videoTime
           }
         }
       },
-
+      verticalLine: {
+        currentMs,
+        processedHistory
+      }
     },
     scales: {
       x: {
         ticks: {
-          color: '#64748b',
+          color: '#cbd5e1',
           font: { size: 10, family: 'JetBrains Mono, monospace' },
           maxTicksLimit: 7,
           maxRotation: 0,
@@ -127,7 +184,7 @@ export default function HistoryChart({ historyData = [], videoStartMs, videoTime
       y: {
         beginAtZero: true,
         ticks: { 
-          color: '#64748b', 
+          color: '#cbd5e1', 
           font: { size: 11 },
           callback: function(value) {
             return value.toLocaleString('en-US');
@@ -138,7 +195,7 @@ export default function HistoryChart({ historyData = [], videoStartMs, videoTime
         title: {
           display: true,
           text: 'Lượng phương tiện / 15 phút',
-          color: '#475569',
+          color: '#94a3b8',
           font: { size: 10 },
         },
       },
@@ -178,7 +235,7 @@ export default function HistoryChart({ historyData = [], videoStartMs, videoTime
         </div>
       ) : (
         <div className="chart-box" style={{ height: '240px' }}>
-          <Line ref={chartRef} data={chartData} options={options} />
+          <Line ref={chartRef} data={chartData} options={options} plugins={[verticalLinePlugin]} />
         </div>
       )}
 

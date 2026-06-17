@@ -146,7 +146,6 @@ def get_raw_data(
     offset: int = Query(default=0, ge=0),
     db=Depends(get_db),
 ):
-    camera_id = "cam03"
     filters = {}
     if camera_id:
         filters["camera_id"] = camera_id
