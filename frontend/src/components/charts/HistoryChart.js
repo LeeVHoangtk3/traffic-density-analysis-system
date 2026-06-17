@@ -85,8 +85,8 @@ export default function HistoryChart({ historyData = [], videoStartMs, videoTime
         labels: {
           color: '#94a3b8',
           font: { size: 11, family: 'Inter, sans-serif' },
-          usePointStyle: true,
-          pointStyleWidth: 8,
+          boxWidth: 12,
+          boxHeight: 12,
         },
       },
       tooltip: {

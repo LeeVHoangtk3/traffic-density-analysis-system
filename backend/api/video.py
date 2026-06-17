@@ -189,7 +189,7 @@ def get_video(
         if camera_id.lower() == "cam01":
             selected_video = "cam01-traffic3_output.mp4"
         elif camera_id.lower() == "cam02":
-            selected_video = "cam02-traffic8_output.mp4"
+            selected_video = "cam02-traffic5_output.mp4"
         elif camera_id.lower() == "cam03":
             selected_video = "cam03-traffic1_output.mp4"
         else:

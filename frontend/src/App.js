@@ -165,7 +165,15 @@ export default function App() {
           const vids = await r.json();
           setOutputVideos(vids);
           if (vids.length > 0) {
-            const matched = vids.find(v => v.startsWith(activeCamera));
+            let matched = null;
+            if (activeCamera === 'cam01') {
+              matched = vids.find(v => v === 'cam01-traffic3_output.mp4');
+            } else if (activeCamera === 'cam02') {
+              matched = vids.find(v => v === 'cam02-traffic5_output.mp4');
+            }
+            if (!matched) {
+              matched = vids.find(v => v.startsWith(activeCamera));
+            }
             if (matched) {
               setActiveVideo(matched);
             } else {
@@ -193,7 +201,15 @@ export default function App() {
     
     // Auto-select a matching video for this camera
     if (outputVideos.length > 0) {
-      const matched = outputVideos.find(v => v.startsWith(newCam));
+      let matched = null;
+      if (newCam === 'cam01') {
+        matched = outputVideos.find(v => v === 'cam01-traffic3_output.mp4');
+      } else if (newCam === 'cam02') {
+        matched = outputVideos.find(v => v === 'cam02-traffic5_output.mp4');
+      }
+      if (!matched) {
+        matched = outputVideos.find(v => v.startsWith(newCam));
+      }
       if (matched) {
         setActiveVideo(matched);
       }
