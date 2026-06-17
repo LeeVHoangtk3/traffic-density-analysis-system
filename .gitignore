@@ -127,8 +127,8 @@ __pypackages__/
 *.mp4
 *.avi
 *.mov
+*.csv
 *.zip
-data/
 !ml_service/data/
 visualized/
 images/
